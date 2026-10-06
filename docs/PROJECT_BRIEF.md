@@ -1,4 +1,4 @@
-# Agentic Support Copilot — Project Brief
+# Guarded Support Agent — Project Brief
 
 Technical scope for Project 2. Decisions are recorded in `docs/adr/`; the eval plan is in
 `docs/EVAL_PLAN.md`.

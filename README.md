@@ -1,4 +1,4 @@
-# Agentic Support Copilot
+# Guarded Support Agent
 
 A customer-support agent that **takes real actions** (looks up orders, issues refunds
 within policy, escalates to a human) with safety enforced in code, not in the prompt.
