@@ -1,6 +1,6 @@
 # Weekly Log
 
-## Week 2 — Agentic Support Copilot: architecture and scope (2026-10-01)
+## Week 2 — Guarded Support Agent: architecture and scope (2026-10-01)
 
 **What shipped:**
 - ADR-001 (accepted): hybrid agent loop. A deterministic state machine wraps a bounded

@@ -17,7 +17,7 @@ limits, KB search and escalation to a human. Two constraints drive the decision:
 
 Other constraints: one developer, about 2 weeks, free-tier LLMs (Groq/Gemini) behind a
 provider-agnostic interface, and CLAUDE.md §3's requirement to build an agent loop by
-hand at least once. Project 1 (Research Copilot ADR-005) already hand-rolled a
+hand at least once. Project 1 (Hybrid RAG Copilot ADR-005) already hand-rolled a
 single-tool loop, so this project needs to go further: multiple tools, side effects and
 pause/resume.
 

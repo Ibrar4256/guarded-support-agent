@@ -71,7 +71,7 @@ What this does **not** claim:
    The chat stream ends cleanly when a run is waiting for approval, and the customer
    receives the outcome later.
 9. **Reuse from Project 1.** The provider, retry and cost/latency telemetry pieces of the
-   Research Copilot's LLM layer are extracted and ported to async (ADR-005). The
+   Hybrid RAG Copilot's LLM layer are extracted and ported to async (ADR-005). The
    KB-search tool is a thin wrapper over existing retrieval work, not new RAG.
 
 ## Product surfaces
