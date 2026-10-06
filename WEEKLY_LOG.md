@@ -123,6 +123,12 @@
 - Lesson: test-design questions ("what does the resumed worker's script contain?") can
   expose product-design gaps.
 
+- ADR-007 (accepted): monorepo of independent services with no shared Python code.
+  import-linter contracts (independence, pure `core/`, test-code isolation) with a
+  negative control; per-service Docker build contexts; a committed OpenAPI contract plus
+  contract test and shared hash test vectors; test-only code outside `src/` and excluded
+  from production images; uv with per-service lockfiles and `--locked` in CI.
+
 **What's next:**
 - Walking skeleton: state machine + `runs` table + one read tool + idempotent mock refund
   API + tracing, then the crash test.

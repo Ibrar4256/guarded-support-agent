@@ -5,7 +5,7 @@ within policy, escalates to a human) with safety enforced in code, not in the pr
 It's a scoped-down, architecturally real take on per-resolution support agents like
 Intercom Fin and Ada.
 
-> **Status: design complete, implementation starting.** Six architecture decisions are
+> **Status: design complete, implementation starting.** Seven architecture decisions are
 > recorded below. No code yet. There are no eval numbers yet, and none will appear here
 > until they're measured.
 
@@ -45,6 +45,7 @@ tools.
 | [004](docs/adr/004-refund-api-placement-and-idempotency.md) | Separate refund service, idempotency protocol, failure injection, crash tests |
 | [005](docs/adr/005-database-access-and-migrations.md) | SQLAlchemy Core (async) + Alembic; a per-customer row lock against write skew |
 | [006](docs/adr/006-scripted-model-stub.md) | Strict scripted model stub for deterministic tests; nightly real-model drift check |
+| [007](docs/adr/007-repo-layout.md) | Monorepo of independent services with no shared code; boundaries enforced by import contracts and an HTTP contract test; uv lockfiles |
 
 Every ADR records the rejected options and when each would have been the better choice.
 

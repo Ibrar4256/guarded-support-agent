@@ -42,6 +42,12 @@ lives in `WEEKLY_LOG.md`.
 - **Per-customer serialization.** Limit checks for one customer run one at a time. That's
   fine at support-ticket volumes, but a customer with a burst of runs queues on the lock.
 
+## Repo layout (ADR-007)
+
+- **Deliberate duplication between services.** Refund models, money helpers and
+  canonical hashing exist in both services. They're kept in sync by the contract test and
+  shared test vectors, not by shared code.
+
 ## Code reuse
 
 - **Project 1's LLM layer is extracted and ported, not shared (corrected by ADR-005).**
