@@ -1,9 +1,13 @@
-\# ADR-005: Database Access, Migrations and Concurrency Control
+# ADR-005: Database Access, Migrations and Concurrency Control
 
 **Status:** Accepted (2026-10-06). Revised the same day after review: capacity counted by
 `refund_outcome`, fencing inside the locked transaction, test hook gated, `55P03`
 handling, conflict-safe customer upsert, notes for `LISTEN/NOTIFY` and migrations.
 Freeze review: lock order rule, `unknown` counted outside the window, bounded lock retries.
+Final pass: schema list completed, capacity index, `ESCALATE` clears the lease.
+
+**Locked 2026-10-06.** No further revisions; issues found from here on are fixed in code
+and tests, or recorded in a new ADR that supersedes this one.
 
 ## Context
 ADR-004's safety guarantees depend on specific database behaviors, so the access layer
@@ -103,8 +107,9 @@ This is write skew. The check transaction therefore:
      **If that update affects 0 rows, the worker has lost its claim: roll back everything
      and stop.** The move to `EXECUTING` **is** the reservation: once it commits, the next
      transaction for that customer sees the capacity as used.
-   - or moves it to `ESCALATE` (same fencing condition) and appends an `escalated` event
-     for the customer, so the chat leaves "pending review" (ADR-003).
+   - or moves it to `ESCALATE` (same fencing condition), sets `escalated_at`, **clears
+     `worker_id` and `lease_expires_at`** (a finished run holds no claim), and appends an
+     `escalated` event for the customer, so the chat leaves "pending review" (ADR-003).
 5. Commits, which releases the lock. **The lock is never held across the HTTP call.**
 
 Rules:
@@ -143,9 +148,14 @@ Rules:
 ### Schema conventions
 - Money: `amount_minor BIGINT NOT NULL CHECK (amount_minor > 0)` plus `currency CHAR(3)`.
   No `NUMERIC`, no float (ADR-004 step 8).
-- `runs` carries ADR-004's columns: `status`, `claim_version`, `worker_id`,
-  `lease_expires_at`, `idempotency_key`, `first_send_started_at`, the canonical payload,
-  and `action_id`.
+- `runs` carries ADR-003/004's columns: `status`, `claim_version`, `worker_id`,
+  `lease_expires_at`, `idempotency_key`, `first_send_started_at`, `last_attempt_at`,
+  `escalated_at`, `review_deadline`, the canonical payload, `action_id`, and
+  **`refund_outcome`** (`none | unknown | confirmed | rejected`, `NOT NULL DEFAULT
+  'none'`, enforced as an enum or `CHECK`).
+- **Capacity index:** a partial index on `(user_id, first_send_started_at) WHERE
+  refund_outcome IN ('unknown', 'confirmed')`, so the limit query inside the locked
+  transaction stays an index scan and the lock is held briefly.
 - Status values are a Postgres enum or a `CHECK` constraint, never free text.
 
 ### Connection use
