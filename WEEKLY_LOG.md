@@ -129,6 +129,14 @@
   contract test and shared hash test vectors; test-only code outside `src/` and excluded
   from production images; uv with per-service lockfiles and `--locked` in CI.
 
+- ADR-007 pre-lock review, then **locked** (ADR-002 to ADR-007 are now locked). Added:
+  service-named test packages (`agent_testing`) on pytest's path and in the linter's
+  root packages; a lazy factory import with a production-image test; one negative control
+  per contract; a `core/` import allowlist via an AST check, with time and randomness
+  injected as parameters; error-code enums enforced in both directions, with unrecognized
+  responses → `unknown`; OpenAPI diff = shape, ADR-004 tests = behavior; injected hooks
+  instead of `if DEBUG`; per-service vs. root CI scope; a pinned uv version.
+
 **What's next:**
 - Walking skeleton: state machine + `runs` table + one read tool + idempotent mock refund
   API + tracing, then the crash test.
