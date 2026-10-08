@@ -64,6 +64,22 @@ lives in `WEEKLY_LOG.md`.
   reconciliation, contract and import checks). The plan went from 14 to 16 days, with
   explicit cut order in the brief.
 
+## Refund policy (ADR-009)
+
+- **Single currency in v1.** Other currencies are refused (R15); capacity sums assume one
+  currency.
+- **R13 (breaker) and R19 (global review-queue cap) are approximate** across customers;
+  overshoot is bounded by concurrent proposals × the auto-approve maximum.
+- **"Item never arrived" always reaches a human** (R08/R09 need a delivered order).
+- **Self-approval is only caught for the same account;** a reviewer with a separate
+  customer account isn't detected.
+- **No customer cancellation, and reviewer-originated refunds happen outside the system**
+  in v1.
+- **The kill switch doesn't stop `EXECUTING` retries;** a chargeback opened after sending
+  can't be stopped.
+- **More reviewer load** by design (R11, R12, R18, a tripped breaker).
+- **R02 forces a fresh order lookup in every run** (one extra tool call).
+
 ## Code reuse
 
 - **Project 1's LLM layer is extracted and ported, not shared (corrected by ADR-005).**

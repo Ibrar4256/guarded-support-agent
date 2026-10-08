@@ -158,6 +158,17 @@
 - Lesson: read ADRs side by side, not one at a time. Each was consistent alone; the gaps
   were between them (nobody owned `NEEDS_RECONCILIATION`).
 
+- ADR-009 (refund policy rules and decision audit) went through four review passes and is
+  **locked**. Rules R01–R19 with stable IDs and two-phase evaluation; "pending exposure"
+  as a separate metric from ADR-004 capacity; approvals bound by `review_hash` +
+  `review_revision`; breaker (holds policy-approved) vs. kill switch (holds all);
+  `FAIL_CLOSED` with per-rule isolation; an append-only decision log enforced by an
+  owner/runtime role split; `AGENT_STEP` runs resumed by the next turn.
+- Step 1 (`e032fe5`) implements the pre-ADR-009 policy; it will be updated to rule IDs and
+  R08–R19 next.
+- Lesson: the abuse paths live **between** rules (splitting, re-asking, queue flooding),
+  not in any single threshold.
+
 **What's next:**
 - Walking skeleton: state machine + `runs` table + one read tool + idempotent mock refund
   API + tracing, then the crash test.
