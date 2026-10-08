@@ -1,0 +1,25 @@
+# Local development and CI database (ADR-005). One Postgres server, two databases,
+# an owner role and a runtime role per database. Credentials come from .env.
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:?set in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set in .env}
+      AGENT_DB_OWNER_PASSWORD: ${AGENT_DB_OWNER_PASSWORD:?set in .env}
+      AGENT_DB_RUNTIME_PASSWORD: ${AGENT_DB_RUNTIME_PASSWORD:?set in .env}
+      REFUND_DB_OWNER_PASSWORD: ${REFUND_DB_OWNER_PASSWORD:?set in .env}
+      REFUND_DB_RUNTIME_PASSWORD: ${REFUND_DB_RUNTIME_PASSWORD:?set in .env}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    volumes:
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres-data:

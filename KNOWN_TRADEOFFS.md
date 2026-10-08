@@ -80,6 +80,13 @@ lives in `WEEKLY_LOG.md`.
 - **More reviewer load** by design (R11, R12, R18, a tripped breaker).
 - **R02 forces a fresh order lookup in every run** (one extra tool call).
 
+## Local database (step 2)
+
+- **Postgres 15 locally**, reusing an image already on disk (disk is nearly full). Neon
+  supports 15–17; upgrading later is a config change, verified by the migration tests.
+- **Dev credentials** are generated into a gitignored `.env`; `.env.example` documents the
+  variables.
+
 ## Code reuse
 
 - **Project 1's LLM layer is extracted and ported, not shared (corrected by ADR-005).**
