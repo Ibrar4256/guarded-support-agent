@@ -20,14 +20,14 @@ env:
 jobs:
   service:
     name: ${{ matrix.service }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         service: [agent, refund_api]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install uv ${{ env.UV_VERSION }}
         run: |
@@ -50,10 +50,10 @@ jobs:
   boundaries:
     name: cross-service boundaries
     needs: service
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install uv ${{ env.UV_VERSION }}
         run: |
           curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
