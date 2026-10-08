@@ -9,6 +9,9 @@ Final pass: schema list completed, capacity index, `ESCALATE` clears the lease.
 **Locked 2026-10-06.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Amended by [ADR-008](008-run-lifecycle-and-cross-adr-clarifications.md)** (run statuses,
+transitions, the reconciler, wording clarifications). Where they disagree, ADR-008 wins.
+
 ## Context
 ADR-004's safety guarantees depend on specific database behaviors, so the access layer
 must make them visible rather than hide them:

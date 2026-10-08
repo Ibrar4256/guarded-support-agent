@@ -2,7 +2,9 @@
 
 **Status:** Accepted (2026-10-01). Revised 2026-10-06 (from ADR-006): model use ends at
 `APPROVED`, so customer replies after approval are templates; at most one write-tool call
-per turn.
+per turn. Revised 2026-10-08: the canonical run statuses and transitions are defined in
+[ADR-008](008-run-lifecycle-and-cross-adr-clarifications.md) (seven saved statuses;
+`INTAKE`, `POLICY_CHECK` and `RESPOND` are steps inside transactions).
 
 ## Context
 The agent takes real actions on a customer's behalf: order lookup, refunds within policy
@@ -25,8 +27,8 @@ pause/resume.
 
 ### Option D: Hybrid — deterministic state machine around a bounded tool loop — CHOSEN
 - How it works: An explicit state machine (`INTAKE → AGENT_STEP → POLICY_CHECK →
-  AWAIT_APPROVAL → EXECUTE → RESPOND / ESCALATE`) is saved as a row in a Postgres `runs`
-  table. Inside `AGENT_STEP`, a provider-agnostic tool-calling loop runs with a step
+  AWAIT_APPROVAL → EXECUTE → RESPOND / ESCALATE`; the exact saved statuses and
+  transitions are in ADR-008) is saved as a row in a Postgres `runs` table. Inside `AGENT_STEP`, a provider-agnostic tool-calling loop runs with a step
   budget. Tools are split by effect. Read tools (order lookup, KB search) execute inside
   the loop. Write tools (refund, escalate) return a validated *proposed action* that
   leaves the loop and goes through `POLICY_CHECK` and, if high risk, `AWAIT_APPROVAL`.
@@ -150,7 +152,8 @@ which proves the test can fail.
 make a full LLM suite on every PR produce flaky red builds (the same issue Project 1
 ADR-011 hit). So:
 - On every PR: deterministic tests (policy checks, state transitions, schema validation,
-  the crash test with a scripted model stub) plus a small LLM smoke set.
+  the crash test with a scripted model stub) as the merge gate, plus a small real-model
+  smoke set that reports but never blocks (ADR-008).
 - Nightly or on a PR label: the full adversarial suite, with each case run k=3 times.
 - Results are reported as counts (`0/28 × 3`), not percentages: with n≈28, "0% attack
   success" is weak statistical evidence and is presented that way.

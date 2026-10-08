@@ -15,11 +15,17 @@ measured, not assumed.
 **Option D: a deterministic state machine around a bounded tool loop.**
 
 ```
-INTAKE → AGENT_STEP → POLICY_CHECK → AWAIT_APPROVAL → EXECUTE → RESPOND / ESCALATE
+AGENT_STEP ──(POLICY_CHECK)──┬─ in policy ──────────────→ APPROVED
+     │                       ├─ high risk → AWAIT_APPROVAL → APPROVED (reviewer)
+     │                       └─ out of policy ─────────→ ESCALATED
+     └─ answer, no proposal ─→ COMPLETED
+APPROVED → EXECUTING → COMPLETED | ESCALATED | NEEDS_RECONCILIATION → COMPLETED | ESCALATED
 ```
 
 - The state machine owns policy, human review, escalation and the run state saved in
-  Postgres (`runs` table).
+  Postgres (`runs` table). Seven saved statuses, their transitions and database-enforced
+  invariants are defined in ADR-008; a reconciler resolves uncertain refunds without ever
+  re-sending.
 - `AGENT_STEP` runs a provider-agnostic tool-calling loop with a step budget.
 - **Read tools** (order lookup, KB search) run inside the loop.
 - **Write tools** (refund, escalate) never execute inside the loop. They return a
@@ -103,24 +109,31 @@ validation, Docker, GitHub Actions CI, and a live deployment with synthetic data
   one refund each time. A negative control with deduplication disabled must show a double
   refund, which proves the test can fail. refund-api's failure-injection modes (500 after
   commit, timeout after commit) are tested the same way.
-- CI: deterministic tests plus an LLM smoke set on every PR; the full adversarial suite
-  nightly or on a PR label (free-tier quota and nondeterminism make per-PR full runs
-  flaky).
+- CI: deterministic tests gate every PR; a small real-model smoke set reports on every PR
+  but never blocks (ADR-008); the full adversarial suite runs nightly or on a PR label
+  (free-tier quota and nondeterminism make per-PR full runs flaky).
 - Only measured numbers are reported.
 
 ## Scope
 
 Out of scope: multi-agent setups, voice, new RAG work.
 
+Re-planned 2026-10-08. The design reviews added leases, fencing, reconciliation, a
+contract test and import contracts to the backend core, so the original 14-day plan no
+longer fits.
+
 | Days | Focus |
 |------|-------|
-| 1-4 | State machine, tools split by effect, policy checks, runs table, idempotent mock refund API, tracing |
-| 5-8 | Auth and roles, streaming API, pending-review flow, chat UI, approval queue |
-| 9-11 | Trace viewer, adversarial suite, baseline comparison, eval table |
-| 12-14 | Deployment, CI, demo GIF, README with architecture diagram |
+| 1-2 | Repo skeleton (ADR-007), uv, CI skeleton, Postgres + migrations, run statuses and invariants (ADR-008), `core/` policy and capacity logic with unit tests |
+| 3-5 | refund-api (idempotency, failure modes, deadline), worker claim/lease/fencing, execution, crash tests, reconciler |
+| 6-7 | Agent loop with ScriptedLLM, ported LLM adapter, read tools, proposals, race tests |
+| 8-10 | Auth and roles, streaming API, pending-review flow, chat UI, approval queue |
+| 11-13 | Trace viewer, adversarial suite, baseline comparison, eval table |
+| 14-16 | Deployment, demo GIF, README with architecture diagram |
 
-Days 5-8 are the schedule risk (auth alone can take 2 days). If time runs short, cut in
-this order: the LangGraph port spike, then the second-model comparison, then UI polish.
+Days 3-5 and 8-10 are the schedule risks. If time runs short, cut in this order: the
+LangGraph port spike, the second-model comparison, UI polish, then the trace viewer
+(trace data is still stored; only the viewer is cut).
 
 **Optional spike:** a timeboxed port of the outer state machine to LangGraph, comparing
 lines of code and what `interrupt()` actually saves.

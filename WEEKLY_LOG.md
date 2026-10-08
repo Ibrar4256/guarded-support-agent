@@ -137,6 +137,20 @@
   responses → `unknown`; OpenAPI diff = shape, ADR-004 tests = behavior; injected hooks
   instead of `if DEBUG`; per-service vs. root CI scope; a pinned uv version.
 
+**Update 2026-10-08:**
+- Cross-ADR consistency pass. Found that ADR-005 had been overwritten by a stale copy
+  (escaped `\#` heading, final-pass edits missing) before the first commit; restored
+  (`db5113f`). Added a pre-commit check for lock markers and escaped headings.
+- ADR-008 (accepted): one canonical run lifecycle. Seven saved statuses; `INTAKE`,
+  `POLICY_CHECK` and `RESPOND` are steps inside transactions. A full transition table;
+  database `CHECK` invariants (a run can't finish with an unknown refund outcome); a
+  reconciler that claims `NEEDS_RECONCILIATION` runs and never re-sends. Wording fixes
+  (`APPROVED` is the queue, `review_deadline` placement, `last_attempt_at`), and the
+  per-PR real-model smoke set is non-blocking.
+- Schedule re-planned from 14 to 16 days with an explicit cut order.
+- Lesson: read ADRs side by side, not one at a time. Each was consistent alone; the gaps
+  were between them (nobody owned `NEEDS_RECONCILIATION`).
+
 **What's next:**
 - Walking skeleton: state machine + `runs` table + one read tool + idempotent mock refund
   API + tracing, then the crash test.

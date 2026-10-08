@@ -5,17 +5,21 @@ within policy, escalates to a human) with safety enforced in code, not in the pr
 It's a scoped-down, architecturally real take on per-resolution support agents like
 Intercom Fin and Ada.
 
-> **Status: design complete, implementation starting.** Seven architecture decisions are
+> **Status: design complete, implementation starting.** Eight architecture decisions are
 > recorded below. No code yet. There are no eval numbers yet, and none will appear here
 > until they're measured.
 
 ## Core idea: the model proposes, code decides
 
 ```
-INTAKE → AGENT_STEP → POLICY_CHECK → AWAIT_APPROVAL → EXECUTE → RESPOND / ESCALATE
-            │
-            └─ bounded tool loop: read tools run freely;
-               write tools (refund, escalate) only return a *proposal*
+AGENT_STEP ──(POLICY_CHECK)──┬─ in policy ──────────────→ APPROVED
+     │                       ├─ high risk → AWAIT_APPROVAL → APPROVED (reviewer)
+     │                       └─ out of policy ─────────→ ESCALATED
+     └─ answer, no proposal ─→ COMPLETED
+APPROVED → EXECUTING → COMPLETED | ESCALATED | NEEDS_RECONCILIATION → COMPLETED | ESCALATED
+
+AGENT_STEP runs a bounded tool loop: read tools run freely; write tools
+(refund, escalate) only return a proposal. Full lifecycle: ADR-008.
 ```
 
 - **Write tools never execute inside the model loop.** A refund is a proposal that passes
@@ -46,6 +50,7 @@ tools.
 | [005](docs/adr/005-database-access-and-migrations.md) | SQLAlchemy Core (async) + Alembic; a per-customer row lock against write skew |
 | [006](docs/adr/006-scripted-model-stub.md) | Strict scripted model stub for deterministic tests; nightly real-model drift check |
 | [007](docs/adr/007-repo-layout.md) | Monorepo of independent services with no shared code; boundaries enforced by import contracts and an HTTP contract test; uv lockfiles |
+| [008](docs/adr/008-run-lifecycle-and-cross-adr-clarifications.md) | Seven run statuses with database-enforced invariants; a reconciler that never re-sends; cross-ADR clarifications |
 
 Every ADR records the rejected options and when each would have been the better choice.
 

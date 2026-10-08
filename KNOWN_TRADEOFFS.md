@@ -48,6 +48,17 @@ lives in `WEEKLY_LOG.md`.
   canonical hashing exist in both services. They're kept in sync by the contract test and
   shared test vectors, not by shared code.
 
+## Run lifecycle and schedule (ADR-008)
+
+- **The reconciler never re-sends.** A refund that can't be found after the quiet period
+  goes to a human instead of being retried automatically. That means more manual work, in
+  exchange for no double-refund path.
+- **A crash mid-turn loses that turn.** `AGENT_STEP` isn't claimed or resumed; nothing was
+  sent, and the customer's next message continues the run.
+- **Schedule slip.** The backend core grew during design review (leases, fencing,
+  reconciliation, contract and import checks). The plan went from 14 to 16 days, with
+  explicit cut order in the brief.
+
 ## Code reuse
 
 - **Project 1's LLM layer is extracted and ported, not shared (corrected by ADR-005).**

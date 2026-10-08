@@ -14,6 +14,9 @@ mode, the atomic processing deadline.
 **Locked 2026-10-06.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Amended by [ADR-008](008-run-lifecycle-and-cross-adr-clarifications.md)** (run statuses,
+transitions, the reconciler, wording clarifications). Where they disagree, ADR-008 wins.
+
 ## Context
 ADR-001 says exactly-once refunds come from the downstream API deduplicating on an
 idempotency key, and the crash test must prove it. The dangerous window is **after the
