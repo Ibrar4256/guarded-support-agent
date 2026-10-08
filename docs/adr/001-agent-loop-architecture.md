@@ -6,6 +6,10 @@ per turn. Revised 2026-10-08: the canonical run statuses and transitions are def
 [ADR-008](008-run-lifecycle-and-cross-adr-clarifications.md) (seven saved statuses;
 `INTAKE`, `POLICY_CHECK` and `RESPOND` are steps inside transactions).
 
+**Locked 2026-10-08.** No further revisions; issues found from here on are fixed in code
+and tests, or recorded in a new ADR that supersedes this one. Where this ADR and ADR-008
+disagree, ADR-008 wins.
+
 ## Context
 The agent takes real actions on a customer's behalf: order lookup, refunds within policy
 limits, KB search and escalation to a human. Two constraints drive the decision:

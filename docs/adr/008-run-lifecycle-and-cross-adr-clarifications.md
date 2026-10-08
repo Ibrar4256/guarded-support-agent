@@ -1,7 +1,13 @@
 # ADR-008: Run Lifecycle and Cross-ADR Clarifications
 
 **Status:** Accepted (2026-10-08). Amends ADR-001, ADR-003, ADR-004 and ADR-005 where
-listed below; where this ADR and an earlier one disagree, this ADR wins.
+listed below; where this ADR and an earlier one disagree, this ADR wins. Revised the same
+day before locking: ADR-004 step 5 explicitly amended (no send after key retention),
+customer reply templates, the 422 path, `ESCALATED` ⇒ `escalated_at`, a conversation turn
+lease, and reconciler claims only after the quiet period.
+
+**Locked 2026-10-08.** No further revisions; issues found from here on are fixed in code
+and tests, or recorded in a new ADR that supersedes this one.
 
 ## Context
 A consistency pass across ADR-001 to ADR-007 found three gaps:
@@ -129,11 +135,31 @@ Where ADR-003/004/005 write `ESCALATE`, read `ESCALATED`. ADR-001's `EXECUTE` is
 | `APPROVED` → `ESCALATED` | Execution-time policy check rejects | `escalated_at`, `escalated` event, worker claim cleared |
 | `EXECUTING` → `COMPLETED` | 2xx (fresh or replayed) | `refund_outcome = confirmed`, template reply event |
 | `EXECUTING` → `ESCALATED` | 400 with a recognized business-error code | `refund_outcome = rejected`, `escalated_at`, template reply event |
-| `EXECUTING` → `NEEDS_RECONCILIATION` | Retries exhausted, 422, 401/403/404, or any unrecognized response | `escalated_at`, alert, outcome stays `unknown` |
+| `EXECUTING` → `NEEDS_RECONCILIATION` | Retries exhausted, 422, 401/403/404, any unrecognized response, **or a resumed run whose key is past retention** | `escalated_at`, alert, outcome stays `unknown` |
 | `NEEDS_RECONCILIATION` → `COMPLETED` | Reconciler finds the refund | `refund_outcome = confirmed`, template reply event |
 | `NEEDS_RECONCILIATION` → `ESCALATED` | Reconciler finds none **after the quiet period** | `refund_outcome = rejected`, template reply event |
 
 Every move into `COMPLETED` or `ESCALATED` clears `worker_id` and `lease_expires_at`.
+
+### What the 422 and auth/routing paths resolve to
+A 422 means a bug in our code (the same key reused with a different payload), and a
+401/403/404 says nothing about this action. Both go to `NEEDS_RECONCILIATION` with an
+**alert raised at that moment**, so the bug is surfaced even though the run resolves
+without a person. The reconciler's lookup by `action_id` then settles it either way:
+- the request was refused and nothing committed → nothing is found after the quiet period
+  → `rejected` + `ESCALATED`;
+- ★ an **earlier** attempt with that key did commit (for example it timed out, then a buggy
+  retry changed the payload and got 422) → the refund is found → `confirmed` +
+  `COMPLETED`.
+
+### Customer reply templates (after `APPROVED`, per ADR-001/006)
+| Situation | Status / outcome | Template says |
+|---|---|---|
+| Refund confirmed | `COMPLETED` / `confirmed` | "Your refund of {amount} for order {order} has been issued." The same text applies when `escalated_at` was set along the way (confirmed after an alert), optionally with "sorry for the delay". It **never** says "sent to a person" for a finished refund. |
+| Reviewer declined | `COMPLETED` / `none` | "Your request was reviewed and declined." plus the reason category |
+| Refused by policy or provider before any money moved | `ESCALATED` / `none` or `rejected` (400 business error) | "We couldn't process this refund automatically; a person will follow up." |
+| Reconciler found no refund | `ESCALATED` / `rejected` | "**We couldn't confirm the refund; a person will follow up.**" Never "rejected". |
+| Still being resolved | `EXECUTING` or `NEEDS_RECONCILIATION` / `unknown` | "Your refund is being processed." |
 
 ### Database invariants (`CHECK` constraints)
 - `refund_outcome = 'none'` if and only if `first_send_started_at IS NULL`.
@@ -143,15 +169,43 @@ Every move into `COMPLETED` or `ESCALATED` clears `worker_id` and `lease_expires
   `worker_id IS NULL`. **A run can't finish while money movement is uncertain**; an
   uncertain run is always owned by the reconciler.
 - `status = 'AWAIT_APPROVAL'` ⇒ `review_deadline IS NOT NULL`.
+- `status = 'ESCALATED'` ⇒ `escalated_at IS NOT NULL`. (The reverse doesn't hold: a
+  `COMPLETED` run may have `escalated_at` set if it was confirmed after an alert.)
 
 ### Claiming (amends ADR-004 step 7)
 - Workers claim `APPROVED` and `EXECUTING`. The reconciler claims
   `NEEDS_RECONCILIATION`. Both use the same compare-and-set, lease, heartbeat and fencing
   rules; only the status list differs.
-- `AGENT_STEP` isn't claimed. It's driven by the request handling the customer's message.
-  If that process dies mid-turn, the turn is lost, but nothing was sent (only read tools
-  run there), and the customer's next message continues the run. Only one turn per
-  conversation runs at a time (code-level guard).
+- **The reconciler claims only runs whose quiet period has passed** (the claim's `WHERE`
+  includes `last_attempt_at < now() − quiet_period`), so it never holds a lease while
+  waiting.
+- `AGENT_STEP` runs aren't claimed by workers. They're driven by the request handling the
+  customer's message, under a **turn lease** on the conversation:
+  - Starting a turn is one short transaction: `UPDATE conversations SET active_turn_id =
+    :t, turn_expires_at = now() + :ttl WHERE id = :c AND (active_turn_id IS NULL OR
+    turn_expires_at < now())`. The same transaction saves the customer's message. If the
+    update affects 0 rows, another turn is running and the request gets **409 "a reply is
+    in progress"** (the frontend disables input while streaming).
+  - ★ It's a lease, not a held lock. A turn includes LLM calls that take seconds, and
+    holding a row or advisory lock that long would tie up a pooled connection (ADR-005).
+    The turn heartbeats like a worker, and every write the turn makes is conditional on
+    `active_turn_id = :t`.
+  - **Lock order** for any transaction touching several of these rows: `customers`, then
+    `conversations`, then `runs` (extends ADR-005's rule).
+  - **Lost turn:** if the process dies mid-turn, the lease expires. The customer's message
+    is saved (it was written when the turn started), but the model's partial work (read-tool
+    calls, draft text) is gone and **must not be assumed present**. The next message starts
+    a fresh turn that re-reads whatever it needs. Nothing was sent, because only read tools
+    run in `AGENT_STEP`.
+
+### Amends ADR-004 step 5 (old keys)
+ADR-004 step 5 said: after a "not found" lookup on a key past retention, wait for the quiet
+period and retry with the same key. **That is replaced.** "Retry with the same key" now
+applies **only** to the worker's ordinary bounded retries inside `EXECUTING`, while the key
+is within retention. A worker that resumes an `EXECUTING` run whose first send is older than
+key retention moves it to `NEEDS_RECONCILIATION` without sending. From there the
+reconciler looks the refund up and **never sends**. **Once key retention has passed, no
+code path sends that refund again.**
 
 ### Wording clarifications
 - **ADR-003 "enqueues execution":** there's no separate queue. Being `APPROVED` *is* the
@@ -163,6 +217,9 @@ Every move into `COMPLETED` or `ESCALATED` clears `worker_id` and `lease_expires
   error means `ESCALATED` with `refund_outcome = rejected`.
 - **`review_deadline`** is set in the same transaction that moves a run into
   `AWAIT_APPROVAL`.
+- **One name in code:** code, migrations and tests use only the ADR-008 names
+  (`ESCALATED`, not `ESCALATE`). The locked ADR text keeps its wording, with the
+  amendment pointer.
 - **The per-PR real-model smoke set is informational, not a merge gate.** Merge gates are
   the deterministic suites only (ADR-006). The smoke set reports on the PR but never
   blocks it, and it's skipped when no API key is available.
@@ -171,6 +228,7 @@ Every move into `COMPLETED` or `ESCALATED` clears `worker_id` and `lease_expires
 - The run lifecycle has one source of truth (this ADR), and the database enforces its
   invariants.
 - The reconciler is a third claimant with its own tests (EVAL_PLAN).
+- `conversations` gains `active_turn_id` and `turn_expires_at` (the turn lease).
 - **Revisit if:** a new resting state is needed (an eighth status means re-checking
   ADR-001's threshold), or a real provider without a lookup endpoint is integrated (then
   Part 2 Option B).

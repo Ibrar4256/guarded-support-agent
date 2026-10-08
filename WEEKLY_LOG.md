@@ -148,6 +148,13 @@
   (`APPROVED` is the queue, `review_deadline` placement, `last_attempt_at`), and the
   per-PR real-model smoke set is non-blocking.
 - Schedule re-planned from 14 to 16 days with an explicit cut order.
+- ADR-008 pre-lock review, then **locked**. It found a real contradiction: ADR-004 step 5
+  still retried old keys while the reconciler never sends. Now no code path sends once key
+  retention has passed. Also added: customer reply templates (never "rejected" to a
+  customer), the 422 path resolving through reconciliation with an alert, `ESCALATED` ⇒
+  `escalated_at`, and a conversation **turn lease** (compare-and-set, not a held lock,
+  because turns include slow LLM calls) with a 409 for concurrent messages. The reconciler
+  claims only runs past their quiet period.
 - Lesson: read ADRs side by side, not one at a time. Each was consistent alone; the gaps
   were between them (nobody owned `NEEDS_RECONCILIATION`).
 

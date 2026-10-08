@@ -53,8 +53,13 @@ lives in `WEEKLY_LOG.md`.
 - **The reconciler never re-sends.** A refund that can't be found after the quiet period
   goes to a human instead of being retried automatically. That means more manual work, in
   exchange for no double-refund path.
-- **A crash mid-turn loses that turn.** `AGENT_STEP` isn't claimed or resumed; nothing was
-  sent, and the customer's next message continues the run.
+- **A crash mid-turn loses that turn.** `AGENT_STEP` isn't resumed by a worker; the
+  customer's message is saved, but the model's partial work is gone, and the next message
+  starts a fresh turn. Nothing was sent.
+- **One turn per conversation.** A second message while a reply is streaming gets 409
+  instead of being queued.
+- **No send after key retention.** A run resumed after a very long outage always goes to a
+  lookup and possibly a human, even when re-sending would have been safe.
 - **Schedule slip.** The backend core grew during design review (leases, fencing,
   reconciliation, contract and import checks). The plan went from 14 to 16 days, with
   explicit cut order in the brief.
