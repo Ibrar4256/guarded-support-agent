@@ -1,0 +1,62 @@
+[project]
+name = "agent"
+version = "0.1.0"
+description = "Agent service: state machine, bounded tool loop, worker"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "alembic>=1.20.0",
+    "psycopg[binary]>=3.3.6",
+    "pydantic>=2.13.5",
+    "sqlalchemy[asyncio]>=2.1.4",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.23,<0.13"]
+build-backend = "uv_build"
+
+[tool.uv]
+required-version = "==0.12.23"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = ["src", "testing"]
+packages = ["agent", "agent_testing"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "testing"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.168.5",
+    "import-linter>=2.15",
+    "mypy>=2.4.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.16.10",
+]
+
+[tool.importlinter]
+root_packages = ["agent", "agent_testing"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "agent never imports refund_api (ADR-007 independence)"
+type = "forbidden"
+source_modules = ["agent", "agent_testing"]
+forbidden_modules = ["refund_api"]
+
+[[tool.importlinter.contracts]]
+name = "production code never imports test code (ADR-007)"
+type = "forbidden"
+source_modules = ["agent"]
+forbidden_modules = ["agent_testing"]
