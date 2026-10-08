@@ -169,6 +169,20 @@
 - Lesson: the abuse paths live **between** rules (splitting, re-asking, queue flooding),
   not in any single threshold.
 
+- `core/policy.py` updated to ADR-009: rule IDs R01–R19, two-phase evaluation, per-rule
+  `FAIL_CLOSED` isolation, pending exposure, pre-send hold scope (breaker vs. kill
+  switch), startup config validation. 127 agent tests.
+- **What broke:** the first Hypothesis property ("an `AUTO` decision never breaks an
+  invariant") was **vacuous**. Fields were all drawn at random, so `AUTO` needed every rule
+  to pass at once and almost never happened, and the property passed without checking
+  anything. The negative control (disable the ownership rule; Hypothesis must find a
+  cross-user `AUTO`) failed with "no example found", which exposed it. Fixed by generating
+  inputs near a valid baseline, plus a test that the generator really reaches `AUTO`.
+- Also: an out-of-policy proposal no longer trips the breaker, and a budget test that
+  started already over budget was rewritten to check both sides of the boundary.
+- Lesson: a property that only checks a rare outcome needs proof that the outcome happens;
+  negative controls catch vacuous tests, not just wrong code.
+
 **What's next:**
 - Walking skeleton: state machine + `runs` table + one read tool + idempotent mock refund
   API + tracing, then the crash test.
