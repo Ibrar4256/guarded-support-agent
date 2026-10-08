@@ -1,0 +1,62 @@
+# CI (ADR-007): per-service checks in parallel, then cross-service boundary checks.
+# PR checks are deterministic and need no secrets (ADR-006, ADR-008).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.12.23"
+
+jobs:
+  service:
+    name: ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [agent, refund_api]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv ${{ env.UV_VERSION }}
+        run: |
+          curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Start Postgres (agent only)
+        if: matrix.service == 'agent'
+        run: |
+          scripts/ci/write_test_env.sh
+          docker compose up -d --wait postgres
+
+      - name: Load test database settings (agent only)
+        if: matrix.service == 'agent'
+        run: grep -E '^(AGENT|REFUND)_DB_.*_URL=' .env >> "$GITHUB_ENV"
+
+      - name: Checks
+        run: scripts/ci/service_checks.sh ${{ matrix.service }}
+
+  boundaries:
+    name: cross-service boundaries
+    needs: service
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv ${{ env.UV_VERSION }}
+        run: |
+          curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Service independence (ADR-007)
+        run: uv run --no-project --python 3.12 python scripts/ci/check_service_independence.py

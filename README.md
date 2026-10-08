@@ -5,7 +5,7 @@ within policy, escalates to a human) with safety enforced in code, not in the pr
 It's a scoped-down, architecturally real take on per-resolution support agents like
 Intercom Fin and Ada.
 
-> **Status: design complete, implementation starting.** Nine architecture decisions are
+> **Status: design complete; core policy, database schema and CI in place.** Nine architecture decisions are
 > recorded below. No code yet. There are no eval numbers yet, and none will appear here
 > until they're measured.
 
@@ -60,6 +60,20 @@ Every ADR records the rejected options and when each would have been the better 
 - [Eval plan](docs/EVAL_PLAN.md): test suites, adversarial categories, reporting rules
 - [Known tradeoffs](KNOWN_TRADEOFFS.md): what's deferred or deliberately not solved
 - [Weekly log](WEEKLY_LOG.md): what shipped, what broke, what was learned
+
+## Running the checks
+
+Needs [uv](https://docs.astral.sh/uv/) 0.12.23 and Docker. The same script runs in CI.
+
+```bash
+scripts/ci/write_test_env.sh            # creates .env with throwaway passwords
+docker compose up -d --wait postgres    # two databases, owner/runtime roles
+set -a; . ./.env; set +a
+scripts/ci/service_checks.sh agent      # lint, types, purity, contracts, migrations, tests
+scripts/ci/service_checks.sh refund_api
+```
+
+Without the database variables, integration tests are skipped and unit tests still run.
 
 ## Planned stack
 Async FastAPI · Postgres (SQLAlchemy Core, Alembic, psycopg 3) · Clerk · Next.js +

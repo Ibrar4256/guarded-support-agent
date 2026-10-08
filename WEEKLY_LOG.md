@@ -198,6 +198,17 @@
   must accept a row exactly when `core.invariant_violations()` does. A negative control
   drops one CHECK and the parity test must notice.
 - Lesson: assert the security *effect*, not the mechanism you expect to produce it.
+- **Step 4 (CI):** GitHub Actions runs a per-service matrix (agent, refund_api) in
+  parallel, then a cross-service boundary job. Every check lives in
+  `scripts/ci/service_checks.sh`, so CI and local runs are identical. CI's Postgres comes
+  from the same `docker-compose.yml` (service containers start before checkout, so the
+  init script wouldn't exist yet), with throwaway passwords from `write_test_env.sh`: no
+  secrets needed. The independence check has a planted-dependency negative control, and the
+  fresh-database path was simulated locally in an isolated compose project.
+- Process slip: an edit in the step-2 commit dropped this log's "What's next" heading
+  (the replacement text didn't re-include its anchor). Restored here.
 
-- Walking skeleton: state machine + `runs` table + one read tool + idempotent mock refund
-  API + tracing, then the crash test.
+**What's next:**
+- refund-api (days 3–5): idempotency protocol, failure-injection modes, processing
+  deadline, its own schema and migrations; then the worker (claim, lease, heartbeat,
+  fencing), execution, crash tests and the reconciler.
