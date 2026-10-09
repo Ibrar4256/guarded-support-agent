@@ -10,6 +10,21 @@ cd "$root/services/$service"
 
 step() { printf '\n== %s: %s\n' "$service" "$1"; }
 
+case "$service" in
+  agent) owner_url_var=AGENT_DB_OWNER_URL ;;
+  refund_api) owner_url_var=REFUND_DB_OWNER_URL ;;
+  *) echo "unknown service: $service" >&2; exit 2 ;;
+esac
+# In CI a missing database URL is an error, checked before anything else runs: skipped
+# migrations and integration tests would otherwise look exactly like passing ones.
+if [ -z "${!owner_url_var:-}" ]; then
+  if [ -n "${CI:-}" ]; then
+    echo "FAIL: $owner_url_var is not set; CI must run migrations and integration tests" >&2
+    exit 1
+  fi
+  echo "WARNING: $owner_url_var is not set; migrations and integration tests will be SKIPPED" >&2
+fi
+
 step "uv sync --locked"
 uv sync --locked
 
@@ -29,7 +44,7 @@ fi
 step "import contracts"
 PYTHONPATH=testing uv run lint-imports --no-cache
 
-if [ -f alembic.ini ] && [ -n "${AGENT_DB_OWNER_URL:-}" ] && [ "$service" = "agent" ]; then
+if [ -f alembic.ini ] && [ -n "${!owner_url_var:-}" ]; then
   step "migrations: upgrade head + drift check"
   uv run alembic upgrade head
   uv run alembic check

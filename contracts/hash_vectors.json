@@ -1,0 +1,117 @@
+{
+  "description": "ADR-004 step 8 payload hash test vectors. Loaded by each service's own unit tests (ADR-007).",
+  "canonical_form": "JSON object of exactly action_id, amount_minor, currency, order_id; keys sorted; separators ',' and ':'; non-ASCII as raw UTF-8; amount_minor an integer; no normalization of any value",
+  "hash": "lowercase hex SHA-256 of the canonical form's UTF-8 bytes",
+  "vectors": [
+    {
+      "name": "basic",
+      "note": "Plain ASCII. '20.0' and '20.00' both become amount_minor 2000 before hashing.",
+      "input": {
+        "order_id": "ord_1001",
+        "amount_minor": 2000,
+        "currency": "USD",
+        "action_id": "act_0001"
+      },
+      "canonical": "{\"action_id\":\"act_0001\",\"amount_minor\":2000,\"currency\":\"USD\",\"order_id\":\"ord_1001\"}",
+      "sha256": "87d47840b25ad146849a2aba2ddc34f41fbb603af99db750ffb16d907b5c8ca4"
+    },
+    {
+      "name": "minimum_amount",
+      "note": "Smallest valid amount.",
+      "input": {
+        "order_id": "ord_1001",
+        "amount_minor": 1,
+        "currency": "USD",
+        "action_id": "act_0002"
+      },
+      "canonical": "{\"action_id\":\"act_0002\",\"amount_minor\":1,\"currency\":\"USD\",\"order_id\":\"ord_1001\"}",
+      "sha256": "0a28f9a28d17edd6a8530e494734146d2034cce38a383e986c7653865828ec27"
+    },
+    {
+      "name": "above_float_precision",
+      "note": "2**53 + 1: a float round-trip would turn this into ...992.",
+      "input": {
+        "order_id": "ord_1001",
+        "amount_minor": 9007199254740993,
+        "currency": "USD",
+        "action_id": "act_0003"
+      },
+      "canonical": "{\"action_id\":\"act_0003\",\"amount_minor\":9007199254740993,\"currency\":\"USD\",\"order_id\":\"ord_1001\"}",
+      "sha256": "c3d61d6e4cc0b1c04ffbcbd145516d4cd7c6f60c959a5a402ff8629e46d94b0f"
+    },
+    {
+      "name": "bigint_max",
+      "note": "Largest BIGINT.",
+      "input": {
+        "order_id": "ord_1001",
+        "amount_minor": 9223372036854775807,
+        "currency": "USD",
+        "action_id": "act_0004"
+      },
+      "canonical": "{\"action_id\":\"act_0004\",\"amount_minor\":9223372036854775807,\"currency\":\"USD\",\"order_id\":\"ord_1001\"}",
+      "sha256": "ddb280be908a9eba73619de8ee9ee8296c50344c63135ce13bf6f0e9f770835d"
+    },
+    {
+      "name": "non_ascii_nfc",
+      "note": "Raw UTF-8, not \\u escapes (ensure_ascii=False). Precomposed u-umlaut.",
+      "input": {
+        "order_id": "ord_m\u00fcller",
+        "amount_minor": 2000,
+        "currency": "USD",
+        "action_id": "act_\u65e5\u672c"
+      },
+      "canonical": "{\"action_id\":\"act_\u65e5\u672c\",\"amount_minor\":2000,\"currency\":\"USD\",\"order_id\":\"ord_m\u00fcller\"}",
+      "sha256": "6fbbec279fcbfd0262992c4438ea109b11bcba216578804a7a86ec8b548357a7"
+    },
+    {
+      "name": "non_ascii_nfd",
+      "note": "Same text as non_ascii_nfc in decomposed form: no Unicode normalization, so a different hash.",
+      "input": {
+        "order_id": "ord_mu\u0308ller",
+        "amount_minor": 2000,
+        "currency": "USD",
+        "action_id": "act_\u65e5\u672c"
+      },
+      "canonical": "{\"action_id\":\"act_\u65e5\u672c\",\"amount_minor\":2000,\"currency\":\"USD\",\"order_id\":\"ord_mu\u0308ller\"}",
+      "sha256": "d9346d036c129218c594814b64514dd1b47c99f3b1658c1994e55c782c007bba",
+      "must_differ_from": "non_ascii_nfc"
+    },
+    {
+      "name": "lowercase_currency",
+      "note": "No case folding: differs from basic. Validation rejects lowercase before hashing.",
+      "input": {
+        "order_id": "ord_1001",
+        "amount_minor": 2000,
+        "currency": "usd",
+        "action_id": "act_0001"
+      },
+      "canonical": "{\"action_id\":\"act_0001\",\"amount_minor\":2000,\"currency\":\"usd\",\"order_id\":\"ord_1001\"}",
+      "sha256": "0907b337a113f4c6b5c89eb5787718fdf4317d57f8ff0def20fd6afe891d5707",
+      "must_differ_from": "basic"
+    },
+    {
+      "name": "json_escapes",
+      "note": "Quote, backslash, tab and newline use JSON's short escapes.",
+      "input": {
+        "order_id": "ord_\"q\"\\",
+        "amount_minor": 2000,
+        "currency": "USD",
+        "action_id": "act_tab\t\n"
+      },
+      "canonical": "{\"action_id\":\"act_tab\\t\\n\",\"amount_minor\":2000,\"currency\":\"USD\",\"order_id\":\"ord_\\\"q\\\"\\\\\"}",
+      "sha256": "3f705a7b437818070c5129f1240c0d3b34a228739ec91f39176f12c8e1347c7e"
+    },
+    {
+      "name": "line_separator",
+      "note": "U+2028 stays raw (Python and JavaScript agree); only control characters below U+0020 are escaped.",
+      "input": {
+        "order_id": "ord_\u2028",
+        "amount_minor": 2000,
+        "currency": "USD",
+        "action_id": "act_0005"
+      },
+      "canonical": "{\"action_id\":\"act_0005\",\"amount_minor\":2000,\"currency\":\"USD\",\"order_id\":\"ord_\u2028\"}",
+      "sha256": "b69d9fe89f84c918aec3db21c924cce31147e6a1182ed28a5bc9afa248dd3dd8"
+    }
+  ]
+}

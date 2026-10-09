@@ -34,14 +34,12 @@ jobs:
           curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Start Postgres (agent only)
-        if: matrix.service == 'agent'
+      - name: Start Postgres
         run: |
           scripts/ci/write_test_env.sh
           docker compose up -d --wait postgres
 
-      - name: Load test database settings (agent only)
-        if: matrix.service == 'agent'
+      - name: Load test database settings
         run: grep -E '^(AGENT|REFUND)_DB_.*_URL=' .env >> "$GITHUB_ENV"
 
       - name: Checks
