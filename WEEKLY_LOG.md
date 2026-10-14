@@ -208,7 +208,63 @@
 - Process slip: an edit in the step-2 commit dropped this log's "What's next" heading
   (the replacement text didn't re-include its anchor). Restored here.
 
+## Week 3 — refund-api: schema, ADR-010 and the first HTTP slice (2026-10-09 → 2026-10-14)
+
+**What shipped:**
+- **Schema and migration 0001:** charges, append-only refunds, and idempotency keys whose
+  stored response is plain text, so a replay is byte-identical. Canonical payload hashing
+  plus `contracts/hash_vectors.json`, built from handwritten canonical strings (non-ASCII,
+  U+2028, NFC vs. NFD, amounts above float precision). Both services' tests load it; the
+  agent's half is a strict-xfail placeholder until its refund client exists.
+- **CI guards:** `service_checks.sh` and both integration conftests now **fail** in CI when
+  a database variable is missing, instead of skipping, each with a negative control.
+- **ADR-010 locked** after an outside review (6 parts, 21 options). The review found two
+  money bugs in my draft; see below.
+- **Migration 0002:** keys are pruned only through a `SECURITY DEFINER` function that never
+  deletes a key younger than an owner-set floor; the runtime role lost `DELETE`.
+- **FastAPI slice 1 + migration 0003:** config with startup guards and a production gate;
+  receipt middleware (outermost) wrapping bearer-token auth; every validation failure →
+  400 `invalid_request` with field locations only; `POST /refunds` with the full
+  transaction (deadline, advisory-lock 409, prune, replay/422, locked charge, business 400s,
+  deadline check before commit); `GET /refunds`; a spec whose only 422 is the key mismatch.
+  refund_api now has 155 tests; the concurrency tests passed 5 runs out of 5.
+
+**What broke:**
+- **Two money bugs, caught in review, not by tests.** (1) FastAPI validates before my
+  handler looks up the idempotency key, so a malformed retry of a refund that already
+  committed would get a 400, and my draft treated that as "rejected": capacity freed, the
+  customer told no refund happened. Now the agent treats `invalid_request` as unknown and
+  lets the reconciler settle it. (2) I anchored the processing deadline at transaction
+  start, so time waiting for a pool connection wasn't counted, and a request could commit
+  after the reconciler had concluded "not found". Now the budget runs from receipt on a
+  monotonic clock and becomes a database deadline at transaction start.
+- **`SELECT … FOR UPDATE` needs `UPDATE` privilege.** ADR-010 says "lock the charge row";
+  migration 0001 says "charges are immutable to the runtime role". 16 tests failed with
+  `permission denied for table charges`. Fixed with a `SECURITY DEFINER` `lock_charge`
+  (migration 0003), so both decisions still hold. A superuser test connection would have
+  hidden this completely.
+- **A control passing for the wrong reason:** the owner-side control for "runtime can't
+  delete refunds" failed on a **foreign key**, not a privilege. The runtime test passed only
+  because Postgres checks privileges first. The deletes now target unreferenced rows.
+- **A floor that wasn't one:** the suggested retention floor in a custom setting
+  (`ALTER DATABASE … SET`) can be lowered by **any** session with `SET`. It lives in an
+  owner-only table instead.
+- **Environment:** another project's Postgres took host port 5433 while ours was stopped;
+  tests failed with a password error against the wrong server. Ran ours on 5434.
+
+**What I learned:**
+- A status code is a claim about whether money moved. Framework defaults (422) and
+  validation order can silently change that claim.
+- Every time comparison should stay on one clock; mixing app and database clocks brings
+  back the skew you designed away.
+- Test with the real least-privileged role. The privilege model is part of the system.
+- Negative controls keep finding broken tests, not just broken code.
+
+**Interview probes added:** AS-30 (rewritten) to AS-37.
+
 **What's next:**
-- refund-api (days 3–5): idempotency protocol, failure-injection modes, processing
-  deadline, its own schema and migrations; then the worker (claim, lease, heartbeat,
-  fencing), execution, crash tests and the reconciler.
+- refund-api slice 2: fault plans and the test-only charge endpoint in
+  `refund_api_testing`, the per-mode consumption rules, OpenAPI export to `contracts/`
+  with the regenerate-and-diff check, the Dockerfile and production-image test.
+- Then the agent side: refund client (contract test, hash vectors), worker (claim, lease,
+  heartbeat, fencing), execution, crash tests and the reconciler.

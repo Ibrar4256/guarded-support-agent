@@ -41,6 +41,21 @@ lives in `WEEKLY_LOG.md`.
   finds two refunds for one action (after a pruned key, or a bug), the action is
   `confirmed` and its amount counts once, although money moved twice. The duplicate-refund
   alert is the control, and a person resolves it; capacity accounting doesn't try to.
+- **refund-api's own HTTP tests are in-process (ADR-010).** They run the app through httpx's
+  ASGI transport: real Postgres, real locks, but no sockets. They prove the server's logic,
+  not how a real hung connection behaves; `timeout_after_commit` is only truly proven by
+  the `tests/e2e` crash tests.
+- **`action_id` is a flat request field, not `metadata.action_id` (ADR-004 step 2).** ADR-004
+  only requires every refund request to carry the action's ID; the `metadata` name was
+  Stripe's. Flat keeps `extra="forbid"` and exact formats on every field, with no untyped
+  dict to drift into. A future Stripe adapter maps it into Stripe's `metadata`.
+- **Token rotation is a manual runbook.** Two accepted tokens make rotation possible
+  without downtime, but the order matters (`docs/ops/refund-api-token-rotation.md`); doing
+  it wrong locks the agent out and sends refunds to reconciliation.
+- **Row locks on immutable tables go through `SECURITY DEFINER` functions.** `FOR UPDATE`
+  needs `UPDATE` privilege, which charges deliberately don't grant, so `lock_charge` takes
+  the lock on the runtime role's behalf (migration 0003). Each such function is another
+  privileged object to review.
 
 ## Database (ADR-005)
 

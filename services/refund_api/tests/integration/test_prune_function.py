@@ -10,6 +10,7 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
+from conftest import set_floor
 from psycopg import errors
 from sqlalchemy import Connection, Engine, delete, func, insert, select, text, update
 from sqlalchemy.exc import DBAPIError
@@ -20,14 +21,6 @@ PRUNE_SIGNATURE = "public.prune_expired_key(text, interval)"
 FLOOR = timedelta(hours=1)
 KEY = "key_prune"
 PRUNE = text("SELECT public.prune_expired_key(:key, :retention)")
-
-
-def set_floor(owner_engine: Engine, floor: timedelta | None) -> None:
-    """Committed, because the runtime connection must see it."""
-    with owner_engine.begin() as connection:
-        connection.execute(delete(key_retention_policy))
-        if floor is not None:
-            connection.execute(insert(key_retention_policy).values(id=1, min_retention=floor))
 
 
 @pytest.fixture

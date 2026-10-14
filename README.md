@@ -52,6 +52,7 @@ tools.
 | [007](docs/adr/007-repo-layout.md) | Monorepo of independent services with no shared code; boundaries enforced by import contracts and an HTTP contract test; uv lockfiles |
 | [008](docs/adr/008-run-lifecycle-and-cross-adr-clarifications.md) | Seven run statuses with database-enforced invariants; a reconciler that never re-sends; cross-ADR clarifications |
 | [009](docs/adr/009-refund-policy-rules-and-decision-audit.md) | Refund policy as pure rules with stable IDs (split-refund, re-ask and queue-flooding defenses), hash- and revision-bound approvals, breaker and kill switch, append-only decision log |
+| [010](docs/adr/010-refund-api-implementation-decisions.md) | refund-api implementation: validation errors are "unknown" to the agent, charges locked per order, fault plans that must prove they fired, advisory-lock 409s, key pruning with an owner-set floor, bearer service tokens, a deadline counted from receipt |
 
 Every ADR records the rejected options and when each would have been the better choice.
 
@@ -60,6 +61,8 @@ Every ADR records the rejected options and when each would have been the better 
 - [Eval plan](docs/EVAL_PLAN.md): test suites, adversarial categories, reporting rules
 - [Known tradeoffs](KNOWN_TRADEOFFS.md): what's deferred or deliberately not solved
 - [Weekly log](WEEKLY_LOG.md): what shipped, what broke, what was learned
+- [Token rotation runbook](docs/ops/refund-api-token-rotation.md): rotating refund-api's
+  service token without locking the agent out
 
 ## Running the checks
 
@@ -73,7 +76,8 @@ scripts/ci/service_checks.sh agent      # lint, types, purity, contracts, migrat
 scripts/ci/service_checks.sh refund_api
 ```
 
-Without the database variables, integration tests are skipped and unit tests still run.
+Without the database variables, integration tests are skipped locally (unit tests still run);
+in CI a missing variable fails the run.
 
 ## Planned stack
 Async FastAPI · Postgres (SQLAlchemy Core, Alembic, psycopg 3) · Clerk · Next.js +
