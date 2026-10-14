@@ -12,6 +12,7 @@ switch vs. breaker scope, fenced failure transactions, `AGENT_STEP` resumption).
 and tests, or recorded in a new ADR that supersedes this one.
 
 **Precedence:** later amending ADRs win: **ADR-009 > ADR-008 > ADR-001–007**.
+For refund-api behavior and the agent's handling of its responses, **[ADR-010](010-refund-api-implementation-decisions.md) > ADR-009 > ADR-008 > ADR-001–007**; ADR-010 doesn't change these policy rules.
 
 **Amends:**
 - **ADR-001:** the safety claim is restated precisely (see *Safety claim*).

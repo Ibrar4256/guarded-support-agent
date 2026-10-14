@@ -17,6 +17,10 @@ and tests, or recorded in a new ADR that supersedes this one.
 **Amended by [ADR-008](008-run-lifecycle-and-cross-adr-clarifications.md)** (run statuses,
 transitions, the reconciler, wording clarifications). Where they disagree, ADR-008 wins.
 
+**Amended by [ADR-010](010-refund-api-implementation-decisions.md)** for refund-api
+behavior: step 3's table (`invalid_request` is unknown, not rejected), the processing
+deadline, service auth, charges, key pruning.
+
 ## Context
 ADR-001 says exactly-once refunds come from the downstream API deduplicating on an
 idempotency key, and the crash test must prove it. The dangerous window is **after the

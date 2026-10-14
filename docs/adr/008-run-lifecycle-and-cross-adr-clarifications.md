@@ -9,6 +9,10 @@ lease, and reconciler claims only after the quiet period.
 **Locked 2026-10-08.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Amended by [ADR-010](010-refund-api-implementation-decisions.md):** `invalid_request` →
+`NEEDS_RECONCILIATION`; reconciler lookup errors never mean "not found"; two or more
+refunds for one action → `confirmed` plus an alert.
+
 ## Context
 A consistency pass across ADR-001 to ADR-007 found three gaps:
 

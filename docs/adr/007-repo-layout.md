@@ -8,6 +8,9 @@ behavior, CI scope, and a pinned uv version.
 **Locked 2026-10-06.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Amended by [ADR-010](010-refund-api-implementation-decisions.md):** only a recognized
+business-error code **other than `invalid_request`** can set `rejected`.
+
 ## Context
 ADR-004 requires the agent and refund-api to be **separate systems**: separate processes,
 databases and credentials, communicating only over HTTP. That boundary has to exist in the

@@ -30,6 +30,17 @@ lives in `WEEKLY_LOG.md`.
   because a restart kills both; the compose-based CI crash tests cover it.
 - **Mock, not a real provider.** Stripe's real behavior (key pruning after ~24h, webhooks,
   partial failures) isn't exercised until the optional `StripeRefundClient` adapter run.
+- **Idempotency keys are pruned only when touched again (ADR-010 Part 5).** A key nobody
+  re-sends stays forever, so the table grows without bound in a long-running deployment.
+  Harmless at demo volume; a periodic sweep is the fix if real volume appears.
+- **The processing deadline starts at receipt, not at send (ADR-010).** Time between the
+  agent sending a request and refund-api receiving it isn't counted, so the reconciler's
+  quiet-period bound assumes that transit time is bounded by the load balancer's timeout.
+  Closing it fully would mean comparing clocks across services.
+- **A duplicate refund counts once against capacity (ADR-010 Amends 3).** If the reconciler
+  finds two refunds for one action (after a pruned key, or a bug), the action is
+  `confirmed` and its amount counts once, although money moved twice. The duplicate-refund
+  alert is the control, and a person resolves it; capacity accounting doesn't try to.
 
 ## Database (ADR-005)
 
