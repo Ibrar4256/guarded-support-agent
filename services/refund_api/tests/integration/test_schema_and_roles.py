@@ -75,6 +75,8 @@ IMMUTABLE = [
     pytest.param(delete(refunds).where(refunds.c.action_id == FREE_ACTION), id="delete-refund"),
     pytest.param(delete(charges).where(charges.c.order_id == FREE_ORDER), id="delete-charge"),
     pytest.param(text("TRUNCATE refunds CASCADE"), id="truncate-refunds"),
+    # Keys are pruned only through prune_expired_key (migration 0002, ADR-010 Part 5).
+    pytest.param(delete(idempotency_keys), id="delete-key"),
 ]
 
 
@@ -88,14 +90,6 @@ def test_runtime_cannot_change_written_rows(runtime: Connection, statement: Any)
 def test_control_owner_can_run_the_same_statements(owner: Connection, statement: Any) -> None:
     seed(owner)
     assert not refused(owner, statement, Exception)
-
-
-def test_runtime_can_prune_a_key_and_the_refund_survives(runtime: Connection) -> None:
-    refund_id = seed(runtime)
-    runtime.execute(delete(idempotency_keys).where(idempotency_keys.c.key == "key_1"))
-    assert runtime.execute(select(func.count()).select_from(idempotency_keys)).scalar_one() == 0
-    survivor = select(func.count()).select_from(refunds).where(refunds.c.id == refund_id)
-    assert runtime.execute(survivor).scalar_one() == 1
 
 
 # --- constraints --------------------------------------------------------------------------

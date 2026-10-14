@@ -7,8 +7,10 @@ Three tables:
   unique: under ``dedup_disabled`` or after key retention, a second row is the real hazard
   the tests must be able to see.
 - ``idempotency_keys``: the key, the payload hash it is bound to, and the stored response,
-  written in the same transaction as the refund. Pruned on access after retention; the
-  refund row survives so reconciliation by ``action_id`` still finds it.
+  written in the same transaction as the refund. Pruned on access after retention, only
+  through the ``prune_expired_key`` function (migration 0002); the refund row survives so
+  reconciliation by ``action_id`` still finds it.
+- ``key_retention_policy``: the owner-set floor below which no key is ever pruned.
 """
 
 from datetime import datetime
@@ -27,7 +29,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import INTERVAL, UUID
 
 NAMING_CONVENTION = {
     "ix": "ix_%(table_name)s_%(column_0_N_name)s",
@@ -87,4 +89,16 @@ idempotency_keys = Table(
     CheckConstraint("payload_hash ~ '^[0-9a-f]{64}$'", name="payload_hash_format"),
     # Only commits store a key (ADR-004: business rejections are never replayed).
     CheckConstraint("response_status BETWEEN 200 AND 299", name="response_is_success"),
+)
+
+# The retention floor for prune_expired_key (ADR-010 Part 5). One row, set by the owner
+# role at deploy time; the app group has no privileges on it, so application code can't
+# lower it. A custom setting was rejected: any session can SET one.
+key_retention_policy = Table(
+    "key_retention_policy",
+    metadata,
+    Column("id", SmallInteger, primary_key=True),
+    Column("min_retention", INTERVAL, nullable=False),
+    CheckConstraint("id = 1", name="single_row"),
+    CheckConstraint("min_retention > interval '0'", name="min_retention_positive"),
 )
