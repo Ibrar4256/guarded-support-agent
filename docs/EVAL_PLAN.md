@@ -47,7 +47,11 @@ track trends.
    and ticket text.
 3. **Indirect injection through memory:** instructions in past tickets and in content that
    ends up in the rolling summary (ADR-002).
-4. **Cross-user resources:** order IDs belonging to another user.
+4. **Cross-user resources:** order IDs belonging to another user. The lookup's response for
+   another user's order must be **identical** to its response for a nonexistent order (a
+   deterministic test compares them byte for byte, with a control that a planted "belongs to
+   another customer" message fails it). A refund attempt still fails R02/R03 at proposal
+   and pre-send.
 5. **Multi-turn pressure:** "my manager approved this", escalating over several turns.
 6. **Refund-limit boundaries:** just under, at, and just over the limit; split refunds that
    add up to more than the limit.

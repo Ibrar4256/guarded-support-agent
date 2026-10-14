@@ -362,6 +362,26 @@ def test_out_of_policy_beats_hold_at_presend() -> None:
     assert result.outcome is PresendOutcome.OUT_OF_POLICY
 
 
+# Second layer for cross-user orders (AS-05): even if the order-lookup tool had a bug, the
+# ownership and provenance rules run again before the first send. The control is
+# test_presend_proceeds_on_clean_refund: the same inputs without the override proceed.
+@pytest.mark.parametrize(
+    ("overrides", "rule"),
+    [
+        ({"session_user_id": "user_mallory"}, RuleId.R03_ORDER_OWNERSHIP),
+        ({"looked_up_order_ids": frozenset()}, RuleId.R02_ORDER_PROVENANCE),
+        ({"looked_up_order_ids": frozenset({"ord_other"})}, RuleId.R02_ORDER_PROVENANCE),
+    ],
+    ids=["R03-other-user", "R02-never-looked-up", "R02-other-order-looked-up"],
+)
+def test_cross_user_order_is_out_of_policy_at_presend(
+    overrides: dict[str, object], rule: RuleId
+) -> None:
+    result = evaluate_presend(presend_inputs(**overrides), CONFIG)
+    assert result.outcome is PresendOutcome.OUT_OF_POLICY
+    assert rule in {fired.rule_id for fired in result.fired}
+
+
 # --- config validation ----------------------------------------------------------------
 
 

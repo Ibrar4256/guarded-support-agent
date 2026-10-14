@@ -53,7 +53,13 @@ What this does **not** claim:
    instructions.
 2. **Identity is injected by code.** `user_id` and roles come from the authenticated
    session. They are never taken from arguments the model fills in. Order lookup checks
-   that the order belongs to the session user.
+   that the order belongs to the session user, in **one query** (`WHERE id = :order AND
+   user_id = :session_user`), and returns the **same "not found" response** whether the
+   order doesn't exist or belongs to someone else: same message, same shape, same code path.
+   Otherwise the tool becomes an oracle for which order IDs exist. The cross-user case is
+   written to the server-side security log for monitoring, never shown to the model. A
+   refund on someone else's order is also refused by ADR-009's R02 (provenance) and R03
+   (ownership), at proposal and again before the first send.
 3. **Pydantic validation.** Tool schemas and proposed actions are Pydantic models. A
    malformed tool call is retried a bounded number of times, then escalated.
 4. **Step budget** on the tool loop. At most one write-tool call per turn; once a run is
