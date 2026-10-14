@@ -5,9 +5,11 @@ description = "Mock refund provider with idempotency and failure injection"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.20.0",
+    "fastapi>=0.143.0",
     "psycopg[binary]>=3.3.6",
     "pydantic>=2.13.5",
     "sqlalchemy[asyncio]>=2.1.4",
+    "uvicorn>=0.54.0",
 ]
 
 [build-system]
@@ -37,6 +39,7 @@ asyncio_mode = "auto"
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28.1",
     "import-linter>=2.15",
     "mypy>=2.4.0",
     "pytest>=9.1.1",

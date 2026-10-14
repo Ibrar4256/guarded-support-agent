@@ -1,7 +1,8 @@
 """Integration fixtures: a real Postgres from docker-compose (ADR-005: never SQLite).
 
 Needs AGENT_DB_OWNER_URL, AGENT_DB_RUNTIME_URL and REFUND_DB_RUNTIME_URL (see .env.example).
-Tests are skipped, not failed, when they are absent, so unit tests run anywhere.
+Outside CI the tests are skipped when these are absent, so unit tests run anywhere. In CI
+a missing variable is an error: a silently skipped integration suite looks like a green one.
 """
 
 import os
@@ -27,6 +28,8 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     missing = [name for name in REQUIRED if not os.environ.get(name)]
     if not missing:
         return
+    if os.environ.get("CI"):
+        raise pytest.UsageError(f"CI must run the integration tests; unset: {', '.join(missing)}")
     skip = pytest.mark.skip(reason=f"integration database not configured: {', '.join(missing)}")
     for item in items:
         if "tests/integration" in str(item.path):
