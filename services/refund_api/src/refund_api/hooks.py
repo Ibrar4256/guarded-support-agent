@@ -30,7 +30,8 @@ class RefundHooks:
         return True
 
     def key_retention(self, context: RequestContext, configured: timedelta) -> timedelta:
-        """Retention passed to prune_expired_key; the database floor still applies."""
+        """The lifetime stamped on a new key's expires_at (ADR-012 Part 5); the database
+        floor still applies when pruning."""
         return configured
 
     async def before_transaction(self, context: RequestContext) -> None:

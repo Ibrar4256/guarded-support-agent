@@ -4,9 +4,9 @@ One request is one transaction, in this order:
 1. Budget: the time left since receipt; abort if none (ADR-010 deadline).
 2. Database deadline = clock_timestamp() + remaining; statement_timeout = remaining.
 3. pg_try_advisory_xact_lock(key) — not acquired → 409, before anything else happens.
-4. prune_expired_key (migration 0002), then look the key up: replay or 422.
+4. prune_expired_key (migrations 0002, 0004), then look the key up: replay or 422.
 5. Lock the charge row (FOR UPDATE), then the business checks → 400, nothing stored.
-6. Insert the refund and the key with the exact response body.
+6. Insert the refund and the key with the exact response body and its own expires_at.
 7. clock_timestamp() < deadline, or roll back; then commit.
 
 With ``hooks.deduplicates`` false (the dedup_disabled fault, ADR-004), steps 3-4 and the
@@ -160,6 +160,9 @@ async def _create_in_transaction(
     ).one()
     body = Refund.model_validate(row._mapping).model_dump_json()
     if deduplicates:
+        # The key's life is stamped now, on the database clock, and never changes: a later
+        # retention change can't shorten or lengthen it (ADR-012 Part 5).
+        retention = hooks.key_retention(context, settings.key_retention)
         await connection.execute(
             insert(idempotency_keys).values(
                 key=idempotency_key,
@@ -167,6 +170,7 @@ async def _create_in_transaction(
                 refund_id=row.id,
                 response_status=201,
                 response_body=body,
+                expires_at=func.now() + retention,
             )
         )
 
@@ -198,12 +202,9 @@ async def _lock_and_look_up(
     if not locked:
         raise _Stop(Outcome(409, InFlight().model_dump_json()))
 
+    # Per-key expiry (ADR-012 Part 5): prune compares the key's own stamped expires_at.
     await connection.execute(
-        text("SELECT public.prune_expired_key(:key, :retention)"),
-        {
-            "key": context.idempotency_key,
-            "retention": hooks.key_retention(context, settings.key_retention),
-        },
+        text("SELECT public.prune_expired_key(:key)"), {"key": context.idempotency_key}
     )
     stored = (
         await connection.execute(

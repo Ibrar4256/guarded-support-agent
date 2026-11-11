@@ -7,6 +7,7 @@ can't pass as "refused".
 
 import shutil
 import uuid
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +44,7 @@ def seed(connection: Connection) -> uuid.UUID:
             refund_id=refund_id,
             response_status=201,
             response_body='{"id": "x"}',
+            expires_at=func.now() + timedelta(hours=1),
         )
     )
     connection.execute(insert(charges).values(order_id=FREE_ORDER, amount_minor=1, currency="USD"))
@@ -75,7 +77,7 @@ IMMUTABLE = [
     pytest.param(delete(refunds).where(refunds.c.action_id == FREE_ACTION), id="delete-refund"),
     pytest.param(delete(charges).where(charges.c.order_id == FREE_ORDER), id="delete-charge"),
     pytest.param(text("TRUNCATE refunds CASCADE"), id="truncate-refunds"),
-    # Keys are pruned only through prune_expired_key (migration 0002, ADR-010 Part 5).
+    # Keys are pruned only through prune_expired_key (migrations 0002/0004, ADR-012 Part 5).
     pytest.param(delete(idempotency_keys), id="delete-key"),
 ]
 
@@ -111,6 +113,7 @@ def key_row(refund_id: uuid.UUID, **overrides: Any) -> dict[str, Any]:
         "refund_id": refund_id,
         "response_status": 201,
         "response_body": "{}",
+        "expires_at": datetime(2030, 1, 1, tzinfo=UTC),
     }
     return row | overrides
 

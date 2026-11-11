@@ -8,7 +8,8 @@ Three tables:
   the tests must be able to see.
 - ``idempotency_keys``: the key, the payload hash it is bound to, and the stored response,
   written in the same transaction as the refund. Pruned on access after retention, only
-  through the ``prune_expired_key`` function (migration 0002); the refund row survives so
+  through the ``prune_expired_key`` function (migrations 0002, 0004), only once the key's own
+  stamped ``expires_at`` has passed; the refund row survives so
   reconciliation by ``action_id`` still finds it.
 - ``key_retention_policy``: the owner-set floor below which no key is ever pruned.
 """
@@ -84,8 +85,10 @@ idempotency_keys = Table(
     # Text, not JSONB: JSONB reorders keys and drops whitespace, and a replay must be
     # byte-identical to the original response.
     Column("response_body", Text, nullable=False),
-    # First time the provider saw the key: the retention anchor.
+    # First time the provider saw the key.
     created_at(),
+    # Its life, stamped at insert on the database clock and never updated (ADR-012 Part 5).
+    Column("expires_at", DateTime(timezone=True), nullable=False),
     CheckConstraint("payload_hash ~ '^[0-9a-f]{64}$'", name="payload_hash_format"),
     # Only commits store a key (ADR-004: business rejections are never replayed).
     CheckConstraint("response_status BETWEEN 200 AND 299", name="response_is_success"),

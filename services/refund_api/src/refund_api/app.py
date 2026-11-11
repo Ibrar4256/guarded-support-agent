@@ -13,6 +13,7 @@ import hmac
 import os
 import time
 from collections.abc import Sequence
+from datetime import timedelta
 from typing import Annotated, Any
 
 from fastapi import FastAPI, Header, Query, Request
@@ -31,6 +32,7 @@ from refund_api.models import (
     BusinessErrorCode,
     InFlight,
     KeyMismatch,
+    ProviderConfig,
     Refund,
     RefundList,
     RefundRequest,
@@ -40,6 +42,19 @@ from refund_api.models import (
 from refund_api.service import create_refund, list_refunds
 
 JSON = "application/json"
+CONTRACT_MODELS = (
+    RefundRequest,
+    Refund,
+    RefundList,
+    BusinessError,
+    InFlight,
+    KeyMismatch,
+    ProviderConfig,
+    Unavailable,
+    Unauthorized,
+)
+BEARER_SCHEME = {"bearerAuth": {"type": "http", "scheme": "bearer"}}
+NUMERIC_BOUNDS = frozenset({"minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum"})
 RECEIVED_AT = "received_at"
 UNAUTHENTICATED_PATHS = frozenset({"/health"})
 AUTH_FAILED = Unauthorized().model_dump_json().encode()
@@ -159,14 +174,36 @@ def create_app(settings: Settings, hooks: RefundHooks | None = None) -> FastAPI:
     ) -> Response:
         return Response(await list_refunds(engine, order_id, action_id), media_type=JSON)
 
+    provider_config = ProviderConfig(
+        max_retry_window_ms=milliseconds(settings.max_retry_window),
+        key_retention_ms=milliseconds(settings.key_retention),
+        processing_budget_ms=milliseconds(settings.processing_budget),
+    ).model_dump_json()
+
+    @app.get(
+        "/config",
+        response_model=None,
+        responses={
+            200: response_spec(ProviderConfig, "The provider's retry window and key lifetime"),
+            401: common[401],
+        },
+    )
+    async def get_config() -> Response:
+        # Behind the same bearer auth: it doubles as the agent's token probe (ADR-012 Part 4).
+        return Response(provider_config, media_type=JSON)
+
     @app.get("/health", include_in_schema=False)
     async def health() -> dict[str, str]:
         return {"status": "ok"}
 
     def openapi() -> dict[str, Any]:
         if app.openapi_schema is None:
-            app.openapi_schema = without_framework_422(
-                get_openapi(title=app.title, version=app.version, routes=app.routes)
+            app.openapi_schema = with_bearer_auth(
+                with_exact_bounds(
+                    without_framework_422(
+                        get_openapi(title=app.title, version=app.version, routes=app.routes)
+                    )
+                )
             )
         return app.openapi_schema
 
@@ -190,6 +227,46 @@ def without_framework_422(spec: dict[str, Any]) -> dict[str, Any]:
     for name in ("HTTPValidationError", "ValidationError"):
         schemas.pop(name, None)
     return spec
+
+
+def with_exact_bounds(spec: dict[str, Any]) -> dict[str, Any]:
+    """Put back the exact numeric bounds FastAPI's spec model rounds to float.
+
+    FastAPI types ``minimum``/``maximum`` as float, so ``le=2**63 - 1`` comes out as
+    9.223372036854776e+18, which is 2**63: one more than a BIGINT holds, and a client
+    validating against the contract would accept an amount the service rejects. The models'
+    own Pydantic schemas keep the exact integers; copy them back.
+    """
+    schemas = spec.get("components", {}).get("schemas", {})
+    for model in CONTRACT_MODELS:
+        if model.__name__ in schemas:
+            exact = model.model_json_schema(ref_template="#/components/schemas/{model}")
+            _restore_bounds(schemas[model.__name__], exact)
+    return spec
+
+
+def _restore_bounds(target: Any, source: Any) -> None:
+    if isinstance(target, dict) and isinstance(source, dict):
+        for key, value in source.items():
+            if key in NUMERIC_BOUNDS and type(value) is int and isinstance(target.get(key), float):
+                target[key] = value
+            elif key in target:
+                _restore_bounds(target[key], value)
+    elif isinstance(target, list) and isinstance(source, list):
+        for target_item, source_item in zip(target, source, strict=False):
+            _restore_bounds(target_item, source_item)
+
+
+def with_bearer_auth(spec: dict[str, Any]) -> dict[str, Any]:
+    """Declare the bearer auth the middleware enforces, so the contract says every route
+    needs a token (``/health`` isn't in the spec)."""
+    spec.setdefault("components", {})["securitySchemes"] = BEARER_SCHEME
+    spec["security"] = [{name: []} for name in BEARER_SCHEME]
+    return spec
+
+
+def milliseconds(duration: timedelta) -> int:
+    return duration // timedelta(milliseconds=1)
 
 
 def app_from_env() -> FastAPI:

@@ -315,7 +315,73 @@ same step.
 
 **Interview probes added:** AS-38 to AS-40.
 
+### Agent side, step 1: the refund client (2026-11-12)
+
+**What shipped:**
+- **ADR-012 (locked after three review passes):** response classification as a pure function in `agent.core`;
+  a JSON Schema contract test against the committed spec; bounded exponential backoff with
+  full jitter whose worst-case window is checked at startup against the window refund-api
+  sizes its key retention for. Packages: `httpx` (runtime), `respx` and `jsonschema`
+  (dev).
+- **`classify_send` and `classify_lookup`:** every row of ADR-004's table, as amended.
+  Property tests: only a recognized business code can produce `rejected`, only a matching
+  201 can produce `confirmed`, and a lookup error is never "not found"; each with a
+  planted-bug negative control.
+- **`agent.refund_client`:** the agent's own models and hash copy (the October placeholder
+  is now the real hash-vector test), an HTTP client that makes exactly one attempt and turns
+  transport failures into "no response", and its config guard.
+- **Contract test:** anything the agent's model accepts, the spec accepts; every declared
+  response has an example that validates and classifies as expected; the error-code enum
+  matches both ways. Agent: 298 tests. refund_api: 216.
+
+**What broke:**
+- **FastAPI rounds integer bounds to float in the spec.** The contract test's control
+  "an amount above the BIGINT max must be rejected by the spec" failed: the committed spec
+  said `maximum: 9.223372036854776e+18`, which is 2^63, one more than a BIGINT holds. The
+  model's own schema had the exact value; FastAPI's spec model types bounds as float.
+  refund-api now copies exact bounds back, and a test fails on any float bound.
+- **A vacuous property, again.** "Only business codes reject" passed, but the generator drew
+  status codes uniformly, so "400 + a business code" almost never appeared. The
+  generator-reaches-outcome check caught it; statuses are now biased toward the named ones.
+- **Two inputs that made the classifier raise:** a 400 whose `code` was a list, and a huge
+  `Retry-After`. Found by reading before the property tests ran; the "never raises" property
+  now guards them.
+
+- **ADR-012's reviews found four design holes before any of it shipped.** The retry limit
+  bounded only one worker's loop (a crash restarted it); the worst case assumed small early
+  waits when any wait can be a capped `Retry-After` (47.5 s claimed, 72 s real); shrinking
+  retention would have shortened keys already in flight; and a *growing* window would have
+  let the agent's age check outlive an old key. Fixes: a per-send age check on the database
+  clock, a persisted attempt count, per-key `expires_at` in refund-api, and a per-run window
+  snapshot. Also: the config probe gates only the worker, so a refund-api outage can't take
+  chat down; and a measured duplicate-key body that confirmed a refund led to a strict parser.
+
+**What I learned:**
+- A generated spec is only as exact as the generator's own types: check the contract
+  file, not just the code it came from.
+- An invariant has to survive crashes *and* config changes in both directions; check each
+  direction separately.
+- The same lesson twice is a pattern: every property needs proof its interesting outcome
+  is reached.
+
+**Interview probes added:** AS-41 to AS-43.
+
+- **ADR-013 (locked):** a self-review after locking ADR-012 found a mirror gap: keys are
+  stamped with the retention in force when they commit, but the agent bounded retries with a
+  *cached* window, so a retention decrease plus one lost response could leave a retry aimed at
+  a pruned key. Now the worker reads `GET /config` immediately before every send; the read is
+  strictly parsed, internally consistent and capped by the agent, in integer milliseconds.
+- **Code brought up to ADR-012/013:** the strict parser (a planted plain `json.loads` fails
+  every strict case), the full lookup match (a planted order+action-only match fails), the
+  72 s worst case with a property test, a total per-attempt timeout (a trickling response is
+  cut off; httpx alone overruns), the snapshot age check, validated config reads,
+  `GET /config` and the bearer scheme in refund-api's contract, and migration 0004.
+- **Migration 0004 on a real database:** applied by hand to the dev database, it hit its
+  own refusal path (25 leftover keys, no floor) and stopped cleanly; seeding the floor and
+  rerunning it backfilled every key exactly. Agent: 346 tests. refund_api: 225.
+
 **What's next:**
-- The agent side: refund client (contract test against the committed spec, hash vectors,
-  error-code enum both ways), worker (claim, lease, heartbeat, fencing), execution, crash
-  tests, the reconciler, and the agent's half of the seed.
+- The worker: claim, lease, heartbeat, fencing; the policy check once before the first send;
+  the send gate, the retry loop that stops on a lost lease, the attempt count and window
+  snapshot; recording the outcome.
+- Then crash tests (`tests/e2e`), the reconciler, and the agent's half of the seed.

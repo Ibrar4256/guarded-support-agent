@@ -54,6 +54,8 @@ tools.
 | [009](docs/adr/009-refund-policy-rules-and-decision-audit.md) | Refund policy as pure rules with stable IDs (split-refund, re-ask and queue-flooding defenses), hash- and revision-bound approvals, breaker and kill switch, append-only decision log |
 | [010](docs/adr/010-refund-api-implementation-decisions.md) | refund-api implementation: validation errors are "unknown" to the agent, charges locked per order, fault plans that must prove they fired, advisory-lock 409s, key pruning with an owner-set floor, bearer service tokens, a deadline counted from receipt |
 | [011](docs/adr/011-refund-api-test-build-wiring.md) | refund-api's fault-injection build is a separate entry point in the test package that wraps the production app, so production code never imports test code |
+| [012](docs/adr/012-refund-client-classification-and-contract.md) | The agent's refund client: a pure, strict, property-tested response classifier; a JSON Schema contract test against the committed spec; retry limits that hold across crashes and config changes (a per-send age check with a per-run window snapshot, a persisted attempt count, per-key expiry in refund-api); `GET /config` gating only the worker's send path |
+| [013](docs/adr/013-provider-config-read-before-each-send.md) | The provider's config is read, strictly validated and capped immediately before every send, so a retention decrease can't leave the agent retrying under a stale window |
 
 Every ADR records the rejected options and when each would have been the better choice.
 

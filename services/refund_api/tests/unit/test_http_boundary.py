@@ -206,3 +206,70 @@ def test_in_flight_and_mismatch_carry_no_business_code() -> None:
     schemas = make_app().openapi()["components"]["schemas"]
     for name in ("InFlight", "KeyMismatch", "Unavailable", "Unauthorized"):
         assert "code" not in schemas[name]["properties"]
+
+
+def integer_bounds(schema: Any) -> list[tuple[str, object]]:
+    found: list[tuple[str, object]] = []
+    if isinstance(schema, dict):
+        for key, value in schema.items():
+            if key in ("minimum", "maximum"):
+                found.append((key, value))
+            else:
+                found.extend(integer_bounds(value))
+    elif isinstance(schema, list):
+        for item in schema:
+            found.extend(integer_bounds(item))
+    return found
+
+
+def test_amount_bound_in_the_contract_is_exact() -> None:
+    amount = make_app().openapi()["components"]["schemas"]["RefundRequest"]["properties"][
+        "amount_minor"
+    ]
+    assert amount["maximum"] == 2**63 - 1 and type(amount["maximum"]) is int
+    assert amount["minimum"] == 1 and type(amount["minimum"]) is int
+
+
+def test_no_float_bounds_anywhere_in_the_contract() -> None:
+    bounds = integer_bounds(make_app().openapi()["components"]["schemas"])
+    assert bounds and all(type(value) is int for _, value in bounds)
+
+
+def test_control_fastapi_alone_rounds_the_bound_up() -> None:
+    # Why with_exact_bounds exists: FastAPI's own output says 2**63, not 2**63 - 1.
+    app = make_app()
+    raw = get_openapi(title=app.title, version=app.version, routes=app.routes)
+    maximum = raw["components"]["schemas"]["RefundRequest"]["properties"]["amount_minor"]["maximum"]
+    assert isinstance(maximum, float) and int(maximum) == 2**63
+
+
+# --- GET /config and the bearer scheme (ADR-012 Part 4, ADR-013) ---------------------------
+
+
+async def test_config_reports_integer_milliseconds(client: AsyncClient) -> None:
+    response = await client.get("/config", headers=AUTH)
+    assert response.status_code == 200
+    assert response.json() == {
+        "max_retry_window_ms": 600_000,
+        "key_retention_ms": 86_400_000,
+        "processing_budget_ms": 5_000,
+    }
+    assert all(type(value) is int for value in response.json().values())
+
+
+async def test_config_needs_the_token(client: AsyncClient) -> None:
+    # It doubles as the agent's token probe: a wrong token must get 401 here too.
+    assert (await client.get("/config")).status_code == 401
+
+
+def test_the_contract_declares_bearer_auth() -> None:
+    spec = make_app().openapi()
+    assert spec["components"]["securitySchemes"] == {
+        "bearerAuth": {"type": "http", "scheme": "bearer"}
+    }
+    assert spec["security"] == [{"bearerAuth": []}]
+
+
+def test_config_is_in_the_contract() -> None:
+    operation = make_app().openapi()["paths"]["/config"]["get"]
+    assert set(operation["responses"]) == {"200", "401"}

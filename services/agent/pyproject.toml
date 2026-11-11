@@ -5,6 +5,7 @@ description = "Agent service: state machine, bounded tool loop, worker"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.20.0",
+    "httpx>=0.28.1",
     "psycopg[binary]>=3.3.6",
     "pydantic>=2.13.5",
     "sqlalchemy[asyncio]>=2.1.4",
@@ -34,6 +35,11 @@ strict = true
 mypy_path = ["src", "testing"]
 packages = ["agent", "agent_testing"]
 
+[[tool.mypy.overrides]]
+# jsonschema (dev-only, the ADR-012 contract test) ships without type stubs; avoid a stubs package.
+module = ["jsonschema", "jsonschema.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 pythonpath = ["src", "testing"]
 testpaths = ["tests"]
@@ -43,9 +49,11 @@ asyncio_mode = "auto"
 dev = [
     "hypothesis>=6.168.5",
     "import-linter>=2.15",
+    "jsonschema>=4.26.0",
     "mypy>=2.4.0",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "respx>=0.23.1",
     "ruff>=0.16.10",
 ]
 

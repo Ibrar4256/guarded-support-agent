@@ -54,6 +54,33 @@
         "title": "KeyMismatch",
         "type": "object"
       },
+      "ProviderConfig": {
+        "description": "``GET /config`` (ADR-012 Part 4, ADR-013): what the agent needs to bound its retries.\nInteger milliseconds, so nothing is rounded on the way.",
+        "properties": {
+          "key_retention_ms": {
+            "minimum": 1,
+            "title": "Key Retention Ms",
+            "type": "integer"
+          },
+          "max_retry_window_ms": {
+            "minimum": 1,
+            "title": "Max Retry Window Ms",
+            "type": "integer"
+          },
+          "processing_budget_ms": {
+            "minimum": 1,
+            "title": "Processing Budget Ms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_retry_window_ms",
+          "key_retention_ms",
+          "processing_budget_ms"
+        ],
+        "title": "ProviderConfig",
+        "type": "object"
+      },
       "Refund": {
         "properties": {
           "action_id": {
@@ -120,8 +147,8 @@
             "type": "string"
           },
           "amount_minor": {
-            "maximum": 9.223372036854776e+18,
-            "minimum": 1.0,
+            "maximum": 9223372036854775807,
+            "minimum": 1,
             "title": "Amount Minor",
             "type": "integer"
           },
@@ -174,6 +201,12 @@
         "title": "Unavailable",
         "type": "object"
       }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "scheme": "bearer",
+        "type": "http"
+      }
     }
   },
   "info": {
@@ -182,6 +215,34 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/config": {
+      "get": {
+        "operationId": "get_config_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderConfig"
+                }
+              }
+            },
+            "description": "The provider's retry window and key lifetime"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            },
+            "description": "Missing or wrong service token; nothing done"
+          }
+        },
+        "summary": "Get Config"
+      }
+    },
     "/refunds": {
       "get": {
         "operationId": "get_refunds_refunds_get",
@@ -340,5 +401,10 @@
         "summary": "Post Refund"
       }
     }
-  }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ]
 }

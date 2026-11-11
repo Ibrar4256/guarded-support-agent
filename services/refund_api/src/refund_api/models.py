@@ -75,5 +75,14 @@ class Unavailable(BaseModel):
     status: Literal["deadline_exceeded", "unavailable"]
 
 
+class ProviderConfig(BaseModel):
+    """``GET /config`` (ADR-012 Part 4, ADR-013): what the agent needs to bound its retries.
+    Integer milliseconds, so nothing is rounded on the way."""
+
+    max_retry_window_ms: int = Field(ge=1)
+    key_retention_ms: int = Field(ge=1)
+    processing_budget_ms: int = Field(ge=1)
+
+
 class Unauthorized(BaseModel):
     status: Literal["unauthorized"] = "unauthorized"

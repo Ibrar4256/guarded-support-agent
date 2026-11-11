@@ -8,6 +8,10 @@ test routes stated.
 **Locked 2026-11-12.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Amended by [ADR-012](012-refund-client-classification-and-contract.md):** the
+`key_retention` hook sets the lifetime stamped on a new key's `expires_at`, instead of the
+retention passed to `prune_expired_key`.
+
 **Precedence:** narrows ADR-007's "test-only code location" rule for refund-api only. The
 agent keeps ADR-007's flag-gated factory (its scripted model is selected by configuration
 inside one running service). Nothing in ADR-010 changes.

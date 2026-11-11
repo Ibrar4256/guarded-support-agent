@@ -21,6 +21,11 @@ transitions, the reconciler, wording clarifications). Where they disagree, ADR-0
 behavior: step 3's table (`invalid_request` is unknown, not rejected), the processing
 deadline, service auth, charges, key pruning.
 
+**Amended by [ADR-012](012-refund-client-classification-and-contract.md):** `Retry-After` is
+capped at the backoff cap (not only at the remaining window), and the retry limit is
+enforced per send on the database clock with a per-run window snapshot and a persisted
+attempt count.
+
 ## Context
 ADR-001 says exactly-once refunds come from the downstream API deduplicating on an
 idempotency key, and the crash test must prove it. The dangerous window is **after the

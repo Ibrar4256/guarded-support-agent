@@ -15,6 +15,11 @@ and tests, or recorded in a new ADR that supersedes this one.
 `DEBUG_FAULT_INJECTION=true`" means "only in the fault-injection build
 (`refund_api_testing.app:fault_app_from_env`), which also requires the flag".
 
+**Amended by [ADR-012](012-refund-client-classification-and-contract.md):** refund-api gains
+an authenticated `GET /config`; idempotency keys carry an `expires_at` stamped at insert, and
+`prune_expired_key(key)` deletes only when that has passed **and** the key is older than the
+floor (Part 5's promises unchanged).
+
 **Precedence:** for **refund-api behavior and the agent's handling of refund-api
 responses**, ADR-010 > ADR-009 > ADR-008 > ADR-001–007. It changes nothing in ADR-009's
 policy rules. The amendments to earlier ADRs are listed in "Amends" below; their locked text

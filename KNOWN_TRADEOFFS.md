@@ -52,6 +52,18 @@ lives in `WEEKLY_LOG.md`.
 - **Token rotation is a manual runbook.** Two accepted tokens make rotation possible
   without downtime, but the order matters (`docs/ops/refund-api-token-rotation.md`); doing
   it wrong locks the agent out and sends refunds to reconciliation.
+- **Rolling deploys of refund-api with mixed configs (ADR-013).** The worker reads
+  `GET /config` just before each send, but during a rolling deploy two refund-api
+  instances could briefly run different retention settings, so the read and the send could
+  reach different instances. The demo runs one refund-api instance; with several, the fix is
+  for each request to carry the key lifetime it needs (ADR-013 Option C).
+- **One extra request per send.** Reading the provider's config before every send (ADR-013)
+  costs one small authenticated GET per attempt. Trivial at this scale; a shorter cache
+  interval would be cheaper but only shrinks the gap it exists to close.
+- **The contract's numeric bounds are post-processed.** FastAPI's spec model rounds integer
+  bounds to float (2^63 - 1 becomes 2^63), so refund-api copies the exact bounds back from
+  the Pydantic schemas. A test fails if any bound in the contract is a float, so a new model
+  can't silently reintroduce the rounding.
 - **The fault-injection build must run as one worker (ADR-010 Part 3, ADR-011).** Fault
   plans live in process memory. The app can't detect its worker count, so it doesn't try;
   every fault test asserts its fault fired, which turns a multi-worker mistake into a loud
