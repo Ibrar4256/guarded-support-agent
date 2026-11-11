@@ -29,8 +29,11 @@ def collect_integration(env: dict[str, str]) -> subprocess.CompletedProcess[str]
 
 @pytest.mark.parametrize("missing", REQUIRED)
 def test_ci_with_a_missing_variable_fails(missing: str) -> None:
-    env = {name: value for name, value in os.environ.items() if name != missing}
-    env["CI"] = "true"
+    # Every other variable gets a dummy value (collection never connects), so the result
+    # doesn't depend on whether this machine has a database configured.
+    dummies = {name: "postgresql+psycopg://dummy:dummy@127.0.0.1:1/dummy" for name in REQUIRED}
+    env = {**os.environ, **dummies, "CI": "true"}
+    del env[missing]
     result = collect_integration(env)
     assert result.returncode != 0
     assert f"CI must run the integration tests; unset: {missing}" in result.stdout + result.stderr

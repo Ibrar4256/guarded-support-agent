@@ -11,6 +11,11 @@ and tests, or recorded in a new ADR that supersedes this one.
 **Amended by [ADR-010](010-refund-api-implementation-decisions.md):** only a recognized
 business-error code **other than `invalid_request`** can set `rejected`.
 
+**Amended by [ADR-011](011-refund-api-test-build-wiring.md):** for refund-api, the test build
+is a separate entry point in the test package that wraps the production app; no production
+factory imports test code, so no import-linter exception exists. The agent keeps the
+flag-gated factory.
+
 ## Context
 ADR-004 requires the agent and refund-api to be **separate systems**: separate processes,
 databases and credentials, communicating only over HTTP. That boundary has to exist in the

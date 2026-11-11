@@ -49,7 +49,7 @@ jobs:
     name: cross-service boundaries
     needs: service
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - name: Install uv ${{ env.UV_VERSION }}
@@ -58,3 +58,5 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Service independence (ADR-007)
         run: uv run --no-project --python 3.12 python scripts/ci/check_service_independence.py
+      - name: Production image has no test code (ADR-007, ADR-011)
+        run: scripts/ci/production_image_check.sh refund_api

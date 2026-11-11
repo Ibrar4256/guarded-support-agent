@@ -16,7 +16,7 @@ from httpx import AsyncClient, Response
 from sqlalchemy import Engine, text
 
 from refund_api import service
-from refund_api.hooks import RefundHooks
+from refund_api.hooks import RefundHooks, RequestContext
 from refund_api.service import REPLAYED_HEADER
 
 pytestmark = pytest.mark.usefixtures("retention_floor")
@@ -49,8 +49,8 @@ class PauseBeforeCommit(RefundHooks):
         self.reached = asyncio.Event()
         self.release = asyncio.Event()
 
-    async def before_commit(self, idempotency_key: str) -> None:
-        if idempotency_key == self.key:
+    async def before_commit(self, context: RequestContext) -> None:
+        if context.idempotency_key == self.key:
             self.reached.set()
             await self.release.wait()
 
@@ -200,7 +200,7 @@ async def test_same_key_in_flight_is_409_then_replays(runtime_engine: Engine) ->
 
 
 class CollidingLocks(PauseBeforeCommit):
-    def lock_key(self, idempotency_key: str) -> int:
+    def lock_key(self, context: RequestContext) -> int:
         return 42
 
 
@@ -286,7 +286,7 @@ class DelayBeforeTransaction(RefundHooks):
     def __init__(self, seconds: float) -> None:
         self.seconds = seconds
 
-    async def before_transaction(self, idempotency_key: str) -> None:
+    async def before_transaction(self, context: RequestContext) -> None:
         await asyncio.sleep(self.seconds)
 
 
@@ -294,7 +294,7 @@ class DelayBeforeCommit(RefundHooks):
     def __init__(self, seconds: float) -> None:
         self.seconds = seconds
 
-    async def before_commit(self, idempotency_key: str) -> None:
+    async def before_commit(self, context: RequestContext) -> None:
         await asyncio.sleep(self.seconds)
 
 

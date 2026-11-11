@@ -8,6 +8,9 @@ One request is one transaction, in this order:
 5. Lock the charge row (FOR UPDATE), then the business checks → 400, nothing stored.
 6. Insert the refund and the key with the exact response body.
 7. clock_timestamp() < deadline, or roll back; then commit.
+
+With ``hooks.deduplicates`` false (the dedup_disabled fault, ADR-004), steps 3-4 and the
+stored key are skipped: the request is treated as if keys didn't exist.
 """
 
 import math
@@ -23,7 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from refund_api.config import Settings
 from refund_api.db.schema import idempotency_keys, refunds
-from refund_api.hooks import RefundHooks
+from refund_api.hooks import RefundHooks, RequestContext
 from refund_api.models import (
     BusinessError,
     BusinessErrorCode,
@@ -83,7 +86,8 @@ async def create_refund(
     idempotency_key: str,
     received_at: float,
 ) -> Outcome:
-    await hooks.before_transaction(idempotency_key)
+    context = RequestContext(idempotency_key=idempotency_key, action_id=request.action_id)
+    await hooks.before_transaction(context)
     try:
         async with engine.connect() as connection:
             remaining = remaining_budget(settings, received_at)
@@ -91,8 +95,8 @@ async def create_refund(
                 return deadline_exceeded()
             try:
                 async with connection.begin():
-                    return await _create_in_transaction(
-                        connection, settings, hooks, request, idempotency_key, remaining
+                    outcome = await _create_in_transaction(
+                        connection, settings, hooks, request, context, remaining
                     )
             except _Stop as stop:
                 return stop.outcome
@@ -102,6 +106,9 @@ async def create_refund(
         if isinstance(exc.orig, pg_errors.QueryCanceled):  # statement_timeout fired
             return deadline_exceeded()
         raise
+    if outcome.status == 201 and REPLAYED_HEADER not in outcome.headers:
+        await hooks.after_commit(context)
+    return outcome
 
 
 async def _create_in_transaction(
@@ -109,9 +116,10 @@ async def _create_in_transaction(
     settings: Settings,
     hooks: RefundHooks,
     request: RefundRequest,
-    idempotency_key: str,
+    context: RequestContext,
     remaining: float,
 ) -> Outcome:
+    idempotency_key = context.idempotency_key
     deadline = (
         await connection.execute(
             text("SELECT clock_timestamp() + make_interval(secs => :seconds)"),
@@ -123,33 +131,12 @@ async def _create_in_transaction(
         {"ms": str(math.ceil(remaining * 1000))},
     )
 
-    locked = (
-        await connection.execute(
-            text("SELECT pg_try_advisory_xact_lock(:lock_id)"),
-            {"lock_id": hooks.lock_key(idempotency_key)},
-        )
-    ).scalar_one()
-    if not locked:
-        raise _Stop(Outcome(409, InFlight().model_dump_json()))
-
-    await connection.execute(
-        text("SELECT public.prune_expired_key(:key, :retention)"),
-        {"key": idempotency_key, "retention": settings.key_retention},
-    )
+    deduplicates = hooks.deduplicates(context)
     request_hash = payload_hash(**request.model_dump())
-    stored = (
-        await connection.execute(
-            select(
-                idempotency_keys.c.payload_hash,
-                idempotency_keys.c.response_status,
-                idempotency_keys.c.response_body,
-            ).where(idempotency_keys.c.key == idempotency_key)
-        )
-    ).one_or_none()
-    if stored is not None:
-        if stored.payload_hash != request_hash:
-            raise _Stop(Outcome(422, KeyMismatch().model_dump_json()))
-        return Outcome(stored.response_status, stored.response_body, {REPLAYED_HEADER: "true"})
+    if deduplicates:
+        replay = await _lock_and_look_up(connection, settings, hooks, context, request_hash)
+        if replay is not None:
+            return replay
 
     charge = await lock_charge(connection, request.order_id)
     if charge is None:
@@ -172,17 +159,18 @@ async def _create_in_transaction(
         )
     ).one()
     body = Refund.model_validate(row._mapping).model_dump_json()
-    await connection.execute(
-        insert(idempotency_keys).values(
-            key=idempotency_key,
-            payload_hash=request_hash,
-            refund_id=row.id,
-            response_status=201,
-            response_body=body,
+    if deduplicates:
+        await connection.execute(
+            insert(idempotency_keys).values(
+                key=idempotency_key,
+                payload_hash=request_hash,
+                refund_id=row.id,
+                response_status=201,
+                response_body=body,
+            )
         )
-    )
 
-    await hooks.before_commit(idempotency_key)
+    await hooks.before_commit(context)
     in_time = (
         await connection.execute(
             text("SELECT clock_timestamp() < :deadline"), {"deadline": deadline}
@@ -191,6 +179,46 @@ async def _create_in_transaction(
     if not in_time:
         raise _Stop(deadline_exceeded())
     return Outcome(201, body)
+
+
+async def _lock_and_look_up(
+    connection: AsyncConnection,
+    settings: Settings,
+    hooks: RefundHooks,
+    context: RequestContext,
+    request_hash: str,
+) -> Outcome | None:
+    """Steps 3-4: try-lock the key (409), prune it if expired, then replay or 422."""
+    locked = (
+        await connection.execute(
+            text("SELECT pg_try_advisory_xact_lock(:lock_id)"),
+            {"lock_id": hooks.lock_key(context)},
+        )
+    ).scalar_one()
+    if not locked:
+        raise _Stop(Outcome(409, InFlight().model_dump_json()))
+
+    await connection.execute(
+        text("SELECT public.prune_expired_key(:key, :retention)"),
+        {
+            "key": context.idempotency_key,
+            "retention": hooks.key_retention(context, settings.key_retention),
+        },
+    )
+    stored = (
+        await connection.execute(
+            select(
+                idempotency_keys.c.payload_hash,
+                idempotency_keys.c.response_status,
+                idempotency_keys.c.response_body,
+            ).where(idempotency_keys.c.key == context.idempotency_key)
+        )
+    ).one_or_none()
+    if stored is None:
+        return None
+    if stored.payload_hash != request_hash:
+        raise _Stop(Outcome(422, KeyMismatch().model_dump_json()))
+    return Outcome(stored.response_status, stored.response_body, {REPLAYED_HEADER: "true"})
 
 
 async def list_refunds(engine: AsyncEngine, order_id: str, action_id: str) -> str:

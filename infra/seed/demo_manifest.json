@@ -1,0 +1,32 @@
+{
+  "manifest_version": 1,
+  "orders": [
+    {
+      "order_id": "ord_demo_1001",
+      "owner_user_id": "user_demo_alice",
+      "charged_minor": 5000,
+      "currency": "USD",
+      "status": "delivered",
+      "delivered_at": "2026-11-01T10:00:00Z",
+      "chargeback_open": false
+    },
+    {
+      "order_id": "ord_demo_1002",
+      "owner_user_id": "user_demo_alice",
+      "charged_minor": 12999,
+      "currency": "USD",
+      "status": "shipped",
+      "delivered_at": null,
+      "chargeback_open": false
+    },
+    {
+      "order_id": "ord_demo_2001",
+      "owner_user_id": "user_demo_bob",
+      "charged_minor": 2500,
+      "currency": "USD",
+      "status": "delivered",
+      "delivered_at": "2026-11-05T15:30:00Z",
+      "chargeback_open": false
+    }
+  ]
+}

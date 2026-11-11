@@ -1,0 +1,344 @@
+{
+  "components": {
+    "schemas": {
+      "BusinessError": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/BusinessErrorCode"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "array"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "BusinessError",
+        "type": "object"
+      },
+      "BusinessErrorCode": {
+        "enum": [
+          "invalid_request",
+          "refund_exceeds_charge",
+          "charge_not_found",
+          "currency_mismatch"
+        ],
+        "title": "BusinessErrorCode",
+        "type": "string"
+      },
+      "InFlight": {
+        "properties": {
+          "status": {
+            "const": "in_flight",
+            "default": "in_flight",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "InFlight",
+        "type": "object"
+      },
+      "KeyMismatch": {
+        "properties": {
+          "status": {
+            "const": "key_payload_mismatch",
+            "default": "key_payload_mismatch",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "KeyMismatch",
+        "type": "object"
+      },
+      "Refund": {
+        "properties": {
+          "action_id": {
+            "title": "Action Id",
+            "type": "string"
+          },
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "order_id": {
+            "title": "Order Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "order_id",
+          "action_id",
+          "amount_minor",
+          "currency",
+          "created_at"
+        ],
+        "title": "Refund",
+        "type": "object"
+      },
+      "RefundList": {
+        "properties": {
+          "refunds": {
+            "items": {
+              "$ref": "#/components/schemas/Refund"
+            },
+            "title": "Refunds",
+            "type": "array"
+          }
+        },
+        "required": [
+          "refunds"
+        ],
+        "title": "RefundList",
+        "type": "object"
+      },
+      "RefundRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action_id": {
+            "description": "ADR-004 step 2's `metadata.action_id`: the agent action that caused this refund, used by the reconcile lookup. Flat by design, see ADR-010 formats; a provider adapter maps it into the provider's own metadata.",
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Action Id",
+            "type": "string"
+          },
+          "amount_minor": {
+            "maximum": 9.223372036854776e+18,
+            "minimum": 1.0,
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "order_id": {
+            "pattern": "^[A-Za-z0-9_-]{1,128}$",
+            "title": "Order Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "order_id",
+          "amount_minor",
+          "currency",
+          "action_id"
+        ],
+        "title": "RefundRequest",
+        "type": "object"
+      },
+      "Unauthorized": {
+        "properties": {
+          "status": {
+            "const": "unauthorized",
+            "default": "unauthorized",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "Unauthorized",
+        "type": "object"
+      },
+      "Unavailable": {
+        "properties": {
+          "status": {
+            "enum": [
+              "deadline_exceeded",
+              "unavailable"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "Unavailable",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "refund-api",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/refunds": {
+      "get": {
+        "operationId": "get_refunds_refunds_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "order_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{1,128}$",
+              "title": "Order Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action_id",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{1,128}$",
+              "title": "Action Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundList"
+                }
+              }
+            },
+            "description": "Every refund for this action"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BusinessError"
+                }
+              }
+            },
+            "description": "Business error or invalid request; nothing stored"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            },
+            "description": "Missing or wrong service token; nothing done"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unavailable"
+                }
+              }
+            },
+            "description": "Deadline exceeded or unavailable; nothing committed"
+          }
+        },
+        "summary": "Get Refunds"
+      },
+      "post": {
+        "operationId": "post_refund_refunds_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9_-]{1,255}$",
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Refund"
+                }
+              }
+            },
+            "description": "Created, or replayed with Idempotent-Replayed: true"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BusinessError"
+                }
+              }
+            },
+            "description": "Business error or invalid request; nothing stored"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unauthorized"
+                }
+              }
+            },
+            "description": "Missing or wrong service token; nothing done"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InFlight"
+                }
+              }
+            },
+            "description": "The same key is being processed; retry later"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyMismatch"
+                }
+              }
+            },
+            "description": "The key was used with a different payload"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Unavailable"
+                }
+              }
+            },
+            "description": "Deadline exceeded or unavailable; nothing committed"
+          }
+        },
+        "summary": "Post Refund"
+      }
+    }
+  }
+}

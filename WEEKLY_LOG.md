@@ -262,9 +262,60 @@
 
 **Interview probes added:** AS-30 (rewritten) to AS-37.
 
+**Also this week:** a staleness audit of the interview bank found 13 of 37 answers
+contradicted later ADRs (old state names, "retry the old key", lease sizing, the deadline
+anchor). Fixed, and the rule now is: when an ADR amends another, update the answers in the
+same step.
+
+## Week 4 — refund-api slice 2: fault build, seed, contract, image (2026-11-12)
+
+**What shipped:**
+- **ADR-011 (locked after an outside review):** the fault-injection build is a separate entry point in
+  `refund_api_testing` that wraps the production app. Imports only go from test code to
+  production, so the "production never imports test code" rule needs no exception, and a
+  production image can't start the test build at all.
+- **Hook seams** (`after_commit`, `deduplicates`, `key_retention`), each given the
+  request's key and `action_id`. Production behavior is unchanged; all 161 earlier tests
+  passed after the refactor.
+- **Every ADR-004 failure mode** through fault plans per action: fail before/after commit,
+  timeout after commit (logic only, in-process), slow commit (a lookup during the delay
+  finds nothing), and `dedup_disabled`, which stays on across the retry. One-shot vs.
+  persistent consumption, no TTL, teardown that removes only its own plans, and an
+  assert-applied check in every fault test.
+- **Seed command** (`python -m refund_api.seed`): charges from a manifest shared with the
+  agent, all-or-nothing, never updating an existing charge, plus the key-retention floor.
+- **Wire contract committed** (`contracts/refund_api.openapi.json`) with a regenerate-and-
+  diff CI check; the test routes are never in it.
+- **Dockerfile** (production and test targets) and a CI check that the production image
+  can't import `refund_api_testing`, with the test image as its control. The independence
+  check now also covers Dockerfiles and finally has automated negative controls.
+- **A strict-xfail placeholder** that fails CI the moment the order-lookup tool exists
+  without its uniform "not found" test.
+- refund_api: 207 tests. Agent: 159 plus two placeholders.
+
+**What broke:**
+- **A test that could hang forever.** Planting "the fault log never records" made the
+  slow-commit test loop waiting for a fault that would never be logged, and the run hung
+  until I killed it. The plant was right; the test was wrong. Every wait now has a limit,
+  and the same plant fails 8 tests in 9 seconds.
+- **A guard test that depended on the machine.** The October test "CI fails when a
+  database variable is missing" removed one variable and expected the error to name only
+  that one. With no database configured at all, the error names both, so it failed. It had
+  only ever run with `.env` loaded. It now sets dummies for the others; fixed in both
+  services.
+- **A shell heredoc I garbled** didn't run at all. No harm, but a reminder to write files
+  with the editor rather than nested heredocs.
+
+**What I learned:**
+- A negative control can find a broken *test*, not just broken code, including one that
+  never finishes.
+- A test that only passes with your local environment loaded is a latent CI failure.
+- Pointing the dependency from test code to production code removes the need for an
+  exception in the boundary rules.
+
+**Interview probes added:** AS-38 to AS-40.
+
 **What's next:**
-- refund-api slice 2: fault plans and the test-only charge endpoint in
-  `refund_api_testing`, the per-mode consumption rules, OpenAPI export to `contracts/`
-  with the regenerate-and-diff check, the Dockerfile and production-image test.
-- Then the agent side: refund client (contract test, hash vectors), worker (claim, lease,
-  heartbeat, fencing), execution, crash tests and the reconciler.
+- The agent side: refund client (contract test against the committed spec, hash vectors,
+  error-code enum both ways), worker (claim, lease, heartbeat, fencing), execution, crash
+  tests, the reconciler, and the agent's half of the seed.

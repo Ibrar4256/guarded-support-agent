@@ -41,6 +41,11 @@ if [ -f scripts/check_core_purity.py ]; then
   uv run python scripts/check_core_purity.py
 fi
 
+if [ -f scripts/export_openapi.py ]; then
+  step "OpenAPI contract matches the code"
+  uv run python scripts/export_openapi.py --check
+fi
+
 step "import contracts"
 PYTHONPATH=testing uv run lint-imports --no-cache
 

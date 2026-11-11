@@ -52,6 +52,17 @@ lives in `WEEKLY_LOG.md`.
 - **Token rotation is a manual runbook.** Two accepted tokens make rotation possible
   without downtime, but the order matters (`docs/ops/refund-api-token-rotation.md`); doing
   it wrong locks the agent out and sends refunds to reconciliation.
+- **The fault-injection build must run as one worker (ADR-010 Part 3, ADR-011).** Fault
+  plans live in process memory. The app can't detect its worker count, so it doesn't try;
+  every fault test asserts its fault fired, which turns a multi-worker mistake into a loud
+  failure rather than a silent pass.
+- **The Docker image check runs in CI only.** The development machine has too little free
+  disk for routine image builds, so `production_image_check.sh` is verified on GitHub's
+  runners; run it locally only when there's space.
+- **The seed is half-built.** refund-api seeds charges and the key floor from the shared
+  manifest; the agent's half (customers and orders from the same file) comes with the agent
+  service. Until then, the demo's two databases are only consistent if both are seeded from
+  `infra/seed/demo_manifest.json`.
 - **Row locks on immutable tables go through `SECURITY DEFINER` functions.** `FOR UPDATE`
   needs `UPDATE` privilege, which charges deliberately don't grant, so `lock_charge` takes
   the lock on the runtime role's behalf (migration 0003). Each such function is another

@@ -11,6 +11,10 @@ duplicate-refund accounting gap is recorded.
 **Locked 2026-10-14.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Amended by [ADR-011](011-refund-api-test-build-wiring.md):** Part 3's "mounted only when
+`DEBUG_FAULT_INJECTION=true`" means "only in the fault-injection build
+(`refund_api_testing.app:fault_app_from_env`), which also requires the flag".
+
 **Precedence:** for **refund-api behavior and the agent's handling of refund-api
 responses**, ADR-010 > ADR-009 > ADR-008 > ADR-001–007. It changes nothing in ADR-009's
 policy rules. The amendments to earlier ADRs are listed in "Amends" below; their locked text

@@ -53,6 +53,7 @@ tools.
 | [008](docs/adr/008-run-lifecycle-and-cross-adr-clarifications.md) | Seven run statuses with database-enforced invariants; a reconciler that never re-sends; cross-ADR clarifications |
 | [009](docs/adr/009-refund-policy-rules-and-decision-audit.md) | Refund policy as pure rules with stable IDs (split-refund, re-ask and queue-flooding defenses), hash- and revision-bound approvals, breaker and kill switch, append-only decision log |
 | [010](docs/adr/010-refund-api-implementation-decisions.md) | refund-api implementation: validation errors are "unknown" to the agent, charges locked per order, fault plans that must prove they fired, advisory-lock 409s, key pruning with an owner-set floor, bearer service tokens, a deadline counted from receipt |
+| [011](docs/adr/011-refund-api-test-build-wiring.md) | refund-api's fault-injection build is a separate entry point in the test package that wraps the production app, so production code never imports test code |
 
 Every ADR records the rejected options and when each would have been the better choice.
 
@@ -75,6 +76,20 @@ set -a; . ./.env; set +a
 scripts/ci/service_checks.sh agent      # lint, types, purity, contracts, migrations, tests
 scripts/ci/service_checks.sh refund_api
 ```
+
+### refund-api by hand
+
+```bash
+cd services/refund_api
+uv run alembic upgrade head                                  # as the owner role
+uv run python -m refund_api.seed ../../infra/seed/demo_manifest.json   # charges + key floor
+uv run uvicorn --factory refund_api.app:app_from_env         # production build
+DEBUG_FAULT_INJECTION=true uv run uvicorn --factory \
+  refund_api_testing.app:fault_app_from_env --workers 1      # fault-injection build
+```
+
+The wire contract is [`contracts/refund_api.openapi.json`](contracts/refund_api.openapi.json);
+regenerate it with `uv run python scripts/export_openapi.py` (CI fails if it's stale).
 
 Without the database variables, integration tests are skipped locally (unit tests still run);
 in CI a missing variable fails the run.

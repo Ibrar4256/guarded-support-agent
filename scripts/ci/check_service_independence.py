@@ -1,14 +1,19 @@
-"""Fail if one service declares another as a dependency (ADR-007 boundary check 2).
+"""Fail if one service depends on another outside HTTP (ADR-007 boundary checks 2 and 3).
 
 Import contracts catch imports; this catches the packaging route (a path or package
-dependency on the other service in pyproject.toml).
+dependency on the other service in pyproject.toml) and the Docker route (a Dockerfile that
+reaches outside its own service directory, which the per-service build context should
+make impossible anyway).
+
+    python scripts/ci/check_service_independence.py [--root <repo copy>]
 """
 
+import argparse
 import sys
 import tomllib
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_ROOT = Path(__file__).resolve().parents[2]
 SERVICES = {"agent": "agent", "refund_api": "refund-api"}
 
 
@@ -26,10 +31,28 @@ def declared_dependencies(pyproject: dict[str, object]) -> list[str]:
     return names
 
 
-def main() -> int:
+def dockerfile_problems(root: Path, directory: str) -> list[str]:
+    dockerfile = root / "services" / directory / "Dockerfile"
+    if not dockerfile.exists():
+        return []
+    text = dockerfile.read_text()
+    problems = []
+    if "../" in text:
+        problems.append(f"{directory}/Dockerfile reaches outside its build context ('../')")
+    for other in SERVICES:
+        if other != directory and f"services/{other}" in text:
+            problems.append(f"{directory}/Dockerfile references services/{other}")
+    return problems
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
+    root = parser.parse_args(argv).root
     problems: list[str] = []
     for directory, own_name in SERVICES.items():
-        pyproject = tomllib.loads((ROOT / "services" / directory / "pyproject.toml").read_text())
+        problems.extend(dockerfile_problems(root, directory))
+        pyproject = tomllib.loads((root / "services" / directory / "pyproject.toml").read_text())
         sources = pyproject.get("tool", {}).get("uv", {}).get("sources", {})
         for other_dir, other_name in SERVICES.items():
             if other_name == own_name:

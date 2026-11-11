@@ -109,6 +109,9 @@ def create_app(settings: Settings, hooks: RefundHooks | None = None) -> FastAPI:
     # The spec is exported from app.openapi() into contracts/.
     app = FastAPI(title="refund-api", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.engine = engine
+    # Kept so a test can assert the production entry point runs the no-op hooks only:
+    # `deduplicates` can switch off idempotency (ADR-011).
+    app.state.hooks = refund_hooks
     app.add_exception_handler(RequestValidationError, invalid_request)
 
     common: dict[int | str, dict[str, Any]] = {
