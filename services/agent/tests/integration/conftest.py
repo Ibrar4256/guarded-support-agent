@@ -9,14 +9,19 @@ import os
 import subprocess
 import sys
 import uuid
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import Connection, Engine, create_engine, insert
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from agent.db.schema import conversations, customers
+
+if TYPE_CHECKING:
+    from worker_world import World
 
 SERVICE_ROOT = Path(__file__).resolve().parents[2]
 REQUIRED = ("AGENT_DB_OWNER_URL", "AGENT_DB_RUNTIME_URL", "REFUND_DB_RUNTIME_URL")
@@ -71,6 +76,25 @@ def owner_engine(migrated_database: None) -> Iterator[Engine]:
     engine = create_engine(env("AGENT_DB_OWNER_URL"))
     yield engine
     engine.dispose()
+
+
+@pytest.fixture
+async def async_runtime_engine(migrated_database: None) -> AsyncIterator[AsyncEngine]:
+    """The runtime role over an async engine, as the worker connects in production."""
+    engine = create_async_engine(env("AGENT_DB_RUNTIME_URL"))
+    yield engine
+    await engine.dispose()
+
+
+@pytest.fixture
+def world(owner_engine: Engine) -> Iterator["World"]:
+    from worker_world import World
+
+    world = World(owner_engine)
+    try:
+        yield world
+    finally:
+        world.teardown()
 
 
 @pytest.fixture

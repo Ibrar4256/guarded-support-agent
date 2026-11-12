@@ -431,3 +431,42 @@ same step.
   attempt transaction and budget, classification → transitions, cooldowns and streaks,
   alerts, the test entry point.
 - Then crash tests (`tests/e2e`), the reconciler, and the agent's half of the seed.
+
+### Agent side, step 2 slice: claim and heartbeat (2026-11-12)
+
+**What shipped:**
+- `agent.db.claims`: the ADR-014 claim statement (`SKIP LOCKED` subselect, the four named
+  conditions repeated in the outer `WHERE`: status, lease free, cooldown passed, R14 not
+  held), `EXECUTING` first then oldest approval; fencing on `claim_version`; releases that
+  always bump the version, with an optional cooldown that counts toward the streak; bounded
+  transactions (`statement_timeout`, `lock_timeout`).
+- `agent.worker.timings` (startup guard: lease ≥ 3 heartbeats, lock ≤ statement timeout <
+  step bound) and `agent.worker.lease`: the heartbeat as its own task, liveness (a step past
+  its bound stops renewal), a 0-row renewal cancels the work, a database error doesn't.
+- 64 new tests (agent: 425). Each claim condition has a control that drops only it; five
+  source plants each failed exactly their test.
+
+**What broke:**
+- A control showed a second layer I hadn't counted on: without the status condition, the
+  claim tries to take a finished run and ADR-008's "a finished run holds no claim" CHECK
+  refuses it. `NEEDS_RECONCILIATION`, `AGENT_STEP` and `AWAIT_APPROVAL` have no such layer;
+  the test now says which is which.
+- One flaky failure in 5 runs that wouldn't reproduce in 52 more. Hypothesis: the test's
+  "another worker claims" was expire-then-claim, and a heartbeat could land in between. A probe
+  with a 5 ms heartbeat confirmed it (2 failures in 5) and also showed **2 hangs past
+  `asyncio.timeout`**: the test helper's synchronous owner `UPDATE` blocked the event loop on
+  a row lock held by the heartbeat's open transaction on the same loop, so that transaction
+  could never commit, a deadlock Postgres can't see. Fixed: the steal is one atomic statement,
+  sync helper calls run in `asyncio.to_thread` while worker transactions may be open, and every
+  helper transaction sets `lock_timeout`. Same probe after: 8/8; normal suite 20/20.
+- SQLAlchemy warned about a cartesian product in `UPDATE … FROM policy_controls`; the controls
+  are now scalar subqueries, which also makes a missing controls row hold every `APPROVED` run.
+
+**What I learned:**
+- `asyncio.timeout` can't save you from a blocked event loop; a sync call inside async code
+  is a lock you can deadlock on yourself.
+- Reproduce a flake by widening its window on purpose, then prove the fix under the same probe.
+
+**Interview probes added:** AS-48.
+
+**What's next:** the config gate (cache, staleness, closing on a failed read), then pre-send.
