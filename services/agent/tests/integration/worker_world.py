@@ -13,7 +13,7 @@ hang Postgres can't detect, past any ``asyncio.timeout``). Every owner transacti
 import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from conftest import T0
@@ -21,7 +21,17 @@ from sqlalchemy import Connection, Engine, Row, delete, func, insert, select, te
 
 from agent.core.capacity import ApprovalSource
 from agent.core.lifecycle import RefundOutcome, RunStatus
-from agent.db.schema import conversations, customers, policy_controls, runs
+from agent.core.policy import FulfillmentStatus
+from agent.db.schema import (
+    conversations,
+    customers,
+    decisions,
+    events,
+    orders,
+    policy_controls,
+    run_order_lookups,
+    runs,
+)
 
 WINDOW_MS = 60_000
 OWNER_LOCK_TIMEOUT = "2s"
@@ -80,6 +90,78 @@ class World:
             connection.execute(insert(runs).values(**values))
         return run
 
+    def add_order(
+        self,
+        *,
+        charged_minor: int = 8_000,
+        status: FulfillmentStatus = FulfillmentStatus.DELIVERED,
+        chargeback_open: bool = False,
+    ) -> str:
+        """A delivered order of this customer, delivered three days ago (inside the window)."""
+        order = f"ord_{uuid.uuid4().hex[:12]}"
+        with self.transaction() as connection:
+            connection.execute(
+                insert(orders).values(
+                    id=order,
+                    owner_user_id=self.user,
+                    charged_minor=charged_minor,
+                    currency="USD",
+                    status=status,
+                    delivered_at=datetime.now(UTC) - timedelta(days=3),
+                    chargeback_open=chargeback_open,
+                )
+            )
+        return order
+
+    def add_refund_run(
+        self,
+        order: str,
+        amount_minor: int | None,
+        status: RunStatus = RunStatus.APPROVED,
+        *,
+        looked_up: bool = True,
+        **extra: Any,
+    ) -> uuid.UUID:
+        """A refund proposal on ``order``, approved an hour ago, looked up by its run."""
+        extra.setdefault("approved_at", datetime.now(UTC) - timedelta(hours=1))
+        run = self.add_run(
+            status,
+            action_id=f"act_{uuid.uuid4().hex[:12]}",
+            order_id=order,
+            amount_minor=amount_minor,
+            currency="USD",
+            **extra,
+        )
+        if looked_up:
+            with self.transaction() as connection:
+                connection.execute(insert(run_order_lookups).values(run_id=run, order_id=order))
+        return run
+
+    def decisions(self, run: uuid.UUID) -> list[Row[Any]]:
+        with self.owner.connect() as connection:
+            return list(
+                connection.execute(
+                    select(decisions).where(decisions.c.run_id == run).order_by(decisions.c.id)
+                )
+            )
+
+    def events(self, run: uuid.UUID) -> list[Row[Any]]:
+        with self.owner.connect() as connection:
+            return list(
+                connection.execute(
+                    select(events).where(events.c.run_id == run).order_by(events.c.id)
+                )
+            )
+
+    def waiting_locks(self) -> int:
+        """Lock requests not yet granted, server-wide (ADR-005's race test watches this)."""
+        with self.owner.connect() as connection:
+            return int(
+                connection.execute(
+                    text("SELECT count(*) FROM pg_locks WHERE NOT granted")
+                ).scalar_one()
+            )
+
     def set(self, run: uuid.UUID, **values: Any) -> None:
         with self.transaction() as connection:
             connection.execute(update(runs).where(runs.c.id == run).values(**values))
@@ -134,7 +216,14 @@ class World:
 
     def teardown(self) -> None:
         self.controls()
+        mine = select(runs.c.id).where(runs.c.user_id == self.user)
         with self.transaction() as connection:
+            connection.execute(
+                delete(run_order_lookups).where(run_order_lookups.c.run_id.in_(mine))
+            )
+            connection.execute(delete(decisions).where(decisions.c.run_id.in_(mine)))
+            connection.execute(delete(events).where(events.c.run_id.in_(mine)))
             connection.execute(delete(runs).where(runs.c.user_id == self.user))
+            connection.execute(delete(orders).where(orders.c.owner_user_id == self.user))
             connection.execute(delete(conversations).where(conversations.c.user_id == self.user))
             connection.execute(delete(customers).where(customers.c.id == self.user))

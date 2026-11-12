@@ -1,4 +1,5 @@
-"""Worker timings and their startup guard (ADR-004 step 7, ADR-014 S8, S11, S12).
+"""Worker timings and limits, and their startup guard (ADR-004 step 7, ADR-005, ADR-009,
+ADR-014 S5, S8, S11, S12).
 
 - The lease is at least three heartbeats long, so one late heartbeat never loses a claim.
 - A step (a config read, a transaction, a send or a backoff sleep) may take at most
@@ -21,6 +22,9 @@ STATEMENT_TIMEOUT = "WORKER_STATEMENT_TIMEOUT_SECONDS"
 LOCK_TIMEOUT = "WORKER_LOCK_TIMEOUT_SECONDS"
 CONFIG_REFRESH = "WORKER_CONFIG_REFRESH_SECONDS"
 CONFIG_STALE = "WORKER_CONFIG_STALE_SECONDS"
+PRESEND_MAX_ATTEMPTS = "WORKER_PRESEND_MAX_ATTEMPTS"
+LOCK_RETRY_MAX = "WORKER_LOCK_RETRY_MAX"
+RELEASE_STREAK_LIMIT = "WORKER_RELEASE_STREAK_LIMIT"
 
 MIN_HEARTBEATS_PER_LEASE = 3
 # The cached provider config goes stale after this many missed refreshes, so one late
@@ -42,6 +46,12 @@ class WorkerTimings:
     lock_timeout: timedelta
     config_refresh: timedelta
     config_staleness: timedelta
+    # ADR-009: failed pre-send checks before the run escalates (nothing sent).
+    presend_max_attempts: int
+    # ADR-005: consecutive lock timeouts before the claim is released with a cooldown.
+    lock_retry_max: int
+    # ADR-014 S12: consecutive cooldown releases before a run is escalated or paged.
+    release_streak_limit: int
     policy: RetryPolicy
 
     def __post_init__(self) -> None:
@@ -57,6 +67,9 @@ class WorkerTimings:
         ):
             if getattr(self, name) <= timedelta(0):
                 raise WorkerConfigError(f"{name} must be positive")
+        for name in ("presend_max_attempts", "lock_retry_max", "release_streak_limit"):
+            if getattr(self, name) < 1:
+                raise WorkerConfigError(f"{name} must be at least 1")
         if self.lease < self.heartbeat * MIN_HEARTBEATS_PER_LEASE:
             raise WorkerConfigError(
                 f"{LEASE} must be at least {MIN_HEARTBEATS_PER_LEASE} heartbeats "
@@ -96,6 +109,9 @@ class WorkerTimings:
             lock_timeout=_seconds(environ, LOCK_TIMEOUT),
             config_refresh=_seconds(environ, CONFIG_REFRESH),
             config_staleness=_seconds(environ, CONFIG_STALE),
+            presend_max_attempts=_count(environ, PRESEND_MAX_ATTEMPTS),
+            lock_retry_max=_count(environ, LOCK_RETRY_MAX),
+            release_streak_limit=_count(environ, RELEASE_STREAK_LIMIT),
             policy=policy,
         )
 
@@ -108,3 +124,13 @@ def _seconds(environ: Mapping[str, str], name: str) -> timedelta:
         return timedelta(seconds=float(raw))
     except ValueError as exc:
         raise WorkerConfigError(f"{name} must be a number of seconds, got {raw!r}") from exc
+
+
+def _count(environ: Mapping[str, str], name: str) -> int:
+    raw = environ.get(name, "")
+    if not raw:
+        raise WorkerConfigError(f"{name} is not set")
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise WorkerConfigError(f"{name} must be a whole number, got {raw!r}") from exc

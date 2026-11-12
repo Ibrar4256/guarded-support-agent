@@ -135,7 +135,7 @@ async def renew_lease(conn: AsyncConnection, claim: Claim, lease: timedelta) -> 
     return result.rowcount == 1
 
 
-def release_values(cooldown: timedelta | None) -> dict[str, Any]:
+def release_values(cooldown: timedelta | None, *, reset_streak: bool = False) -> dict[str, Any]:
     values: dict[str, Any] = {
         "worker_id": None,
         "lease_expires_at": None,
@@ -145,19 +145,26 @@ def release_values(cooldown: timedelta | None) -> dict[str, Any]:
     if cooldown is not None:
         values["claimable_after"] = func.now() + cooldown
         values["release_streak"] = runs.c.release_streak + 1
+    elif reset_streak:
+        values["release_streak"] = 0
     return values
 
 
 async def release_claim(
-    conn: AsyncConnection, claim: Claim, *, cooldown: timedelta | None = None
+    conn: AsyncConnection,
+    claim: Claim,
+    *,
+    cooldown: timedelta | None = None,
+    reset_streak: bool = False,
 ) -> Release:
     """Let go of a run (S9). The caller cancels its heartbeat first. With ``cooldown``, the
-    run isn't claimable again until it passes and the release counts toward the streak (S12)."""
+    run isn't claimable again until it passes and the release counts toward the streak (S12).
+    ``reset_streak`` is for releases that follow progress (a pre-send HOLD)."""
     row = (
         await conn.execute(
             update(runs)
             .where(fenced(claim))
-            .values(**release_values(cooldown))
+            .values(**release_values(cooldown, reset_streak=reset_streak))
             .returning(runs.c.release_streak)
         )
     ).one_or_none()

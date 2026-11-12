@@ -29,6 +29,9 @@ FAST = WorkerTimings(
     lock_timeout=timedelta(seconds=0.1),
     config_refresh=timedelta(seconds=1),
     config_staleness=timedelta(seconds=2),
+    presend_max_attempts=3,
+    lock_retry_max=3,
+    release_streak_limit=5,
     policy=RetryPolicy(
         attempts=1,
         backoff_base=timedelta(seconds=0.05),

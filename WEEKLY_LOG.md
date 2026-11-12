@@ -493,3 +493,32 @@ next read until the test has looked, so the test is deterministic.
 
 **What's next:** pre-send (the customer-locked policy check once, the move to `EXECUTING` with
 the window snapshot), then the attempt transaction and budget.
+
+### Agent side, step 2 slice: pre-send (2026-11-12)
+
+**What shipped:**
+- `agent.worker.presend.handle_approved`: an APPROVED run's config read (failed, 401 or a
+  window below the worst case → release, nothing checked), then one customer-locked
+  transaction: the policy check exactly once, its decision row in the same transaction, and
+  `PROCEED` → `EXECUTING` (`first_send_started_at = last_attempt_at`, outcome `unknown`, the
+  window snapshot from the read), `OUT_OF_POLICY` → `ESCALATED` with a customer event,
+  `HOLD` → release. `FAIL_CLOSED`, a missing input, or a non-`55P03` database error → a
+  separate fenced transaction counts and logs it, escalating at the maximum. `55P03` keeps the
+  claim and backs off; after N in a row, an alert and a cooldown release, or escalation at the
+  streak limit (nothing sent). A 0-row fenced write rolls the whole transaction back.
+- `agent.db.presend` (inputs, decision rows, the moves), `agent.worker.hooks` (the
+  `after_capacity_read` seam), `agent.worker.context`, `agent.core.replies` (template ids).
+- ADR-005's race test with controlled timing: run 1 pauses after its capacity read, run 2 is
+  seen waiting in `pg_locks`, exactly one executes; without the customer lock both execute.
+- 23 new tests (agent: 475), stable over 10 repeats; ten source plants each caught.
+
+**What broke:**
+- My first `escalate_unsent` put the internal reason in the customer-facing event, against
+  ADR-009's non-disclosure rule; caught on review before any test, and a plant now pins the
+  payload to the template alone.
+- One plant (no customer event) was caught only by a `ValueError` from unpacking a list in
+  the test. That's the wrong failure reason, so single-row checks now assert and say what was
+  missing.
+
+**What's next:** the attempt transaction and its budget (ADR-014 Part 3), classification →
+transitions, failed per-send reads (Part 4), and the EXECUTING streak page.

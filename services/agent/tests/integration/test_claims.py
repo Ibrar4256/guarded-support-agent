@@ -330,8 +330,8 @@ async def test_negative_control_release_without_the_bump_lets_a_stray_write_comm
     assert claimed is not None
     original = claims.release_values
 
-    def no_bump(cooldown: timedelta | None) -> dict[str, Any]:
-        values = original(cooldown)
+    def no_bump(cooldown: timedelta | None, *, reset_streak: bool = False) -> dict[str, Any]:
+        values = original(cooldown, reset_streak=reset_streak)
         del values["claim_version"]
         return values
 

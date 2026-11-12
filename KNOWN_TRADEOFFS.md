@@ -135,6 +135,12 @@ lives in `WEEKLY_LOG.md`.
 - **A run that may have sent money is never moved by the release streak.** A poison
   `EXECUTING` run pages and keeps cycling at its cooldown until a person looks; only the age
   check or the reconciler may move it.
+- **A `FAIL_CLOSED` decision row on every failed pre-send try.** ADR-009 is ambiguous about
+  whether only the try that escalates gets a row; logging each one makes the decision log
+  longer, but every failure is replayable.
+- **Policy settings come in as a parameter for now.** The worker's pre-send takes a
+  `PolicyConfig`; reading it from the environment (shared with the chat API) arrives with the
+  entry points.
 - **Migration 0002 refuses databases with sent runs.** Their window snapshot can't be known,
   so they must be resolved first; fine before launch, a real migration step after it.
 
