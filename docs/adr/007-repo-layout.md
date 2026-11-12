@@ -16,6 +16,10 @@ is a separate entry point in the test package that wraps the production app; no 
 factory imports test code, so no import-linter exception exists. The agent keeps the
 flag-gated factory.
 
+**Amended by [ADR-014](014-worker-execution-loop.md):** the worker follows ADR-011's pattern too: its fault hooks come from
+a test entry point in `agent_testing`, not the flag-gated factory, which stays for the
+chat API's scripted model.
+
 ## Context
 ADR-004 requires the agent and refund-api to be **separate systems**: separate processes,
 databases and credentials, communicating only over HTTP. That boundary has to exist in the

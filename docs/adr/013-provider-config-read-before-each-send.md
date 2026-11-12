@@ -8,6 +8,10 @@ well, and a deterministic race test added.
 **Locked 2026-11-12.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Amended by [ADR-014](014-worker-execution-loop.md):** a failed read doesn't end in the age check (that needs a window
+that was read). Termination comes from the run's own snapshot, a bounded number of failed
+reads, and the failed read closing the claim gate until a read succeeds.
+
 **Precedence:** supersedes **the source of the window in ADR-012 Part 3's age check** (it's
 the value read just before each send, not the cached one) and the matching refresh rule in
 Part 4. It also replaces `GET /config`'s field names: durations are reported as integer

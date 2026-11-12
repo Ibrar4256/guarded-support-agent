@@ -12,6 +12,10 @@ and tests, or recorded in a new ADR that supersedes this one.
 **Amended by [ADR-008](008-run-lifecycle-and-cross-adr-clarifications.md)** (run statuses,
 transitions, the reconciler, wording clarifications). Where they disagree, ADR-008 wins.
 
+**Amended by [ADR-014](014-worker-execution-loop.md):** the release after N consecutive `55P03` timeouts sets a cooldown
+(`claimable_after`) and counts toward `release_streak`; at its limit an `APPROVED` run is
+escalated, nothing sent. Every release bumps `claim_version`.
+
 ## Context
 ADR-004's safety guarantees depend on specific database behaviors, so the access layer
 must make them visible rather than hide them:

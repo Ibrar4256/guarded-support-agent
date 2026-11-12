@@ -25,6 +25,10 @@ capped), not the cached one; the cache in Part 4 only gates claiming and alertin
 `GET /config` reports durations as integer milliseconds (`max_retry_window_ms`,
 `key_retention_ms`, `processing_budget_ms`).
 
+**Amended by [ADR-014](014-worker-execution-loop.md):** Part 3's age check and fenced update are one transaction, and the
+send shares its time budget; the window snapshot is stored as `runs.send_window_ms`
+(integer milliseconds), not `send_window_seconds`.
+
 **Precedence:** for the agent's handling of refund-api, **and for refund-api's
 idempotency-key lifetime and its `GET /config` endpoint**, this ADR wins over ADR-004,
 ADR-010 and ADR-011. Specifically, it:

@@ -26,6 +26,11 @@ capped at the backoff cap (not only at the remaining window), and the retry limi
 enforced per send on the database clock with a per-run window snapshot and a persisted
 attempt count.
 
+**Amended by [ADR-014](014-worker-execution-loop.md):** step 7's claim is one `SKIP LOCKED` statement that repeats these
+conditions in its outer `WHERE` and skips runs in a cooldown (`claimable_after`); every
+release bumps `claim_version`; the age check and the attempt record are one transaction,
+and the send uses what's left of a budget started before it.
+
 ## Context
 ADR-001 says exactly-once refunds come from the downstream API deduplicating on an
 idempotency key, and the crash test must prove it. The dangerous window is **after the
