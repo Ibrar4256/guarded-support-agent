@@ -20,6 +20,10 @@ flag-gated factory.
 a test entry point in `agent_testing`, not the flag-gated factory, which stays for the
 chat API's scripted model.
 
+**Amended by [ADR-015](015-e2e-crash-test-harness.md):** the crash tests in `tests/e2e/` run
+both services as host processes from their own venvs (Postgres from compose), not through
+`docker-compose.yml`; `tests/e2e/` is a third, black-box project with its own lockfile.
+
 ## Context
 ADR-004 requires the agent and refund-api to be **separate systems**: separate processes,
 databases and credentials, communicating only over HTTP. That boundary has to exist in the
