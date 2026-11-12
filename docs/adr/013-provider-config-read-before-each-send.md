@@ -12,6 +12,10 @@ and tests, or recorded in a new ADR that supersedes this one.
 that was read). Termination comes from the run's own snapshot, a bounded number of failed
 reads, and the failed read closing the claim gate until a read succeeds.
 
+**Amended by [ADR-016](016-reconciler.md):** a read is also invalid when its processing budget is below the agent's
+minimum (`REFUND_CLIENT_MIN_PROVIDER_BUDGET_SECONDS`): an under-reported budget would shorten
+the reconciler's quiet period.
+
 **Precedence:** supersedes **the source of the window in ADR-012 Part 3's age check** (it's
 the value read just before each send, not the cached one) and the matching refresh rule in
 Part 4. It also replaces `GET /config`'s field names: durations are reported as integer

@@ -13,6 +13,12 @@ and tests, or recorded in a new ADR that supersedes this one.
 `NEEDS_RECONCILIATION`; reconciler lookup errors never mean "not found"; two or more
 refunds for one action → `confirmed` plus an alert.
 
+**Amended by [ADR-016](016-reconciler.md):** the reconciler runs as a second loop in the worker process; its quiet
+period is the larger of a per-run bound recorded with each send and the client timeout plus
+refund-api's budget read fresh at reconcile time; provider failures close the gate, only
+run-specific failures count toward the streak, every release applies a cooldown; with the kill
+switch on, "not found" makes no decision.
+
 ## Context
 A consistency pass across ADR-001 to ADR-007 found three gaps:
 

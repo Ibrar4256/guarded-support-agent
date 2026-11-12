@@ -29,6 +29,10 @@ capped), not the cached one; the cache in Part 4 only gates claiming and alertin
 send shares its time budget; the window snapshot is stored as `runs.send_window_ms`
 (integer milliseconds), not `send_window_seconds`.
 
+**Amended by [ADR-016](016-reconciler.md):** the reconciler's quiet-period guard at startup is replaced by a per-run
+bound (`in_flight_bound_ms`, `max_client_timeout_ms`, recorded with each send) and a fresh
+config read at reconcile time, whichever is larger.
+
 **Precedence:** for the agent's handling of refund-api, **and for refund-api's
 idempotency-key lifetime and its `GET /config` endpoint**, this ADR wins over ADR-004,
 ADR-010 and ADR-011. Specifically, it:
