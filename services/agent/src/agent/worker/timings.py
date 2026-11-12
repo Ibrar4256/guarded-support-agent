@@ -26,6 +26,8 @@ PRESEND_MAX_ATTEMPTS = "WORKER_PRESEND_MAX_ATTEMPTS"
 LOCK_RETRY_MAX = "WORKER_LOCK_RETRY_MAX"
 RELEASE_STREAK_LIMIT = "WORKER_RELEASE_STREAK_LIMIT"
 MAX_FAILED_READS = "WORKER_MAX_FAILED_READS"
+POLL = "WORKER_POLL_SECONDS"
+SHUTDOWN_GRACE = "WORKER_SHUTDOWN_GRACE_SECONDS"
 
 MIN_HEARTBEATS_PER_LEASE = 3
 # The cached provider config goes stale after this many missed refreshes, so one late
@@ -56,6 +58,10 @@ class WorkerTimings:
     # ADR-014 Part 4: failed per-send config reads in a row before an EXECUTING run's claim
     # is released.
     max_failed_reads: int
+    # How often an idle worker looks for work (ADR-014 Part 2).
+    poll: timedelta
+    # S7: how long a stopping worker lets an attempt on the wire finish before exiting.
+    shutdown_grace: timedelta
     policy: RetryPolicy
 
     def __post_init__(self) -> None:
@@ -68,6 +74,8 @@ class WorkerTimings:
             "lock_timeout",
             "config_refresh",
             "config_staleness",
+            "poll",
+            "shutdown_grace",
         ):
             if getattr(self, name) <= timedelta(0):
                 raise WorkerConfigError(f"{name} must be positive")
@@ -88,6 +96,11 @@ class WorkerTimings:
             raise WorkerConfigError(
                 f"{CONFIG_STALE} must be at least {MIN_REFRESHES_PER_STALENESS} refresh "
                 f"intervals ({CONFIG_REFRESH}), so one late refresh doesn't close the gate"
+            )
+        if self.shutdown_grace <= self.policy.client_timeout:
+            raise WorkerConfigError(
+                f"{SHUTDOWN_GRACE} must exceed the client timeout, so an attempt on the wire "
+                "can finish and be recorded before the worker exits"
             )
         if self.lock_timeout > self.statement_timeout:
             raise WorkerConfigError(f"{LOCK_TIMEOUT} must not exceed {STATEMENT_TIMEOUT}")
@@ -122,6 +135,8 @@ class WorkerTimings:
             lock_retry_max=_count(environ, LOCK_RETRY_MAX),
             release_streak_limit=_count(environ, RELEASE_STREAK_LIMIT),
             max_failed_reads=_count(environ, MAX_FAILED_READS),
+            poll=_seconds(environ, POLL),
+            shutdown_grace=_seconds(environ, SHUTDOWN_GRACE),
             policy=policy,
         )
 

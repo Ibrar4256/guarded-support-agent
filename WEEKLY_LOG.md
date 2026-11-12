@@ -553,3 +553,33 @@ fell to 30 s).
 **What's next:** the run loop that ties it together: claim while the gate is open, hold the
 claim, dispatch `APPROVED`/`EXECUTING`, S6 exceptions and the `EXECUTING` streak page, shutdown,
 and the production and test entry points.
+
+### Agent side, step 2 slice: the run loop (2026-11-12)
+
+**What shipped:**
+- `agent.worker.loop`: `run_worker` reads the config once at startup (a window below the worst
+  case is fatal), refreshes it as its own task, and claims one run at a time only while the
+  gate is open, polling when idle. `process_claim` holds the claim with the heartbeat and
+  dispatches by status: an APPROVED run goes through pre-send and straight into the send loop
+  on the same read; an EXECUTING run goes to the send loop only, so **a run that may already be
+  sent is never policy-checked again**. A lost claim writes nothing; a stuck step or an
+  unexpected error (S6) alerts and releases with a cooldown.
+- `agent.worker.releases.release_with_cooldown`, shared with pre-send's lock-timeout path: at
+  the streak limit an APPROVED run escalates and an EXECUTING run pages with its `run_id`,
+  status untouched (S12).
+- Stopping (S7): a `stopping` event the handlers check at each step boundary; an attempt on the
+  wire gets `WORKER_SHUTDOWN_GRACE_SECONDS` to finish and be recorded, then the run is
+  cancelled and left to its lease. New: `WORKER_POLL_SECONDS`, the grace (must exceed the
+  client timeout).
+- The config refresher now waits one interval before its first read: startup has just read
+  it, and the immediate second read raced the first claim's own read.
+- 20 new tests (agent: 525), 8/8 stable; seven source plants each caught.
+
+**What broke:** my own test, not the code. The "page at the streak limit" test failed because
+it raised its error after the attempt was recorded, and recording an attempt is progress, so
+S12 reset the streak first. The fix was to put the error where S12 says the real case is,
+before the age check, and add a test that pins the reset itself.
+
+**What's next:** the production and test entry points (`python -m agent.worker`,
+`python -m agent_testing.worker`), the policy config from the environment, signal handling,
+then the e2e crash tests against a real refund-api.

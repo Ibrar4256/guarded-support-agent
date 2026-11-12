@@ -78,6 +78,9 @@ async def handle_executing(
     provider = first_read
     failed_reads = 0
     while True:
+        if ctx.stopping.is_set():
+            # S7: between attempts; the last one's outcome is already recorded or retryable.
+            return await _release(ctx, claim, "worker stopping")
         clock.begin_step()
         if provider is None:
             read = await read_config(ctx.client, ctx.refund_settings)

@@ -300,11 +300,3 @@ async def count_failed_presend(conn: AsyncConnection, claim: Claim) -> int | Non
         )
     ).one_or_none()
     return None if row is None else int(row.presend_attempts)
-
-
-async def release_streak(conn: AsyncConnection, claim: Claim) -> int | None:
-    """The run's streak, row-locked for the cooldown release that follows. None means lost."""
-    row = (
-        await conn.execute(select(runs.c.release_streak).where(fenced(claim)).with_for_update())
-    ).one_or_none()
-    return None if row is None else int(row.release_streak)

@@ -39,6 +39,16 @@ class Claim:
 
 
 @dataclass(frozen=True)
+class Held:
+    """A claimed run as a release sees it, row-locked: its streak and current status (an
+    APPROVED claim may have moved to EXECUTING since)."""
+
+    release_streak: int
+    status: RunStatus
+    conversation_id: uuid.UUID
+
+
+@dataclass(frozen=True)
 class Release:
     released: bool
     release_streak: int | None = None
@@ -173,6 +183,20 @@ async def release_claim(
     if row is None:
         return Release(released=False)
     return Release(released=True, release_streak=row.release_streak)
+
+
+async def lock_for_release(conn: AsyncConnection, claim: Claim) -> Held | None:
+    """None means the claim is already gone."""
+    row = (
+        await conn.execute(
+            select(runs.c.release_streak, runs.c.status, runs.c.conversation_id)
+            .where(fenced(claim))
+            .with_for_update()
+        )
+    ).one_or_none()
+    if row is None:
+        return None
+    return Held(row.release_streak, row.status, row.conversation_id)
 
 
 @asynccontextmanager

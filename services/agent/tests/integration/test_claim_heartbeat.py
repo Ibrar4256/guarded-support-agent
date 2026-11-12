@@ -33,6 +33,8 @@ FAST = WorkerTimings(
     lock_retry_max=3,
     release_streak_limit=5,
     max_failed_reads=3,
+    poll=timedelta(seconds=0.05),
+    shutdown_grace=timedelta(seconds=1),
     policy=RetryPolicy(
         attempts=1,
         backoff_base=timedelta(seconds=0.05),

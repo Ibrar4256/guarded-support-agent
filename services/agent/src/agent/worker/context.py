@@ -3,7 +3,7 @@
 import asyncio
 import random
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -29,3 +29,5 @@ class WorkerContext:
     # Injected so tests are deterministic and fast (ADR-007: randomness and time injected).
     jitter: Callable[[], float] = random.random
     sleep: Callable[[float], Awaitable[None]] = asyncio.sleep
+    # S7: set on SIGTERM. Handlers check it at each step boundary and release the run.
+    stopping: asyncio.Event = field(default_factory=asyncio.Event)

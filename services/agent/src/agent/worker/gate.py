@@ -128,13 +128,14 @@ async def startup_check(
 async def refresh_forever(
     client: RefundClient, settings: RefundClientSettings, gate: ConfigGate, interval: timedelta
 ) -> NoReturn:
-    """Refresh the gate every interval until cancelled. An unexpected error closes the gate
-    and alerts; it never ends the loop with a gate left open."""
+    """Refresh the gate every interval until cancelled, starting one interval in (startup
+    has just read it). An unexpected error closes the gate and alerts; it never ends the loop
+    with a gate left open."""
     while True:
+        await asyncio.sleep(interval.total_seconds())
         try:
             read = await read_config(client, settings)
         except Exception as exc:
             logger.exception("config refresh raised")
             read = ConfigRead(ConfigReadKind.FAILED, f"config refresh raised {type(exc).__name__}")
         gate.record(read)
-        await asyncio.sleep(interval.total_seconds())

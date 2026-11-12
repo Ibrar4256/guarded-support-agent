@@ -51,6 +51,8 @@ TIMINGS = WorkerTimings(
     lock_retry_max=2,
     release_streak_limit=3,
     max_failed_reads=3,
+    poll=timedelta(seconds=0.05),
+    shutdown_grace=timedelta(seconds=10),
     policy=RETRY,
 )
 SETTINGS = RefundClientSettings(

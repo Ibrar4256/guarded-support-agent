@@ -13,6 +13,7 @@ from agent.worker.timings import (
     HEARTBEAT,
     LEASE,
     LOCK_TIMEOUT,
+    SHUTDOWN_GRACE,
     STATEMENT_TIMEOUT,
     WorkerConfigError,
     WorkerTimings,
@@ -37,6 +38,8 @@ VALID = WorkerTimings(
     lock_retry_max=3,
     release_streak_limit=5,
     max_failed_reads=5,
+    poll=timedelta(seconds=2),
+    shutdown_grace=timedelta(seconds=10),
     policy=POLICY,
 )
 ENV = {
@@ -52,6 +55,8 @@ ENV = {
     "WORKER_LOCK_RETRY_MAX": "3",
     "WORKER_RELEASE_STREAK_LIMIT": "5",
     "WORKER_MAX_FAILED_READS": "5",
+    "WORKER_POLL_SECONDS": "2",
+    "WORKER_SHUTDOWN_GRACE_SECONDS": "10",
 }
 
 
@@ -110,6 +115,16 @@ def test_limits_below_one_are_refused(name: str) -> None:
 def test_from_env_refuses_a_fractional_count() -> None:
     with pytest.raises(WorkerConfigError, match="WORKER_LOCK_RETRY_MAX"):
         WorkerTimings.from_env({**ENV, "WORKER_LOCK_RETRY_MAX": "2.5"}, POLICY)
+
+
+def test_a_shutdown_grace_not_above_the_client_timeout_is_refused() -> None:
+    with pytest.raises(WorkerConfigError, match=SHUTDOWN_GRACE):
+        replace(VALID, shutdown_grace=POLICY.client_timeout)
+
+
+def test_negative_control_a_grace_just_above_the_client_timeout_is_accepted() -> None:
+    grace = POLICY.client_timeout + timedelta(milliseconds=1)
+    assert replace(VALID, shutdown_grace=grace).shutdown_grace == grace
 
 
 def test_staleness_under_two_refreshes_is_refused() -> None:

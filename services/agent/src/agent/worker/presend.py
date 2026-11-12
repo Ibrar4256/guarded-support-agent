@@ -36,6 +36,7 @@ from agent.db.claims import Claim
 from agent.worker.context import WorkerContext
 from agent.worker.gate import read_config
 from agent.worker.lease import StepClock
+from agent.worker.releases import release_with_cooldown
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,8 @@ async def handle_approved(ctx: WorkerContext, claim: Claim, clock: StepClock) ->
 
     lock_timeouts = tries = 0
     while True:
+        if ctx.stopping.is_set():
+            return await _release(ctx, claim)  # S7: nothing sent yet, nothing lost
         clock.begin_step()
         tries += 1
         try:
@@ -106,7 +109,10 @@ async def handle_approved(ctx: WorkerContext, claim: Claim, clock: StepClock) ->
                     ctx.alerter.alert(
                         "presend_lock_timeouts", run_id=claim.run_id, in_a_row=lock_timeouts
                     )
-                    return await _cooldown_release(ctx, claim)
+                    released = await release_with_cooldown(
+                        ctx, claim, reason=f"{lock_timeouts} lock timeouts in a row"
+                    )
+                    return ApprovedResult(ApprovedStep(released.value))
         if stopped is not None:
             return stopped
         clock.begin_step()
@@ -196,27 +202,6 @@ async def _record_fail_closed(
         raise
     ctx.alerter.alert("presend_fail_closed_escalated", run_id=claim.run_id, reason=failed.reason)
     return ApprovedResult(ApprovedStep.ESCALATED)
-
-
-async def _cooldown_release(ctx: WorkerContext, claim: Claim) -> ApprovedResult:
-    """S12: release with a cooldown; at the streak limit an APPROVED run escalates instead
-    (safe: nothing was sent)."""
-    async with claims.worker_transaction(
-        ctx.engine,
-        statement_timeout=ctx.timings.statement_timeout,
-        lock_timeout=ctx.timings.lock_timeout,
-    ) as conn:
-        streak = await db.release_streak(conn, claim)
-        subject = await db.load_subject(conn, claim)
-        if streak is None or subject is None:
-            return ApprovedResult(ApprovedStep.LOST)
-        if streak + 1 >= ctx.timings.release_streak_limit:
-            if not await db.escalate_unsent(conn, claim, subject.conversation_id):
-                return ApprovedResult(ApprovedStep.LOST)
-            ctx.alerter.alert("release_streak_limit", run_id=claim.run_id, status="APPROVED")
-            return ApprovedResult(ApprovedStep.ESCALATED)
-        released = await claims.release_claim(conn, claim, cooldown=ctx.timings.claim_cooldown)
-        return ApprovedResult(ApprovedStep.COOLDOWN if released.released else ApprovedStep.LOST)
 
 
 async def _release(ctx: WorkerContext, claim: Claim) -> ApprovedResult:

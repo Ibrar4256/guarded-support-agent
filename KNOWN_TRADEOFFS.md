@@ -145,6 +145,9 @@ lives in `WEEKLY_LOG.md`.
   the transaction that moves a run to `NEEDS_RECONCILIATION`; if that commit then fails, the
   alert describes a move that didn't happen. The run is still `EXECUTING` and retried, so it's
   a false alarm, never a missed one.
+- **Stopping waits for the next step boundary.** A worker told to stop finishes the step it's
+  in, including a backoff sleep of up to the backoff cap, before releasing; the shutdown grace
+  covers it, but a stop isn't instant.
 - **Migration 0002 refuses databases with sent runs.** Their window snapshot can't be known,
   so they must be resolved first; fine before launch, a real migration step after it.
 
