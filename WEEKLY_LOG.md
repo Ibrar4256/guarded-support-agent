@@ -522,3 +522,34 @@ the window snapshot), then the attempt transaction and budget.
 
 **What's next:** the attempt transaction and its budget (ADR-014 Part 3), classification →
 transitions, failed per-send reads (Part 4), and the EXECUTING streak page.
+
+### Agent side, step 2 slice: the attempt transaction and the send loop (2026-11-12)
+
+**What shipped:**
+- `agent.worker.execute.handle_executing`: each round reads `GET /config` (the first reuses
+  pre-send's read) and feeds the gate; starts the attempt budget on the monotonic clock
+  **before** the transaction; one transaction with the run row locked, the claim ours and the
+  lease live runs the attempt limit and the age check (`min(snapshot, window just read)`) and
+  records the attempt (count + 1, `last_attempt_at = now()`, a lease that outlives the
+  attempt), or moves to `NEEDS_RECONCILIATION`; the send gets only what's left of the budget
+  (nothing left: counted, not sent); then ADR-012's classification → `COMPLETED`,
+  `ESCALATED`/`rejected`, `NEEDS_RECONCILIATION`, or a backoff that honors a capped
+  `Retry-After`. Failed per-send reads end by the run's own snapshot, by
+  `WORKER_MAX_FAILED_READS`, or by a read that succeeds (ADR-014 Part 4).
+- `agent.db.execution` (the locked attempt state, the record, the three exits, each clearing
+  the claim and bumping the version); `HttpRefundClient.send(timeout=)`; the heartbeat now
+  renews with `greatest()`; the two ADR-004 crash-point hooks; a shared test harness.
+- 30 new tests (agent: 505), stable over 8 repeats; eight source plants.
+
+**What broke:** one of the eight plants wasn't caught. Changing the heartbeat back to plain
+`now() + lease` passed every test, so nothing proved a heartbeat landing mid-attempt can't cut
+the attempt's extended lease short. Added that test; the plant now fails it (an hour-long lease
+fell to 30 s).
+
+**What I learned:** a plant that nothing catches is a missing test, found before it mattered.
+
+**Interview probes added:** AS-49.
+
+**What's next:** the run loop that ties it together: claim while the gate is open, hold the
+claim, dispatch `APPROVED`/`EXECUTING`, S6 exceptions and the `EXECUTING` streak page, shutdown,
+and the production and test entry points.

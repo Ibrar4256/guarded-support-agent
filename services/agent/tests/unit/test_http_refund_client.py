@@ -5,6 +5,7 @@ import asyncio
 import json
 import time
 from collections.abc import AsyncIterator
+from dataclasses import replace
 from datetime import timedelta
 
 import httpx
@@ -165,3 +166,49 @@ async def test_control_httpx_timeouts_alone_let_it_overrun() -> None:
         elapsed = time.monotonic() - started
     assert response.status_code == 201
     assert elapsed > 1.5
+
+
+LONG = replace(
+    SHORT,
+    policy=RetryPolicy(
+        attempts=1,
+        backoff_base=timedelta(seconds=0.5),
+        backoff_cap=timedelta(seconds=0.5),
+        client_timeout=timedelta(seconds=5),
+    ),
+)
+
+
+async def test_a_send_budget_below_the_client_timeout_cuts_the_attempt_short() -> None:
+    """ADR-014 Part 3: the worker passes what's left of an attempt budget."""
+    refund_client = HttpRefundClient(LONG, transport=TrickleTransport())
+    started = time.monotonic()
+    result = await refund_client.send(PAYLOAD, "key_1", timeout=0.3)
+    elapsed = time.monotonic() - started
+    await refund_client.aclose()
+    assert result == HttpResult(status=None)
+    assert elapsed < 1.0
+
+
+async def test_negative_control_without_the_budget_the_trickle_completes() -> None:
+    refund_client = HttpRefundClient(LONG, transport=TrickleTransport())
+    result = await refund_client.send(PAYLOAD, "key_1")
+    await refund_client.aclose()
+    assert result.status == 201
+
+
+async def test_a_budget_never_lengthens_the_client_timeout() -> None:
+    refund_client = HttpRefundClient(SHORT, transport=TrickleTransport())
+    started = time.monotonic()
+    result = await refund_client.send(PAYLOAD, "key_1", timeout=60)
+    elapsed = time.monotonic() - started
+    await refund_client.aclose()
+    assert (result, elapsed < 1.0) == (HttpResult(status=None), True)
+
+
+@pytest.mark.parametrize("budget", [0, -0.1])
+async def test_a_send_with_no_budget_left_is_a_caller_bug(budget: float) -> None:
+    refund_client = HttpRefundClient(SHORT, transport=TrickleTransport())
+    with pytest.raises(ValueError, match="positive"):
+        await refund_client.send(PAYLOAD, "key_1", timeout=budget)
+    await refund_client.aclose()

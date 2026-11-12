@@ -141,6 +141,10 @@ lives in `WEEKLY_LOG.md`.
 - **Policy settings come in as a parameter for now.** The worker's pre-send takes a
   `PolicyConfig`; reading it from the environment (shared with the chat API) arrives with the
   entry points.
+- **A reconciliation alert can precede a failed commit.** The worker raises the alert inside
+  the transaction that moves a run to `NEEDS_RECONCILIATION`; if that commit then fails, the
+  alert describes a move that didn't happen. The run is still `EXECUTING` and retried, so it's
+  a false alarm, never a missed one.
 - **Migration 0002 refuses databases with sent runs.** Their window snapshot can't be known,
   so they must be resolved first; fine before launch, a real migration step after it.
 

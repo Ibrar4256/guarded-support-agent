@@ -25,6 +25,7 @@ CONFIG_STALE = "WORKER_CONFIG_STALE_SECONDS"
 PRESEND_MAX_ATTEMPTS = "WORKER_PRESEND_MAX_ATTEMPTS"
 LOCK_RETRY_MAX = "WORKER_LOCK_RETRY_MAX"
 RELEASE_STREAK_LIMIT = "WORKER_RELEASE_STREAK_LIMIT"
+MAX_FAILED_READS = "WORKER_MAX_FAILED_READS"
 
 MIN_HEARTBEATS_PER_LEASE = 3
 # The cached provider config goes stale after this many missed refreshes, so one late
@@ -52,6 +53,9 @@ class WorkerTimings:
     lock_retry_max: int
     # ADR-014 S12: consecutive cooldown releases before a run is escalated or paged.
     release_streak_limit: int
+    # ADR-014 Part 4: failed per-send config reads in a row before an EXECUTING run's claim
+    # is released.
+    max_failed_reads: int
     policy: RetryPolicy
 
     def __post_init__(self) -> None:
@@ -67,7 +71,12 @@ class WorkerTimings:
         ):
             if getattr(self, name) <= timedelta(0):
                 raise WorkerConfigError(f"{name} must be positive")
-        for name in ("presend_max_attempts", "lock_retry_max", "release_streak_limit"):
+        for name in (
+            "presend_max_attempts",
+            "lock_retry_max",
+            "release_streak_limit",
+            "max_failed_reads",
+        ):
             if getattr(self, name) < 1:
                 raise WorkerConfigError(f"{name} must be at least 1")
         if self.lease < self.heartbeat * MIN_HEARTBEATS_PER_LEASE:
@@ -112,6 +121,7 @@ class WorkerTimings:
             presend_max_attempts=_count(environ, PRESEND_MAX_ATTEMPTS),
             lock_retry_max=_count(environ, LOCK_RETRY_MAX),
             release_streak_limit=_count(environ, RELEASE_STREAK_LIMIT),
+            max_failed_reads=_count(environ, MAX_FAILED_READS),
             policy=policy,
         )
 

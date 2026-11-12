@@ -36,6 +36,7 @@ VALID = WorkerTimings(
     presend_max_attempts=3,
     lock_retry_max=3,
     release_streak_limit=5,
+    max_failed_reads=5,
     policy=POLICY,
 )
 ENV = {
@@ -50,6 +51,7 @@ ENV = {
     "WORKER_PRESEND_MAX_ATTEMPTS": "3",
     "WORKER_LOCK_RETRY_MAX": "3",
     "WORKER_RELEASE_STREAK_LIMIT": "5",
+    "WORKER_MAX_FAILED_READS": "5",
 }
 
 
@@ -96,7 +98,9 @@ def test_negative_control_statement_timeout_just_below_the_bound_is_accepted() -
     assert replace(VALID, statement_timeout=below).statement_timeout == below
 
 
-@pytest.mark.parametrize("name", ["presend_max_attempts", "lock_retry_max", "release_streak_limit"])
+@pytest.mark.parametrize(
+    "name", ["presend_max_attempts", "lock_retry_max", "release_streak_limit", "max_failed_reads"]
+)
 def test_limits_below_one_are_refused(name: str) -> None:
     changes: dict[str, Any] = {name: 0}
     with pytest.raises(WorkerConfigError, match=name):

@@ -126,11 +126,13 @@ async def claim_run(conn: AsyncConnection, worker_id: str, lease: timedelta) -> 
 
 
 async def renew_lease(conn: AsyncConnection, claim: Claim, lease: timedelta) -> bool:
-    """The heartbeat's write. False means the claim is lost: stop, send and write nothing."""
+    """The heartbeat's write. False means the claim is lost: stop, send and write nothing.
+    ``greatest``: never shortens a lease the attempt transaction extended to cover an attempt
+    on the wire (ADR-014 Part 3)."""
     result = await conn.execute(
         update(runs)
         .where(fenced(claim), runs.c.status.in_(sorted(WORKER_CLAIMABLE)))
-        .values(lease_expires_at=func.now() + lease)
+        .values(lease_expires_at=func.greatest(runs.c.lease_expires_at, func.now() + lease))
     )
     return result.rowcount == 1
 

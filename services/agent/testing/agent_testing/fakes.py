@@ -29,6 +29,16 @@ def config_result(
     return HttpResult(status=status, body=json.dumps(body).encode())
 
 
+def created_result(refund: RefundPayload, refund_id: str = "re_1") -> HttpResult:
+    """refund-api's 201 for exactly this refund."""
+    body = {"id": refund_id, **refund.model_dump()}
+    return HttpResult(status=201, body=json.dumps(body).encode())
+
+
+def business_error(code: str) -> HttpResult:
+    return HttpResult(status=400, body=json.dumps({"code": code}).encode())
+
+
 class ScriptedRefundClient:
     """Answers each call from its queue. ``then_config`` answers config reads once the
     config queue is empty (for refresh loops)."""
@@ -46,11 +56,15 @@ class ScriptedRefundClient:
         self._configs = deque(configs)
         self._then_config = then_config
         self.sent: list[tuple[RefundPayload, str]] = []
+        self.send_budgets: list[float | None] = []
         self.lookups: list[tuple[str, str]] = []
         self.config_reads = 0
 
-    async def send(self, refund: RefundPayload, idempotency_key: str) -> HttpResult:
+    async def send(
+        self, refund: RefundPayload, idempotency_key: str, *, timeout: float | None = None
+    ) -> HttpResult:
         self.sent.append((refund, idempotency_key))
+        self.send_budgets.append(timeout)
         if not self._sends:
             raise AssertionError(f"unscripted send #{len(self.sent)}")
         return self._sends.popleft()

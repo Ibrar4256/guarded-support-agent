@@ -32,6 +32,7 @@ from agent.db.schema import (
     run_order_lookups,
     runs,
 )
+from agent.refund_client.payload import canonical_payload
 
 WINDOW_MS = 60_000
 OWNER_LOCK_TIMEOUT = "2s"
@@ -122,11 +123,21 @@ class World:
         looked_up: bool = True,
         **extra: Any,
     ) -> uuid.UUID:
-        """A refund proposal on ``order``, approved an hour ago, looked up by its run."""
+        """A refund proposal on ``order``, approved an hour ago, looked up by its run, with the
+        key and canonical payload saved at approval (ADR-004 step 1)."""
         extra.setdefault("approved_at", datetime.now(UTC) - timedelta(hours=1))
+        action = f"act_{uuid.uuid4().hex[:12]}"
+        if amount_minor is not None:
+            extra.setdefault("idempotency_key", f"key_{uuid.uuid4().hex}")
+            extra.setdefault(
+                "canonical_payload",
+                canonical_payload(
+                    order_id=order, amount_minor=amount_minor, currency="USD", action_id=action
+                ),
+            )
         run = self.add_run(
             status,
-            action_id=f"act_{uuid.uuid4().hex[:12]}",
+            action_id=action,
             order_id=order,
             amount_minor=amount_minor,
             currency="USD",
@@ -136,6 +147,28 @@ class World:
             with self.transaction() as connection:
                 connection.execute(insert(run_order_lookups).values(run_id=run, order_id=order))
         return run
+
+    def add_executing(
+        self,
+        amount_minor: int = 2_000,
+        *,
+        sent_seconds_ago: float = 1.0,
+        window_ms: int = 300_000,
+        **extra: Any,
+    ) -> uuid.UUID:
+        """An EXECUTING refund whose first send started ``sent_seconds_ago`` (database clock is
+        the same host's clock in compose; tests leave seconds of margin)."""
+        first_send = datetime.now(UTC) - timedelta(seconds=sent_seconds_ago)
+        return self.add_refund_run(
+            self.add_order(),
+            amount_minor,
+            RunStatus.EXECUTING,
+            approved_at=first_send - timedelta(minutes=1),
+            first_send_started_at=first_send,
+            last_attempt_at=first_send,
+            send_window_ms=window_ms,
+            **extra,
+        )
 
     def decisions(self, run: uuid.UUID) -> list[Row[Any]]:
         with self.owner.connect() as connection:

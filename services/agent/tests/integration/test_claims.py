@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 from conftest import T0
-from sqlalchemy import ColumnElement, FromClause, update
+from sqlalchemy import ColumnElement, FromClause, func, update
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine
 from worker_world import World
@@ -390,3 +390,21 @@ def test_claim_conditions_are_the_four_adr_conditions() -> None:
         "cooldown_passed",
         "not_held",
     }
+
+
+async def test_renewal_never_shortens_a_lease_extended_for_an_attempt(
+    world: World, async_runtime_engine: AsyncEngine
+) -> None:
+    """ADR-014 Part 3: the attempt transaction extends the lease past the client timeout; a
+    heartbeat landing mid-attempt with a shorter lease must not cut it back."""
+    run = world.add_run()
+    claimed = await claim(async_runtime_engine)
+    assert claimed is not None
+    with world.transaction() as connection:
+        connection.execute(
+            update(runs)
+            .where(runs.c.id == run)
+            .values(lease_expires_at=func.now() + timedelta(hours=1))
+        )
+    assert await renew(async_runtime_engine, claimed)
+    assert world.seconds_until(run, "lease_expires_at") > 3000, "still about an hour"

@@ -4,6 +4,8 @@ classification, no retries.
 - **A total timeout per attempt** (``asyncio.timeout``): httpx's own timeouts apply per
   phase, and its read timeout restarts on every byte, so a trickling response could run far
   past the client timeout without it. httpx's timeouts stay as inner limits.
+- **A send can be given less than that** (``timeout``): the worker passes what's left of an
+  attempt budget that started before it recorded the attempt (ADR-014 Part 3).
 - **A response-size cap**: the body is read as a stream and stops one byte past the cap,
   so the core sees an oversized body and treats it as unparseable.
 - Transport failures, the total timeout included, become ``HttpResult(status=None)``:
@@ -24,7 +26,9 @@ IDEMPOTENCY_HEADER = "Idempotency-Key"
 
 
 class RefundClient(Protocol):
-    async def send(self, refund: RefundPayload, idempotency_key: str) -> HttpResult: ...
+    async def send(
+        self, refund: RefundPayload, idempotency_key: str, *, timeout: float | None = None
+    ) -> HttpResult: ...
 
     async def lookup(self, order_id: str, action_id: str) -> HttpResult: ...
 
@@ -43,10 +47,17 @@ class HttpRefundClient:
             transport=transport,
         )
 
-    async def send(self, refund: RefundPayload, idempotency_key: str) -> HttpResult:
+    async def send(
+        self, refund: RefundPayload, idempotency_key: str, *, timeout: float | None = None
+    ) -> HttpResult:
+        """``timeout`` caps this attempt below the client timeout; it must be positive (the
+        worker doesn't call when nothing is left)."""
+        if timeout is not None and timeout <= 0:
+            raise ValueError("a send needs a positive time budget")
         return await self._request(
             "POST",
             "/refunds",
+            budget=timeout,
             json=refund.model_dump(),
             headers={IDEMPOTENCY_HEADER: idempotency_key},
         )
@@ -63,9 +74,12 @@ class HttpRefundClient:
     async def aclose(self) -> None:
         await self._client.aclose()
 
-    async def _request(self, method: str, url: str, **kwargs: Any) -> HttpResult:
+    async def _request(
+        self, method: str, url: str, *, budget: float | None = None, **kwargs: Any
+    ) -> HttpResult:
+        total = self._total_timeout if budget is None else min(self._total_timeout, budget)
         try:
-            async with asyncio.timeout(self._total_timeout):
+            async with asyncio.timeout(total):
                 return await self._attempt(method, url, **kwargs)
         except (TimeoutError, httpx.TransportError):
             # The request may or may not have reached refund-api: "no response", never

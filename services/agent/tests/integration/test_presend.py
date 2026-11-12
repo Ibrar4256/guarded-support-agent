@@ -7,16 +7,17 @@ through ``asyncio.to_thread`` (see ``worker_world``).
 
 import asyncio
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
-from typing import Any
 
 import pytest
-from agent_testing.fakes import RecordingAlerter, ScriptedRefundClient, config_result
-from sqlalchemy import Row, select
+from agent_testing.fakes import config_result
+from sqlalchemy import select
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine
+from worker_harness import BOUND, READ_WINDOW_MS, TIMINGS, only
+from worker_harness import Harness as BaseHarness
 from worker_world import World
 
 from agent.alerts import Severity
@@ -29,116 +30,21 @@ from agent.core.policy import (
     PresendResult,
     RuleId,
 )
-from agent.core.refund_outcome import HttpResult, RetryPolicy
+from agent.core.refund_outcome import HttpResult
 from agent.core.replies import ReplyTemplate
-from agent.db import claims
 from agent.db import presend as presend_db
 from agent.db.claims import Claim
 from agent.db.schema import customers
-from agent.refund_client.config import RefundClientSettings
 from agent.worker import presend
-from agent.worker.context import WorkerContext
-from agent.worker.gate import ConfigGate
-from agent.worker.hooks import NO_FAULTS, WorkerHooks
+from agent.worker.hooks import WorkerHooks
 from agent.worker.lease import StepClock
 from agent.worker.presend import ApprovedStep, handle_approved
-from agent.worker.timings import WorkerTimings
-
-POLICY = PolicyConfig(
-    currency="USD",
-    auto_approve_max_minor=5_000,
-    auto_approve_budget_minor=10_000,
-    per_customer_limit_minor=20_000,
-    per_customer_window=timedelta(days=30),
-    refund_window=timedelta(days=30),
-    breaker_threshold_minor=100_000,
-    pending_review_cap=3,
-    daily_proposal_cap=5,
-    global_review_queue_cap=50,
-    decline_cooldown=timedelta(days=7),
-)
-RETRY = RetryPolicy(
-    attempts=5,
-    backoff_base=timedelta(seconds=0.5),
-    backoff_cap=timedelta(seconds=8),
-    client_timeout=timedelta(seconds=8),
-)
-TIMINGS = WorkerTimings(
-    lease=timedelta(seconds=30),
-    heartbeat=timedelta(seconds=5),
-    liveness_margin=timedelta(seconds=0.5),
-    claim_cooldown=timedelta(seconds=60),
-    statement_timeout=timedelta(seconds=3),
-    lock_timeout=timedelta(seconds=0.2),
-    config_refresh=timedelta(seconds=30),
-    config_staleness=timedelta(seconds=90),
-    presend_max_attempts=3,
-    lock_retry_max=2,
-    release_streak_limit=3,
-    policy=RETRY,
-)
-SETTINGS = RefundClientSettings(
-    base_url="http://refund-api",
-    token="t" * 32,
-    policy=RETRY,
-    max_provider_window=timedelta(seconds=900),
-)
-READ_WINDOW_MS = 300_000
-FITS = config_result(window_ms=READ_WINDOW_MS, retention_ms=3_600_000)
-BOUND = 5.0
 
 
-class Harness:
-    def __init__(
-        self,
-        engine: AsyncEngine,
-        *,
-        configs: Iterable[HttpResult] = (FITS,),
-        hooks: WorkerHooks = NO_FAULTS,
-        timings: WorkerTimings = TIMINGS,
-    ) -> None:
-        self.client = ScriptedRefundClient(configs=configs)
-        self.alerter = RecordingAlerter()
-        self.sleeps: list[float] = []
-
-        async def sleep(seconds: float) -> None:
-            self.sleeps.append(seconds)
-
-        self.ctx = WorkerContext(
-            engine=engine,
-            client=self.client,
-            refund_settings=SETTINGS,
-            timings=timings,
-            policy=POLICY,
-            gate=ConfigGate(
-                worst_case=RETRY.worst_case_window(),
-                staleness=timings.config_staleness,
-                alerter=self.alerter,
-            ),
-            alerter=self.alerter,
-            hooks=hooks,
-            jitter=lambda: 0.5,
-            sleep=sleep,
-        )
-
-    async def claim(self, worker: str = "A") -> Claim:
-        async with claims.worker_transaction(
-            self.ctx.engine,
-            statement_timeout=TIMINGS.statement_timeout,
-            lock_timeout=TIMINGS.lock_timeout,
-        ) as conn:
-            claimed = await claims.claim_run(conn, worker, TIMINGS.lease)
-        assert claimed is not None
-        return claimed
-
+class Harness(BaseHarness):
     async def run(self, claimed: Claim) -> presend.ApprovedResult:
         async with asyncio.timeout(BOUND):
             return await handle_approved(self.ctx, claimed, StepClock(timedelta(seconds=60)))
-
-
-def only(rows: list[Row[Any]], what: str) -> Row[Any]:
-    assert len(rows) == 1, f"expected exactly one {what}, found {len(rows)}"
-    return rows[0]
 
 
 # --- PROCEED ---------------------------------------------------------------------------------
