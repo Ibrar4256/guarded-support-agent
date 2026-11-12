@@ -35,6 +35,8 @@ from agent.db.schema import (
 from agent.refund_client.payload import canonical_payload
 
 WINDOW_MS = 60_000
+BOUND_TIMEOUT_MS = 8_000
+BOUND_BUDGET_MS = 5_000
 OWNER_LOCK_TIMEOUT = "2s"
 
 
@@ -159,6 +161,10 @@ class World:
         """An EXECUTING refund whose first send started ``sent_seconds_ago`` (database clock is
         the same host's clock in compose; tests leave seconds of margin)."""
         first_send = datetime.now(UTC) - timedelta(seconds=sent_seconds_ago)
+        if extra.get("send_attempts", 0) > 0:
+            # Sends already recorded carry their ADR-016 bounds, as the attempt record writes.
+            extra.setdefault("max_client_timeout_ms", BOUND_TIMEOUT_MS)
+            extra.setdefault("in_flight_bound_ms", BOUND_TIMEOUT_MS + BOUND_BUDGET_MS)
         return self.add_refund_run(
             self.add_order(),
             amount_minor,

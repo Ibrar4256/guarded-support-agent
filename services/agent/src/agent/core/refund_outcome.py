@@ -309,13 +309,19 @@ CONFIG_FIELDS = ("max_retry_window_ms", "key_retention_ms", "processing_budget_m
 
 
 def read_provider_config(
-    result: HttpResult, client_timeout: timedelta, max_window: timedelta
+    result: HttpResult,
+    client_timeout: timedelta,
+    max_window: timedelta,
+    *,
+    min_budget: timedelta,
 ) -> ConfigRead:
     """Validate a ``GET /config`` answer, because every send trusts it (ADR-013).
 
     Strictly parsed, exact positive integers (milliseconds), internally consistent
-    (retention > window + client timeout), and capped by the agent's own maximum window.
-    Anything else is a failed read: nothing is sent and no attempt is counted."""
+    (retention > window + client timeout), the window capped by the agent's maximum, and the
+    processing budget at least the agent's minimum: an under-reported budget would shorten the
+    reconciler's quiet period (ADR-016). Anything else is a failed read: nothing is sent and
+    no attempt is counted."""
     if result.status in (401, 403):
         return ConfigRead(ConfigReadKind.AUTH_FAILED, f"config read got {result.status}")
     if result.status != 200:
@@ -334,6 +340,8 @@ def read_provider_config(
         return ConfigRead(ConfigReadKind.FAILED, "key retention doesn't cover window + timeout")
     if window > max_window:
         return ConfigRead(ConfigReadKind.FAILED, "provider window above the agent's cap")
+    if budget < min_budget:
+        return ConfigRead(ConfigReadKind.FAILED, "processing budget below the agent's minimum")
     return ConfigRead(
         ConfigReadKind.OK,
         "config valid",

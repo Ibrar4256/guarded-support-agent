@@ -29,6 +29,8 @@ def sent_run(conversation: uuid.UUID, **values: Any) -> dict[str, Any]:
         "first_send_started_at": T0,
         "send_window_ms": WINDOW_MS,
         "send_attempts": 1,
+        "max_client_timeout_ms": 8_000,
+        "in_flight_bound_ms": 13_000,
     }
     row.update(values)
     return row
@@ -40,6 +42,8 @@ UNSENT = {
     "first_send_started_at": None,
     "send_window_ms": None,
     "send_attempts": 0,
+    "max_client_timeout_ms": None,
+    "in_flight_bound_ms": None,
 }
 
 BAD_ROWS = [
@@ -50,9 +54,36 @@ BAD_ROWS = [
     ),
     pytest.param("window_positive", {"send_window_ms": 0}, id="zero-window"),
     pytest.param(
-        "no_attempts_before_send", {**UNSENT, "send_attempts": 1}, id="attempt-before-send"
+        "no_attempts_before_send",
+        {
+            **UNSENT,
+            "send_attempts": 1,
+            "max_client_timeout_ms": 8_000,
+            "in_flight_bound_ms": 13_000,
+        },
+        id="attempt-before-send",
     ),
     pytest.param("release_streak_non_negative", {"release_streak": -1}, id="negative-streak"),
+    # ADR-016 S4
+    pytest.param("in_flight_bound_iff_sent", {"in_flight_bound_ms": None}, id="sent-without-bound"),
+    pytest.param(
+        "max_timeout_iff_sent", {"max_client_timeout_ms": None}, id="sent-without-timeout"
+    ),
+    pytest.param(
+        "in_flight_bound_iff_sent",
+        {**UNSENT, "in_flight_bound_ms": 13_000, "max_client_timeout_ms": None},
+        id="bound-without-send",
+    ),
+    pytest.param(
+        "in_flight_bound_covers_timeout",
+        {"in_flight_bound_ms": 8_000},
+        id="bound-not-above-timeout",
+    ),
+    pytest.param(
+        "max_timeout_positive",
+        {"max_client_timeout_ms": 0, "in_flight_bound_ms": 5_000},
+        id="zero-timeout",
+    ),
 ]
 
 
@@ -155,3 +186,60 @@ def test_negative_control_migration_runs_with_only_unsent_runs(owner_engine: Eng
             text("SELECT send_attempts, release_streak FROM runs WHERE user_id = :u"), {"u": USER}
         ).one()
     assert (attempts, streak) == (0, 0)
+
+
+# --- migration 0003 (ADR-016 S4) -----------------------------------------------------------------
+
+
+@pytest.fixture
+def at_revision_0002(owner_engine: Engine) -> Iterator[None]:
+    result = run_alembic("downgrade", "0002")
+    assert result.returncode == 0, result.stderr
+    try:
+        yield
+    finally:
+        with owner_engine.begin() as connection:
+            connection.execute(text("DELETE FROM runs WHERE user_id = :u"), {"u": USER})
+            connection.execute(text("DELETE FROM conversations WHERE user_id = :u"), {"u": USER})
+            connection.execute(text("DELETE FROM customers WHERE id = :u"), {"u": USER})
+        result = run_alembic("upgrade", "head")
+        assert result.returncode == 0, result.stderr
+
+
+def insert_0002_run(owner_engine: Engine, *, sends: int) -> None:
+    """A run as 0002 stored it: no bounds."""
+    conversation = uuid.uuid4()
+    row = sent_run(conversation) if sends else sent_run(conversation, **UNSENT)
+    with owner_engine.begin() as connection:
+        connection.execute(insert(customers).values(id=USER))
+        connection.execute(insert(conversations).values(id=conversation, user_id=USER))
+        connection.execute(
+            text(
+                "INSERT INTO runs (id, conversation_id, user_id, status, refund_outcome, "
+                "approval_source, approved_at, first_send_started_at, send_window_ms, "
+                "send_attempts) VALUES (:id, :conversation_id, :user_id, :status, "
+                ":refund_outcome, :approval_source, :approved_at, :first_send_started_at, "
+                ":send_window_ms, :sends)"
+            ),
+            {
+                **row,
+                "status": row["status"].value,
+                "refund_outcome": row["refund_outcome"].value,
+                "sends": sends,
+            },
+        )
+
+
+@pytest.mark.usefixtures("at_revision_0002")
+def test_migration_0003_refuses_runs_already_sent(owner_engine: Engine) -> None:
+    insert_0002_run(owner_engine, sends=1)
+    result = run_alembic("upgrade", "0003")
+    assert result.returncode != 0
+    assert "in-flight bounds are unknown" in result.stderr
+
+
+@pytest.mark.usefixtures("at_revision_0002")
+def test_negative_control_migration_0003_runs_with_only_unsent_runs(owner_engine: Engine) -> None:
+    insert_0002_run(owner_engine, sends=0)
+    result = run_alembic("upgrade", "0003")
+    assert result.returncode == 0, result.stderr

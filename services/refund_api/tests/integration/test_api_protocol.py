@@ -336,6 +336,25 @@ async def test_control_within_the_budget_commits(runtime_engine: Engine) -> None
     assert refund_rows(runtime_engine, action_id=action) == 1
 
 
+@pytest.mark.parametrize(("budget_ms", "status"), [(500, 503), (1_500, 201)])
+async def test_config_reports_the_budget_the_deadline_enforces(
+    runtime_engine: Engine, budget_ms: int, status: int
+) -> None:
+    """ADR-016: the agent's quiet period trusts GET /config's processing budget, so it must be
+    the very setting the deadline enforces. One delay (0.6 s) before commit, two budgets: the
+    reported value and the deadline's verdict move together."""
+    settings = api_settings(
+        processing_budget=timedelta(milliseconds=budget_ms),
+        pool_timeout=timedelta(milliseconds=200),
+    )
+    order, action = create_charge(runtime_engine, AMOUNT), unique("act")
+    async with api_client(settings, DelayBeforeCommit(0.6)) as client:
+        config = (await client.get("/config", headers={"Authorization": f"Bearer {TOKEN}"})).json()
+        response = await post(client, unique("key"), refund_body(order, action))
+    assert config["processing_budget_ms"] == budget_ms
+    assert response.status_code == status, "the deadline enforced the budget /config reported"
+
+
 # --- authentication with a real refund ----------------------------------------------------
 
 

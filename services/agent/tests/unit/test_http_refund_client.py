@@ -29,6 +29,7 @@ SETTINGS = RefundClientSettings(
         client_timeout=timedelta(seconds=8),
     ),
     max_provider_window=timedelta(seconds=900),
+    min_provider_budget=timedelta(seconds=1),
 )
 PAYLOAD = RefundPayload(order_id="ord_1", amount_minor=1000, currency="USD", action_id="act_1")
 
@@ -145,6 +146,7 @@ SHORT = RefundClientSettings(
         client_timeout=timedelta(seconds=0.5),
     ),
     max_provider_window=timedelta(seconds=900),
+    min_provider_budget=timedelta(seconds=1),
 )
 
 

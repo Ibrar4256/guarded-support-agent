@@ -154,7 +154,9 @@ async def _record_attempt(
             return await _reconcile_in(
                 ctx, conn, claim, "unsendable_run", "no saved key or canonical payload"
             )
-        number = await db.record_attempt(conn, claim, policy.client_timeout)
+        number = await db.record_attempt(
+            conn, claim, policy.client_timeout, provider.processing_budget
+        )
         return _Attempt(number, payload, state.idempotency_key, state.conversation_id)
 
 

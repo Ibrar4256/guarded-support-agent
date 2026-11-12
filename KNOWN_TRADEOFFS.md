@@ -155,6 +155,24 @@ lives in `WEEKLY_LOG.md`.
 - **Migration 0002 refuses databases with sent runs.** Their window snapshot can't be known,
   so they must be resolved first; fine before launch, a real migration step after it.
 
+## Reconciler (ADR-016)
+
+- **"Not found" assumes refund-api's lookups are strongly consistent.** A lookup served by a
+  lagging replica would make "not found" unreliable, and "not found" frees capacity. Revisit
+  before any lookup moves to a replica.
+- **A budget raised around a send and lowered again before reconciling** escapes both bounds
+  (the recorded one and the fresh read). It needs two config changes inside one run's life; with
+  rolling deploys of refund-api, requests should carry their own bound (ADR-013 Option C).
+- **Transit time beyond the margin is an assumption** (as in ADR-010): the quiet period's margin
+  covers the gap between refund-api's deadline check and its commit, and network transit.
+- **A run that never resolves cycles and pages.** Only a lookup or a person can settle an
+  `unknown` outcome; the run keeps its status, cools down between tries, and pages once per
+  interval.
+- **A refund-api bug returning mismatched rows for every action pages per run** (rate-limited),
+  because a mismatch looks run-specific.
+- **The "failed before" mark for repeated provider-type failures lives in memory.** A worker
+  restart costs one extra cycle before such a run counts toward its streak.
+
 ## End-to-end crash tests (ADR-015)
 
 - **Processes, not containers.** The crash tests run both services from their own venvs, so

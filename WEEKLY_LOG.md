@@ -646,3 +646,35 @@ plant has to land in code the test actually runs.
 **What's next:** the reconciler (ADR-008 Part 2): it claims `NEEDS_RECONCILIATION` after the
 quiet period, looks the refund up, never sends; then `slow_commit` and ADR-010's
 `invalid_request`-after-commit end to end.
+
+### Agent side, step 3 slice 1: the reconciler's bounds (ADR-016) (2026-11-12)
+
+**What shipped:**
+- **ADR-016 (locked after two review passes):** the reconciler as a second loop in the worker;
+  a quiet period that is the larger of a per-run bound recorded with each send and the largest
+  recorded timeout plus refund-api's budget read fresh at reconcile time; provider failures close
+  the gate, only run-specific ones count toward the streak; with the kill switch on, "not found"
+  makes no decision; every release applies a cooldown (now a rule for every loop).
+- **Migration 0003:** `in_flight_bound_ms` and `max_client_timeout_ms`, recorded by the attempt
+  transaction as maxima over the run's sends (rounded up), with four CHECKs (both exist exactly
+  when something was sent; the bound exceeds the timeout; positive). It refuses databases with
+  sent runs that lack them.
+- **The minimum processing budget** (`REFUND_CLIENT_MIN_PROVIDER_BUDGET_SECONDS`): a reported
+  budget below it is an invalid read. refund-api gained a test that `GET /config`'s budget is the
+  setting its deadline enforces (a planted second source fails it).
+- Agent 581, refund_api 233, e2e 13; four plants (last bound instead of largest, no minimum,
+  `/config` from another setting, the new CHECKs dropped) each caught.
+
+**What broke:**
+- A new CHECK made an older test row fail for the wrong constraint: the "attempt before send" row
+  now also lacked its bounds, and Postgres reported that first. The row got consistent bounds, so
+  it isolates its own constraint again.
+- One full-suite run failed a shutdown test once (outcome `unknown`). Hypothesis: the heartbeat's
+  0.75 s step bound fired while the test's fake send was held. A probe holding the send to 0.9 s
+  reproduced it exactly, with a `worker_step_overrun` alert. Liveness was right; the test conflated
+  grace with liveness because its fake ignores the send timeout. It now has a patient step bound
+  and asserts no alerts.
+
+**What's next:** the reconcile loop: its claim (quiet period with the fresh budget as a
+parameter), lookups and their outcomes, the kill switch, the failure paths and the stale-unknown
+alert; then the two e2e tests (`slow_commit`, `invalid_request` after a commit).

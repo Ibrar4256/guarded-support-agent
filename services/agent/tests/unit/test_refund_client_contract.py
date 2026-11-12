@@ -176,7 +176,9 @@ def test_example_matches_the_spec_and_classifies(where: tuple[str, str, str]) ->
     validator(response_schema(*where)).validate(example)
     result = HttpResult(status=int(where[2]), body=json.dumps(example).encode())
     if where[0] == "/config":
-        read = read_provider_config(result, timedelta(seconds=8), timedelta(minutes=15))
+        read = read_provider_config(
+            result, timedelta(seconds=8), timedelta(minutes=15), min_budget=timedelta(seconds=1)
+        )
         assert read.kind is expected
     elif where[1] == "post":
         assert classify_send(result, SENT).kind is expected

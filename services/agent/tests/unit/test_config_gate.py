@@ -30,6 +30,7 @@ SETTINGS = RefundClientSettings(
     token="t" * 32,
     policy=POLICY,
     max_provider_window=timedelta(seconds=900),
+    min_provider_budget=timedelta(seconds=1),
 )
 STALENESS = timedelta(seconds=90)
 FITS = config_result(window_ms=600_000, retention_ms=3_600_000)

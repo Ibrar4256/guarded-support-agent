@@ -14,6 +14,7 @@ ENV = {
     config.BACKOFF_BASE: "0.5",
     config.BACKOFF_CAP: "8",
     config.MAX_PROVIDER_WINDOW: "900",
+    config.MIN_PROVIDER_BUDGET: "1",
 }
 
 
@@ -50,3 +51,15 @@ def test_the_agent_no_longer_reads_the_providers_window() -> None:
 def test_bad_settings_are_refused(override: dict[str, str], message: str) -> None:
     with pytest.raises(RefundClientConfigError, match=message):
         RefundClientSettings.from_env(ENV | override)
+
+
+def test_a_non_positive_minimum_budget_is_refused() -> None:
+    with pytest.raises(RefundClientConfigError, match=config.MIN_PROVIDER_BUDGET):
+        RefundClientSettings.from_env(ENV | {config.MIN_PROVIDER_BUDGET: "0"})
+
+
+def test_a_missing_minimum_budget_is_refused() -> None:
+    with pytest.raises(RefundClientConfigError, match=config.MIN_PROVIDER_BUDGET):
+        RefundClientSettings.from_env(
+            {k: v for k, v in ENV.items() if k != config.MIN_PROVIDER_BUDGET}
+        )

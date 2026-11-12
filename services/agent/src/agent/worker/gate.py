@@ -107,7 +107,10 @@ class ConfigGate:
 async def read_config(client: RefundClient, settings: RefundClientSettings) -> ConfigRead:
     """One ``GET /config``, validated by the core (ADR-013)."""
     return read_provider_config(
-        await client.read_config(), settings.policy.client_timeout, settings.max_provider_window
+        await client.read_config(),
+        settings.policy.client_timeout,
+        settings.max_provider_window,
+        min_budget=settings.min_provider_budget,
     )
 
 

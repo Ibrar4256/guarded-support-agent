@@ -71,10 +71,17 @@ async def lock_attempt_state(conn: AsyncConnection, claim: Claim) -> AttemptStat
     )
 
 
-async def record_attempt(conn: AsyncConnection, claim: Claim, client_timeout: timedelta) -> int:
+async def record_attempt(
+    conn: AsyncConnection,
+    claim: Claim,
+    client_timeout: timedelta,
+    processing_budget: timedelta,
+) -> int:
     """The attempt record (ADR-012 Part 3): one more send, ``last_attempt_at = now()`` (the
     quiet-period anchor), and a lease that outlives the attempt (ADR-014 Part 3). Progress,
-    so the release streak resets (S12). Returns the new attempt count."""
+    so the release streak resets (S12). It also keeps ADR-016's bounds, each the maximum over
+    the run's sends: the longest this send could take to commit (its timeout plus the budget
+    read just before it) and the longest timeout. Returns the new attempt count."""
     row = (
         await conn.execute(
             update(runs)
@@ -86,11 +93,22 @@ async def record_attempt(conn: AsyncConnection, claim: Claim, client_timeout: ti
                     runs.c.lease_expires_at, func.now() + client_timeout
                 ),
                 release_streak=0,
+                in_flight_bound_ms=func.greatest(
+                    runs.c.in_flight_bound_ms, _millis(client_timeout + processing_budget)
+                ),
+                max_client_timeout_ms=func.greatest(
+                    runs.c.max_client_timeout_ms, _millis(client_timeout)
+                ),
             )
             .returning(runs.c.send_attempts)
         )
     ).one()
     return int(row.send_attempts)
+
+
+def _millis(duration: timedelta) -> int:
+    """Rounded up, so a recorded bound is never shorter than the real one."""
+    return -(-duration // timedelta(milliseconds=1))
 
 
 async def age(conn: AsyncConnection, claim: Claim) -> Age | None:

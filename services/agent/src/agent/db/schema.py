@@ -144,6 +144,10 @@ runs = Table(
     Column("send_window_ms", BigInteger),
     timestamp("claimable_after"),
     Column("release_streak", Integer, nullable=False, server_default="0"),
+    # Reconciler (ADR-016 Part 2): the longest any send could take to commit (its timeout plus
+    # the budget read before it), and the longest timeout, each the maximum over the sends.
+    Column("in_flight_bound_ms", BigInteger),
+    Column("max_client_timeout_ms", BigInteger),
     # Attention (ADR-008, ADR-009).
     timestamp("escalated_at"),
     timestamp("c01_flagged_at"),
@@ -164,6 +168,20 @@ runs = Table(
         "first_send_started_at IS NOT NULL OR send_attempts = 0", name="no_attempts_before_send"
     ),
     CheckConstraint("release_streak >= 0", name="release_streak_non_negative"),
+    # --- ADR-016 S4: the bounds exist exactly when something was sent ---
+    CheckConstraint(
+        "(in_flight_bound_ms IS NULL) = (send_attempts = 0)", name="in_flight_bound_iff_sent"
+    ),
+    CheckConstraint(
+        "(max_client_timeout_ms IS NULL) = (send_attempts = 0)", name="max_timeout_iff_sent"
+    ),
+    CheckConstraint(
+        "in_flight_bound_ms IS NULL OR in_flight_bound_ms > max_client_timeout_ms",
+        name="in_flight_bound_covers_timeout",
+    ),
+    CheckConstraint(
+        "max_client_timeout_ms IS NULL OR max_client_timeout_ms > 0", name="max_timeout_positive"
+    ),
     # --- ADR-008 invariants (mirrors agent.core.lifecycle.invariant_violations) ---
     CheckConstraint(
         "(refund_outcome = 'none') = (first_send_started_at IS NULL)", name="outcome_first_send"

@@ -21,6 +21,7 @@ MAX_ATTEMPTS = "REFUND_CLIENT_MAX_ATTEMPTS"
 BACKOFF_BASE = "REFUND_CLIENT_BACKOFF_BASE_SECONDS"
 BACKOFF_CAP = "REFUND_CLIENT_BACKOFF_CAP_SECONDS"
 MAX_PROVIDER_WINDOW = "REFUND_CLIENT_MAX_PROVIDER_WINDOW_SECONDS"
+MIN_PROVIDER_BUDGET = "REFUND_CLIENT_MIN_PROVIDER_BUDGET_SECONDS"
 
 
 class RefundClientConfigError(RuntimeError):
@@ -33,12 +34,17 @@ class RefundClientSettings:
     token: str
     policy: RetryPolicy
     max_provider_window: timedelta
+    # ADR-016: refund-api's processing budget sizes the reconciler's quiet period, so a budget
+    # reported below this is treated as a broken read.
+    min_provider_budget: timedelta
 
     def __post_init__(self) -> None:
         if not self.base_url.startswith(("http://", "https://")):
             raise RefundClientConfigError(f"{BASE_URL} must be an http(s) URL")
         if len(self.token) < MIN_TOKEN_LENGTH:
             raise RefundClientConfigError(f"{TOKEN} must be at least {MIN_TOKEN_LENGTH} characters")
+        if self.min_provider_budget <= timedelta(0):
+            raise RefundClientConfigError(f"{MIN_PROVIDER_BUDGET} must be positive")
         worst = self.policy.worst_case_window()
         if worst > self.max_provider_window:
             raise RefundClientConfigError(
@@ -63,6 +69,7 @@ class RefundClientSettings:
             token=_required(environ, TOKEN),
             policy=policy,
             max_provider_window=_seconds(environ, MAX_PROVIDER_WINDOW),
+            min_provider_budget=_seconds(environ, MIN_PROVIDER_BUDGET),
         )
 
 

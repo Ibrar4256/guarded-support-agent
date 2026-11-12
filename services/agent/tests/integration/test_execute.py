@@ -409,3 +409,34 @@ async def test_a_401_on_the_per_send_read_releases_and_pages(
     assert (await execute_run(h, claimed)).step is ExecutingStep.RELEASED
     assert (h.client.sent, world.row(run).worker_id) == ([], None)
     assert h.alerter.kinds(Severity.PAGE) == ["refund_api_auth_failed"]
+
+
+# --- ADR-016's in-flight bounds, recorded with each send -----------------------------------------
+
+
+async def test_a_send_records_its_bound_and_timeout(
+    world: World, async_runtime_engine: AsyncEngine
+) -> None:
+    """The first send: its client timeout (3 s), plus the budget read just before it (5 s)."""
+    run = world.add_executing()
+    h = harness(async_runtime_engine, sends=[created_result(payload_of(world, run))])
+    claimed = await h.claim()
+    await execute_run(h, claimed)
+    row = world.row(run)
+    assert (row.max_client_timeout_ms, row.in_flight_bound_ms) == (3_000, 8_000)
+
+
+async def test_a_later_smaller_send_keeps_the_largest_bound(
+    world: World, async_runtime_engine: AsyncEngine
+) -> None:
+    """An earlier send ran under a longer timeout and a larger budget; this one's smaller bound
+    mustn't shorten the reconciler's wait (ADR-016 Part 2)."""
+    run = world.add_executing(
+        send_attempts=1, max_client_timeout_ms=15_000, in_flight_bound_ms=20_000
+    )
+    h = harness(async_runtime_engine, sends=[created_result(payload_of(world, run))])
+    claimed = await h.claim()
+    await execute_run(h, claimed)
+    row = world.row(run)
+    assert row.send_attempts == 2
+    assert (row.max_client_timeout_ms, row.in_flight_bound_ms) == (15_000, 20_000)

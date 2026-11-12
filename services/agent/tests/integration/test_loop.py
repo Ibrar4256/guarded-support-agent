@@ -372,9 +372,12 @@ class HeldSend(ScriptedRefundClient):
 async def test_stopping_lets_an_attempt_on_the_wire_finish_and_be_recorded(
     world: World, async_runtime_engine: AsyncEngine
 ) -> None:
+    """Grace, not liveness, is under test: the fake send ignores its timeout, so a patient step
+    bound keeps a slow moment under load from ending the attempt as a stuck step instead."""
     run = world.add_refund_run(world.add_order(), 2_000)
     client = HeldSend(configs=[WIDE, WIDE], sends=[created_result(payload_of(world, run))])
-    h = loop_harness(async_runtime_engine, client)
+    patient = replace(LOOP, liveness_margin=timedelta(seconds=30))
+    h = loop_harness(async_runtime_engine, client, timings=patient)
     task = asyncio.create_task(run_worker(h.ctx, "W"))
     async with asyncio.timeout(BOUND):
         await client.on_the_wire.wait()
@@ -382,6 +385,7 @@ async def test_stopping_lets_an_attempt_on_the_wire_finish_and_be_recorded(
         await asyncio.sleep(0.2)
         client.finish.set()
         await task
+    assert h.alerter.raised == [], "nothing went wrong on the way"
     assert world.row(run).refund_outcome is RefundOutcome.CONFIRMED
 
 

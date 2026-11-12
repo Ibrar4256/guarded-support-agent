@@ -452,6 +452,7 @@ def test_control_checking_only_the_current_window_would_send() -> None:
 
 CAP = timedelta(minutes=15)
 TIMEOUT = 8 * SECOND
+MIN_BUDGET = 1 * SECOND
 GOOD_CONFIG = {
     "max_retry_window_ms": 600_000,
     "key_retention_ms": 86_400_000,
@@ -467,7 +468,7 @@ def raw_config(window: str, retention: str = "86400000", budget: str = "5000") -
 
 def read(status: int | None, payload: Any) -> Any:
     raw = payload.encode() if isinstance(payload, str) else body(payload)
-    return read_provider_config(HttpResult(status, raw), TIMEOUT, CAP)
+    return read_provider_config(HttpResult(status, raw), TIMEOUT, CAP, min_budget=MIN_BUDGET)
 
 
 def test_a_valid_config_is_read_in_milliseconds() -> None:
@@ -493,6 +494,7 @@ BAD_CONFIGS: dict[str, Any] = {
     "missing-field": {k: v for k, v in GOOD_CONFIG.items() if k != "key_retention_ms"},
     "duplicate-window": raw_config('1,"max_retry_window_ms":600000'),
     "nan-window": raw_config("NaN"),
+    "budget-below-the-agent-minimum": GOOD_CONFIG | {"processing_budget_ms": 999},
 }
 
 
@@ -510,3 +512,10 @@ def test_an_unreachable_config_is_a_failed_read(status: int | None) -> None:
 def test_control_trusting_the_value_would_accept_an_absurd_window() -> None:
     naive = json.loads(body(BAD_CONFIGS["window-above-the-agent-cap"]))
     assert timedelta(milliseconds=naive["max_retry_window_ms"]) > CAP
+
+
+def test_negative_control_a_budget_exactly_at_the_minimum_is_accepted() -> None:
+    """ADR-016: the minimum is inclusive; one millisecond less fails (BAD_CONFIGS)."""
+    result = read(200, GOOD_CONFIG | {"processing_budget_ms": 1_000})
+    assert result.kind is ConfigReadKind.OK
+    assert result.config.processing_budget == MIN_BUDGET
