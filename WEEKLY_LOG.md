@@ -470,3 +470,26 @@ same step.
 **Interview probes added:** AS-48.
 
 **What's next:** the config gate (cache, staleness, closing on a failed read), then pre-send.
+
+### Agent side, step 2 slice: the config gate and alerts (2026-11-12)
+
+**What shipped:**
+- `agent.worker.gate.ConfigGate`: the worker claims only while the last provider-config read
+  was valid, authorized, fits the worst case, and is fresh. Every read feeds it, the interval
+  refresh and (next slice) each per-send read: a failed or invalid read closes it until a read
+  succeeds (ADR-014 Part 4), 401/403 closes it and pages, a window below the worst case closes
+  it and alerts (fatal at startup; unreachable at startup isn't). The refresh loop turns an
+  unexpected error into a closed gate plus an alert instead of dying.
+- `agent.alerts.LogAlerter` (ADR-014 Part 6): JSON lines at `WARNING`/`CRITICAL`, rate-limited
+  per `(severity, kind, run_id)`, with `suppressed=<n>` on the next line.
+- `agent_testing.fakes`: a strict scripted refund client and a recording alerter.
+- New config: `WORKER_CONFIG_REFRESH_SECONDS`, `WORKER_CONFIG_STALE_SECONDS` (at least two
+  refreshes), `ALERT_RATE_LIMIT_SECONDS`. 27 new tests (agent: 452); six source plants each
+  caught by the intended test.
+
+**What broke:** nothing in the code; the refresh-loop test first polled for a state the next
+refresh overwrote 10 ms later, a race a slow CI box could lose. The fake client now holds the
+next read until the test has looked, so the test is deterministic.
+
+**What's next:** pre-send (the customer-locked policy check once, the move to `EXECUTING` with
+the window snapshot), then the attempt transaction and budget.

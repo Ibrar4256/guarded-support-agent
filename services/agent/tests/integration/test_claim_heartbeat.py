@@ -27,6 +27,8 @@ FAST = WorkerTimings(
     claim_cooldown=timedelta(seconds=1),
     statement_timeout=timedelta(seconds=0.3),
     lock_timeout=timedelta(seconds=0.1),
+    config_refresh=timedelta(seconds=1),
+    config_staleness=timedelta(seconds=2),
     policy=RetryPolicy(
         attempts=1,
         backoff_base=timedelta(seconds=0.05),

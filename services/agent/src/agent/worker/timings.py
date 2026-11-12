@@ -19,8 +19,13 @@ LIVENESS_MARGIN = "WORKER_LIVENESS_MARGIN_SECONDS"
 CLAIM_COOLDOWN = "WORKER_CLAIM_COOLDOWN_SECONDS"
 STATEMENT_TIMEOUT = "WORKER_STATEMENT_TIMEOUT_SECONDS"
 LOCK_TIMEOUT = "WORKER_LOCK_TIMEOUT_SECONDS"
+CONFIG_REFRESH = "WORKER_CONFIG_REFRESH_SECONDS"
+CONFIG_STALE = "WORKER_CONFIG_STALE_SECONDS"
 
 MIN_HEARTBEATS_PER_LEASE = 3
+# The cached provider config goes stale after this many missed refreshes, so one late
+# refresh doesn't close the claim gate.
+MIN_REFRESHES_PER_STALENESS = 2
 
 
 class WorkerConfigError(RuntimeError):
@@ -35,6 +40,8 @@ class WorkerTimings:
     claim_cooldown: timedelta
     statement_timeout: timedelta
     lock_timeout: timedelta
+    config_refresh: timedelta
+    config_staleness: timedelta
     policy: RetryPolicy
 
     def __post_init__(self) -> None:
@@ -45,6 +52,8 @@ class WorkerTimings:
             "claim_cooldown",
             "statement_timeout",
             "lock_timeout",
+            "config_refresh",
+            "config_staleness",
         ):
             if getattr(self, name) <= timedelta(0):
                 raise WorkerConfigError(f"{name} must be positive")
@@ -52,6 +61,11 @@ class WorkerTimings:
             raise WorkerConfigError(
                 f"{LEASE} must be at least {MIN_HEARTBEATS_PER_LEASE} heartbeats "
                 f"({HEARTBEAT}), so one late heartbeat can't lose the claim"
+            )
+        if self.config_staleness < self.config_refresh * MIN_REFRESHES_PER_STALENESS:
+            raise WorkerConfigError(
+                f"{CONFIG_STALE} must be at least {MIN_REFRESHES_PER_STALENESS} refresh "
+                f"intervals ({CONFIG_REFRESH}), so one late refresh doesn't close the gate"
             )
         if self.lock_timeout > self.statement_timeout:
             raise WorkerConfigError(f"{LOCK_TIMEOUT} must not exceed {STATEMENT_TIMEOUT}")
@@ -80,6 +94,8 @@ class WorkerTimings:
             claim_cooldown=_seconds(environ, CLAIM_COOLDOWN),
             statement_timeout=_seconds(environ, STATEMENT_TIMEOUT),
             lock_timeout=_seconds(environ, LOCK_TIMEOUT),
+            config_refresh=_seconds(environ, CONFIG_REFRESH),
+            config_staleness=_seconds(environ, CONFIG_STALE),
             policy=policy,
         )
 

@@ -9,6 +9,7 @@ import pytest
 from agent.core.refund_outcome import RetryPolicy
 from agent.worker.lease import StepClock, new_worker_id
 from agent.worker.timings import (
+    CONFIG_STALE,
     HEARTBEAT,
     LEASE,
     LOCK_TIMEOUT,
@@ -30,6 +31,8 @@ VALID = WorkerTimings(
     claim_cooldown=timedelta(seconds=30),
     statement_timeout=timedelta(seconds=5),
     lock_timeout=timedelta(seconds=1),
+    config_refresh=timedelta(seconds=30),
+    config_staleness=timedelta(seconds=90),
     policy=POLICY,
 )
 ENV = {
@@ -39,6 +42,8 @@ ENV = {
     "WORKER_CLAIM_COOLDOWN_SECONDS": "30",
     "WORKER_STATEMENT_TIMEOUT_SECONDS": "5",
     "WORKER_LOCK_TIMEOUT_SECONDS": "1",
+    "WORKER_CONFIG_REFRESH_SECONDS": "30",
+    "WORKER_CONFIG_STALE_SECONDS": "90",
 }
 
 
@@ -85,7 +90,21 @@ def test_negative_control_statement_timeout_just_below_the_bound_is_accepted() -
     assert replace(VALID, statement_timeout=below).statement_timeout == below
 
 
-@pytest.mark.parametrize("name", ["lease", "heartbeat", "liveness_margin", "claim_cooldown"])
+def test_staleness_under_two_refreshes_is_refused() -> None:
+    with pytest.raises(WorkerConfigError, match=CONFIG_STALE):
+        replace(VALID, config_staleness=timedelta(seconds=59))
+
+
+def test_negative_control_staleness_of_exactly_two_refreshes_is_accepted() -> None:
+    assert replace(VALID, config_staleness=timedelta(seconds=60)).config_staleness == timedelta(
+        seconds=60
+    )
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["lease", "heartbeat", "liveness_margin", "claim_cooldown", "config_refresh"],
+)
 def test_non_positive_durations_are_refused(name: str) -> None:
     with pytest.raises(WorkerConfigError, match=name):
         changes: dict[str, Any] = {name: timedelta(0)}

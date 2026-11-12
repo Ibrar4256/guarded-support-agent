@@ -126,7 +126,8 @@ lives in `WEEKLY_LOG.md`.
   sends** (approved refunds wait) instead of escalating every refund.
 - **Alerts are rate-limited by kind.** Repeats inside the interval are counted
   (`suppressed=<n>`), not sent, so a second, different problem of the same kind is only
-  visible in the count until the next line.
+  visible in the count until the next line, and if no later line of that kind comes, the
+  count is never reported.
 - **One run per worker process.** Throughput scales by adding processes, not concurrency
   inside one; fine at portfolio volume.
 - **Polling, not push.** Pickup latency is up to one poll interval (seconds), plus one
