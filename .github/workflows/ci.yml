@@ -46,6 +46,30 @@ jobs:
       - name: Checks
         run: scripts/ci/service_checks.sh ${{ matrix.service }}
 
+  e2e:
+    name: end-to-end crash tests
+    needs: service
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv ${{ env.UV_VERSION }}
+        run: |
+          curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Start Postgres
+        run: |
+          scripts/ci/write_test_env.sh
+          docker compose up -d --wait postgres
+
+      - name: Load database settings (the superuser creates per-test databases, ADR-015)
+        run: grep -E '^((AGENT|REFUND)_DB_.*_URL|POSTGRES_SUPERUSER(_PASSWORD)?)=' .env >> "$GITHUB_ENV"
+
+      - name: Crash tests (ADR-004, ADR-015)
+        run: scripts/ci/e2e_checks.sh
+
   boundaries:
     name: cross-service boundaries
     needs: service

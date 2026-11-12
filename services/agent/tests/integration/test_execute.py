@@ -22,7 +22,9 @@ from agent.alerts import Severity
 from agent.core.lifecycle import RefundOutcome, RunStatus
 from agent.core.refund_outcome import ConfigRead, HttpResult, ProviderConfig, RetryPolicy
 from agent.core.replies import ReplyTemplate
+from agent.db import execution as execution_db
 from agent.db.claims import Claim
+from agent.db.schema import runs
 from agent.refund_client.config import RefundClientSettings
 from agent.refund_client.http import RefundClient
 from agent.refund_client.models import RefundPayload
@@ -343,6 +345,20 @@ async def test_a_claim_taken_over_sends_nothing(
     world.steal(run, "B", TIMINGS.lease)
     assert (await execute_run(h, claimed)).step is ExecutingStep.LOST
     assert (h.client.sent, world.row(run).send_attempts) == ([], 0)
+
+
+async def test_negative_control_an_attempt_fenced_without_the_version_lets_a_stale_worker_send(
+    world: World, async_runtime_engine: AsyncEngine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ADR-015's stale-worker e2e test is assertion-only; this is its fencing control, in
+    process, with no production seam (ADR-014 Part 3)."""
+    run = world.add_executing()
+    h = harness(async_runtime_engine, sends=[created_result(payload_of(world, run))])
+    claimed = await h.claim()
+    world.steal(run, "B", TIMINGS.lease)
+    monkeypatch.setattr(execution_db, "fenced", lambda c: runs.c.id == c.run_id)
+    await execute_run(h, claimed)
+    assert len(h.client.sent) == 1, "the stale worker sent after another worker took the run"
 
 
 async def test_an_expired_lease_sends_nothing_even_with_the_version_intact(

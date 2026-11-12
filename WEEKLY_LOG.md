@@ -611,3 +611,38 @@ the plant left nothing behind.
 **What's next:** the e2e crash tests (`tests/e2e`): the crash-test worker against a real
 refund-api (its fault build), crashing before the refund call and after the response, then
 resuming: exactly one refund each, and two under `dedup_disabled`.
+
+### Agent side, step 2: the end-to-end crash tests (ADR-015) (2026-11-12)
+
+**What shipped:**
+- **ADR-015 (locked after one review pass):** both services as host processes from their own
+  venvs (never under `uv run`), each in its own process group, Postgres from compose; every
+  `SIGSTOP` confirmed in `/proc`; a fresh agent database per test from a migrated template;
+  agent data through `python -m agent_testing.make_approved_run`; charges at least twice the
+  refund (ADR-004's test-data rule); one timing profile with a startup test.
+- **`tests/e2e`**, its own locked black-box project: 9 crash tests (crash before the call,
+  after the response, the tight limit, `timeout_after_commit`, a business 4xx freeing
+  capacity, a stale worker stopped past its lease), each counting the refunds refund-api
+  holds, plus 4 harness tests (profile, grants matching the real database, with a control).
+  Controls that can fail: no resume → zero refunds; `dedup_disabled` → two.
+- The independence check now keeps `tests/e2e` a black box (no service dependency or import),
+  with planted controls; `scripts/ci/e2e_checks.sh` and a CI job. The in-process fencing
+  control for the attempt record (the stale-worker test's control, with no production seam).
+- Agent 563, refund_api 231, e2e 13 (3/3 stable); five plants across both services each caught.
+
+**What broke:**
+- The first run failed all nine, for two harness reasons, not worker bugs. My refund count
+  took `len()` of refund-api's `{"refunds": [...]}` object, so it was always 1. And refund-api
+  answered every refund with 500: it **fails closed** without a key-retention floor (ADR-010),
+  and the floor is set by its deploy-time seed, which my harness skipped. Found by reading
+  refund-api's own log. The session now runs the seed, exactly as a deploy must.
+- One plant wasn't caught, correctly: switching off deduplication in refund-api's production
+  hooks changes nothing in the fault build the tests run (its own hooks decide). Planting in
+  the shared deduplication logic instead was caught by both replay tests.
+
+**What I learned:** a harness that skips a deploy step tests a system that can't exist; and a
+plant has to land in code the test actually runs.
+
+**What's next:** the reconciler (ADR-008 Part 2): it claims `NEEDS_RECONCILIATION` after the
+quiet period, looks the refund up, never sends; then `slow_commit` and ADR-010's
+`invalid_request`-after-commit end to end.

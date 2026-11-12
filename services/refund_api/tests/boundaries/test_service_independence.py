@@ -19,6 +19,11 @@ def repo_copy(tmp_path: Path) -> Path:
         for name in ("pyproject.toml", "Dockerfile"):
             if (REPO / "services" / service / name).exists():
                 shutil.copy(REPO / "services" / service / name, target / name)
+    e2e = tmp_path / "tests" / "e2e"
+    e2e.mkdir(parents=True)
+    for source in (REPO / "tests" / "e2e").glob("*"):
+        if source.is_file() and source.suffix in {".py", ".toml"}:
+            shutil.copy(source, e2e / source.name)
     return tmp_path
 
 
@@ -58,3 +63,33 @@ def test_dependency_on_the_other_service_fails(repo_copy: Path) -> None:
     result = check(repo_copy)
     assert result.returncode == 1
     assert "refund_api depends on agent" in result.stderr
+
+
+def test_the_copy_includes_the_e2e_suite(repo_copy: Path) -> None:
+    """Control: the e2e cases below check something that's really there."""
+    assert (repo_copy / "tests" / "e2e" / "pyproject.toml").exists()
+    assert list((repo_copy / "tests" / "e2e").glob("test_*.py"))
+
+
+@pytest.mark.parametrize("service", ["agent", "refund-api"])
+def test_an_e2e_dependency_on_a_service_fails(repo_copy: Path, service: str) -> None:
+    pyproject = repo_copy / "tests" / "e2e" / "pyproject.toml"
+    planted = f'dependencies = [\n    "{service}",\n'
+    text = pyproject.read_text().replace("dependencies = [\n", planted, 1)
+    pyproject.write_text(text)
+    result = check(repo_copy)
+    assert result.returncode == 1
+    assert "tests/e2e depends on a service" in result.stderr
+
+
+@pytest.mark.parametrize(
+    "planted",
+    ["import refund_api\n", "from agent.db import claims\n", "import agent_testing.worker\n"],
+    ids=["refund_api", "agent", "agent_testing"],
+)
+def test_an_e2e_import_of_a_service_fails(repo_copy: Path, planted: str) -> None:
+    harness = repo_copy / "tests" / "e2e" / "harness.py"
+    harness.write_text(planted + harness.read_text())
+    result = check(repo_copy)
+    assert result.returncode == 1
+    assert "tests/e2e/harness.py:1 imports" in result.stderr

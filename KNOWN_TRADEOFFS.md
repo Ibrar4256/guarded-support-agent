@@ -155,6 +155,19 @@ lives in `WEEKLY_LOG.md`.
 - **Migration 0002 refuses databases with sent runs.** Their window snapshot can't be known,
   so they must be resolved first; fine before launch, a real migration step after it.
 
+## End-to-end crash tests (ADR-015)
+
+- **Processes, not containers.** The crash tests run both services from their own venvs, so
+  they don't exercise the images; the image checks are separate (refund-api's in CI, the
+  agent's when its Dockerfile lands).
+- **They use the Postgres superuser** to create a database per test. Test-only, and it's what
+  makes "a worker can only see its own test's runs" true by construction.
+- **`timeout_after_commit` has no duplicate-producing control of its own.** refund-api holds
+  one fault plan per action, so it can't also be `dedup_disabled`; its control is that the
+  timeout fired and two sends went out for one refund, and the after-response test carries the
+  `dedup_disabled` control.
+- **Linux only.** The stall check reads `/proc`, like CI and the development machine.
+
 ## Refund policy (ADR-009)
 
 - **Single currency in v1.** Other currencies are refused (R15); capacity sums assume one
