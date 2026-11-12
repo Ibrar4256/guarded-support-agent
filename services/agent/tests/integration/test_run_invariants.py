@@ -50,13 +50,15 @@ def parity_mismatches(
         RunStatus, RefundOutcome, flags, (None, "w1"), flags, flags
     ):
         state = RunState(status, outcome, first_send, worker, deadline, escalated)
-        # Approval fields are set consistently, so only the ADR-008 invariants vary here.
+        # Approval fields and the ADR-014 window snapshot are set consistently, so only the
+        # ADR-008 invariants vary here.
         approved = status in APPROVED_OR_LATER or outcome is not RefundOutcome.NONE
         row = run_row(
             conversation,
             status=status,
             refund_outcome=outcome,
             first_send_started_at=first_send,
+            send_window_ms=None if first_send is None else 60_000,
             worker_id=worker,
             review_deadline=deadline,
             escalated_at=escalated,

@@ -385,3 +385,49 @@ same step.
   the send gate, the retry loop that stops on a lost lease, the attempt count and window
   snapshot; recording the outcome.
 - Then crash tests (`tests/e2e`), the reconciler, and the agent's half of the seed.
+
+### Agent side, step 2: the worker design (ADR-014) and migration 0002 (2026-11-12)
+
+**What shipped:**
+- **ADR-014 (locked after two review passes):** the worker is its own process polling the
+  runs table (the run row is the queue); one `SKIP LOCKED` claim statement that repeats
+  ADR-004's conditions in its outer `WHERE`; fault hooks through a test entry point; an
+  `Alerter` protocol, rate-limited by kind.
+- **Two gaps in my own locked design, found while planning the code:** (1) the age check,
+  the attempt record and the send were separate steps, and the client started a fresh
+  timeout at the send, so an attempt could end later than the check promised; now the check
+  and the record are one transaction with one `now()`, and the send gets what's left of a
+  budget started before it. (2) Failed config reads never reached the age check that ends
+  retries; now the run's own window snapshot bounds them.
+- **Migration 0002:** `send_attempts`, `send_window_ms`, `claimable_after`,
+  `release_streak`, five CHECKs and the claim index; it refuses databases with runs already
+  sent. Agent: 361 tests (15 new). refund_api: 225.
+- **CI:** a run for `5da532c` wedged on GitHub (cancel, rerun and force-cancel all refused);
+  added a manual `workflow_dispatch` trigger and re-ran green.
+
+**What broke:**
+- The review found my "release after N failed reads" looping: the same run was reclaimed on
+  the next poll. A failed read now closes the claim gate. Generalizing, lock timeouts and
+  recurring exceptions looped the same way: now a `claimable_after` cooldown and a persisted
+  release streak. Plain releases also left the releasing worker's fencing version valid;
+  every release now bumps it.
+- During the negative controls I restored a planted migration before rebuilding the schema,
+  which left the dev database at head without one CHECK and made the next downgrade fail.
+  Repaired by re-adding the constraint and rebuilding. Lesson: a schema plant is undone by
+  rebuilding with the planted file still in place, then restoring.
+- A plant showed the sent-run refusal in 0002 is defense in depth: without it, the new
+  snapshot CHECK still stops the migration, just with a less clear message. The test pins
+  the message.
+
+**What I learned:**
+- A bound must hold from the check to the end of the act, not just at the check.
+- Every retry loop needs an exit that doesn't depend on the thing that's failing.
+- Releasing a claim has to kill the releaser's fencing token, not just clear the owner.
+
+**Interview probes added:** AS-45 to AS-47.
+
+**What's next:**
+- The worker code per ADR-014: claim, heartbeat and liveness, the gate, pre-send, the
+  attempt transaction and budget, classification → transitions, cooldowns and streaks,
+  alerts, the test entry point.
+- Then crash tests (`tests/e2e`), the reconciler, and the agent's half of the seed.

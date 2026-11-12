@@ -113,6 +113,30 @@ lives in `WEEKLY_LOG.md`.
   reconciliation, contract and import checks). The plan went from 14 to 16 days, with
   explicit cut order in the brief.
 
+## Worker (ADR-014)
+
+- **A process freeze can still write late.** Each attempt's budget starts before the
+  transaction that records it, and the send gets only what's left, but asyncio enforces
+  deadlines at `await` points. A process frozen (GC, VM pause) between the deadline check and
+  a socket write can write after the deadline. The margins in the quiet period (ADR-004) and
+  in retention > window + recovery delay (ADR-012) cover it; it isn't measured.
+- **"Pages" are log lines for now.** The `Alerter` writes `CRITICAL` structured log lines;
+  nothing wakes a person until Project 5 or the deploy plugs in a real channel. A wrong
+  token is less urgent than when ADR-012 made it a page: the send gate means it now **stops
+  sends** (approved refunds wait) instead of escalating every refund.
+- **Alerts are rate-limited by kind.** Repeats inside the interval are counted
+  (`suppressed=<n>`), not sent, so a second, different problem of the same kind is only
+  visible in the count until the next line.
+- **One run per worker process.** Throughput scales by adding processes, not concurrency
+  inside one; fine at portfolio volume.
+- **Polling, not push.** Pickup latency is up to one poll interval (seconds), plus one
+  small query per interval per idle worker.
+- **A run that may have sent money is never moved by the release streak.** A poison
+  `EXECUTING` run pages and keeps cycling at its cooldown until a person looks; only the age
+  check or the reconciler may move it.
+- **Migration 0002 refuses databases with sent runs.** Their window snapshot can't be known,
+  so they must be resolved first; fine before launch, a real migration step after it.
+
 ## Refund policy (ADR-009)
 
 - **Single currency in v1.** Other currencies are refused (R15); capacity sums assume one

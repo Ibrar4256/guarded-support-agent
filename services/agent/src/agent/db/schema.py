@@ -138,6 +138,12 @@ runs = Table(
     timestamp("first_send_started_at"),
     timestamp("last_attempt_at"),
     Column("presend_attempts", Integer, nullable=False, server_default="0"),
+    # Worker (ADR-012 Part 3, ADR-014): sends made, the window snapshot taken at the first
+    # send (integer ms, ADR-013), and the S12 cooldown and release streak.
+    Column("send_attempts", Integer, nullable=False, server_default="0"),
+    Column("send_window_ms", BigInteger),
+    timestamp("claimable_after"),
+    Column("release_streak", Integer, nullable=False, server_default="0"),
     # Attention (ADR-008, ADR-009).
     timestamp("escalated_at"),
     timestamp("c01_flagged_at"),
@@ -148,6 +154,16 @@ runs = Table(
     UniqueConstraint("idempotency_key"),
     CheckConstraint("amount_minor IS NULL OR amount_minor > 0", name="amount_positive"),
     CheckConstraint("presend_attempts >= 0", name="presend_attempts_non_negative"),
+    # --- ADR-014 S1/S12 worker columns (not ADR-008 lifecycle invariants) ---
+    CheckConstraint("send_attempts >= 0", name="send_attempts_non_negative"),
+    CheckConstraint(
+        "(send_window_ms IS NULL) = (first_send_started_at IS NULL)", name="window_iff_first_send"
+    ),
+    CheckConstraint("send_window_ms IS NULL OR send_window_ms > 0", name="window_positive"),
+    CheckConstraint(
+        "first_send_started_at IS NOT NULL OR send_attempts = 0", name="no_attempts_before_send"
+    ),
+    CheckConstraint("release_streak >= 0", name="release_streak_non_negative"),
     # --- ADR-008 invariants (mirrors agent.core.lifecycle.invariant_violations) ---
     CheckConstraint(
         "(refund_outcome = 'none') = (first_send_started_at IS NULL)", name="outcome_first_send"
@@ -209,6 +225,12 @@ Index(
     "ix_runs_policy_approved_global",
     runs.c.approved_at,
     postgresql_where=text("approval_source = 'policy'"),
+)
+# ADR-014 S13: the claim subselect scans only claimable runs, however many have finished.
+Index(
+    "ix_runs_claimable",
+    runs.c.approved_at,
+    postgresql_where=text("status IN ('APPROVED', 'EXECUTING')"),
 )
 # R12 and pending exposure look up actions by order.
 Index("ix_runs_order_id", runs.c.order_id)
