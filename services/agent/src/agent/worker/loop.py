@@ -94,6 +94,7 @@ async def run_worker(ctx: WorkerContext, worker_id: str) -> None:
     """Until ``ctx.stopping`` is set. Raises ``WorkerConfigError`` at startup if refund-api's
     window could never fit a retry schedule."""
     await startup_check(ctx.client, ctx.refund_settings, ctx.gate)
+    logger.info("worker %s running; claim gate %s", worker_id, ctx.gate.closed_reason() or "open")
     refresher = asyncio.create_task(
         refresh_forever(ctx.client, ctx.refund_settings, ctx.gate, ctx.timings.config_refresh)
     )

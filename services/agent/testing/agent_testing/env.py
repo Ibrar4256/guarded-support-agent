@@ -1,0 +1,44 @@
+"""A complete, valid worker environment for tests, independent of any local ``.env``."""
+
+
+def example_worker_env(
+    *, db_url: str = "postgresql+psycopg://u:p@localhost:1/agent"
+) -> dict[str, str]:
+    return {
+        "AGENT_DB_RUNTIME_URL": db_url,
+        "WORKER_DB_POOL_SIZE": "4",
+        "AGENT_DB_PREPARE_THRESHOLD": "",
+        "ALERT_RATE_LIMIT_SECONDS": "300",
+        "REFUND_API_URL": "http://127.0.0.1:9",
+        "REFUND_API_TOKEN": "t" * 32,
+        "REFUND_CLIENT_TIMEOUT_SECONDS": "1",
+        "REFUND_CLIENT_MAX_ATTEMPTS": "3",
+        "REFUND_CLIENT_BACKOFF_BASE_SECONDS": "0.1",
+        "REFUND_CLIENT_BACKOFF_CAP_SECONDS": "0.5",
+        "REFUND_CLIENT_MAX_PROVIDER_WINDOW_SECONDS": "900",
+        "WORKER_LEASE_SECONDS": "6",
+        "WORKER_HEARTBEAT_SECONDS": "2",
+        "WORKER_LIVENESS_MARGIN_SECONDS": "0.5",
+        "WORKER_CLAIM_COOLDOWN_SECONDS": "30",
+        "WORKER_STATEMENT_TIMEOUT_SECONDS": "2",
+        "WORKER_LOCK_TIMEOUT_SECONDS": "0.5",
+        "WORKER_CONFIG_REFRESH_SECONDS": "30",
+        "WORKER_CONFIG_STALE_SECONDS": "90",
+        "WORKER_PRESEND_MAX_ATTEMPTS": "3",
+        "WORKER_LOCK_RETRY_MAX": "3",
+        "WORKER_RELEASE_STREAK_LIMIT": "5",
+        "WORKER_MAX_FAILED_READS": "3",
+        "WORKER_POLL_SECONDS": "0.2",
+        "WORKER_SHUTDOWN_GRACE_SECONDS": "3",
+        "POLICY_CURRENCY": "USD",
+        "POLICY_AUTO_APPROVE_MAX_MINOR": "5000",
+        "POLICY_AUTO_APPROVE_BUDGET_MINOR": "10000",
+        "POLICY_PER_CUSTOMER_LIMIT_MINOR": "20000",
+        "POLICY_PER_CUSTOMER_WINDOW_SECONDS": "2592000",
+        "POLICY_REFUND_WINDOW_SECONDS": "2592000",
+        "POLICY_BREAKER_THRESHOLD_MINOR": "100000",
+        "POLICY_PENDING_REVIEW_CAP": "3",
+        "POLICY_DAILY_PROPOSAL_CAP": "5",
+        "POLICY_GLOBAL_REVIEW_QUEUE_CAP": "50",
+        "POLICY_DECLINE_COOLDOWN_SECONDS": "604800",
+    }

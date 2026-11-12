@@ -12,6 +12,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
 
+from agent import envvars
 from agent.core.refund_outcome import RetryPolicy
 
 LEASE = "WORKER_LEASE_SECONDS"
@@ -142,20 +143,8 @@ class WorkerTimings:
 
 
 def _seconds(environ: Mapping[str, str], name: str) -> timedelta:
-    raw = environ.get(name, "")
-    if not raw:
-        raise WorkerConfigError(f"{name} is not set")
-    try:
-        return timedelta(seconds=float(raw))
-    except ValueError as exc:
-        raise WorkerConfigError(f"{name} must be a number of seconds, got {raw!r}") from exc
+    return envvars.seconds(environ, name, WorkerConfigError)
 
 
 def _count(environ: Mapping[str, str], name: str) -> int:
-    raw = environ.get(name, "")
-    if not raw:
-        raise WorkerConfigError(f"{name} is not set")
-    try:
-        return int(raw)
-    except ValueError as exc:
-        raise WorkerConfigError(f"{name} must be a whole number, got {raw!r}") from exc
+    return envvars.count(environ, name, WorkerConfigError)

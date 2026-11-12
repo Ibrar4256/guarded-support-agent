@@ -148,6 +148,10 @@ lives in `WEEKLY_LOG.md`.
 - **Stopping waits for the next step boundary.** A worker told to stop finishes the step it's
   in, including a backoff sleep of up to the backoff cap, before releasing; the shutdown grace
   covers it, but a stop isn't instant.
+- **The agent has no Docker image yet.** ADR-007's check that the production image can't
+  import `agent_testing` exists for refund-api; the agent's version arrives with its
+  Dockerfile at deployment. Until then the boundary rests on the import contract (production
+  never imports test code) and on `testing/` sitting outside `src/`.
 - **Migration 0002 refuses databases with sent runs.** Their window snapshot can't be known,
   so they must be resolved first; fine before launch, a real migration step after it.
 

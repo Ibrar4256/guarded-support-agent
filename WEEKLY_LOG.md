@@ -583,3 +583,31 @@ before the age check, and add a test that pins the reset itself.
 **What's next:** the production and test entry points (`python -m agent.worker`,
 `python -m agent_testing.worker`), the policy config from the environment, signal handling,
 then the e2e crash tests against a real refund-api.
+
+### Agent side, step 2 slice: the worker's entry points (2026-11-12)
+
+**What shipped:**
+- `python -m agent.worker` (production) and `python -m agent_testing.worker` (crash tests),
+  sharing one `main`: settings validated together at startup (a refused configuration exits
+  with code 2 and a message naming the variable, never a traceback), SIGTERM/SIGINT set the
+  stop event, the engine's pool is bounded (`pool_timeout` = the statement timeout, at least 2
+  connections so the heartbeat has its own). The production entry point refuses to start if
+  `CRASH_POINT` or `DEBUG_FAULT_INJECTION` is set; the crash entry point refuses
+  `APP_ENV=production`, needs `DEBUG_FAULT_INJECTION=true`, and its hooks `os._exit(1)` at one
+  named point. Production never imports test code (import contract kept).
+- `agent.policy_settings`: ADR-009's thresholds from `POLICY_*` variables, validated by the
+  core; `agent.envvars`: one typed reader for every setting; `WorkerSettings`; the
+  `AGENT_DB_PREPARE_THRESHOLD` switch ADR-005 asked for (empty = driver default, `off`).
+- A real-process test: the worker starts against the real database with refund-api down (the
+  gate stays closed, not fatal), and SIGTERM stops it with exit code 0.
+- 35 new tests (agent: 560); five source plants each caught.
+
+**What broke:** two of the plants made a worker start when it should have refused; the tests
+failed as they should, but the processes they spawned kept running against the shared test
+database, where they could claim later tests' runs. Found by listing processes after the plant
+run. Every spawned process is now killed by a fixture, whatever the test's outcome; re-running
+the plant left nothing behind.
+
+**What's next:** the e2e crash tests (`tests/e2e`): the crash-test worker against a real
+refund-api (its fault build), crashing before the refund call and after the response, then
+resuming: exactly one refund each, and two under `dedup_disabled`.
