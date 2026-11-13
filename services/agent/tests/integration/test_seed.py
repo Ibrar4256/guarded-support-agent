@@ -2,6 +2,7 @@
 owner role."""
 
 import json
+import threading
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
@@ -10,9 +11,11 @@ from typing import Any
 import pytest
 from conftest import env
 from sqlalchemy import Engine, delete, select, text
+from worker_world import World
 
+from agent.core.lifecycle import RunStatus
 from agent.db.schema import customers, orders
-from agent.seed import SeedError, main, seed
+from agent.seed import SeedError, SeedNotEnabled, main, seed
 
 
 @pytest.fixture
@@ -27,7 +30,7 @@ def ids(owner_engine: Engine) -> Iterator[list[str]]:
 
 @pytest.fixture
 def environ() -> dict[str, str]:
-    return {"AGENT_DB_OWNER_URL": env("AGENT_DB_OWNER_URL")}
+    return {"AGENT_DB_OWNER_URL": env("AGENT_DB_OWNER_URL"), "DEMO_SEED_ENABLED": "true"}
 
 
 def new_id(ids: list[str], prefix: str) -> str:
@@ -141,8 +144,110 @@ def test_main_reports_and_refuses(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setenv("AGENT_DB_OWNER_URL", environ["AGENT_DB_OWNER_URL"])
+    monkeypatch.setenv("DEMO_SEED_ENABLED", "true")
     alice, made = new_id(ids, "user"), new_id(ids, "ord")
     assert main([str(manifest(tmp_path, order(made, alice)))]) == 0
     assert "orders inserted: 1, refreshed: 0; customers inserted: 1" in capsys.readouterr().out
     assert main([str(manifest(tmp_path, order(made, alice, charged_minor=1)))]) == 1
     assert "seed refused, nothing written" in capsys.readouterr().err
+
+
+# --- review additions (ADR-019 S5-S7) -------------------------------------------------------
+
+
+def reseed_with_a_held_order(
+    tmp_path: Path, environ: dict[str, str], ids: list[str], world: World, status: RunStatus
+) -> tuple[str, str, Any]:
+    """Two shipped orders; one gets a run in ``status``; a re-run marks both delivered with a
+    chargeback."""
+    alice, held, free = new_id(ids, "user"), new_id(ids, "ord"), new_id(ids, "ord")
+    shipped = {"status": "shipped", "delivered_days_ago": None}
+    seed(manifest(tmp_path, order(held, alice, **shipped), order(free, alice, **shipped)), environ)
+    world.add_refund_run(held, 1_000, status)
+    changed = {"delivered_days_ago": 2, "chargeback_open": True}
+    report = seed(
+        manifest(tmp_path, order(held, alice, **changed), order(free, alice, **changed)), environ
+    )
+    return held, free, report
+
+
+def test_an_order_with_an_unfinished_run_is_left_alone_and_reported(
+    tmp_path: Path, environ: dict[str, str], owner_engine: Engine, ids: list[str], world: World
+) -> None:
+    held, free, report = reseed_with_a_held_order(tmp_path, environ, ids, world, RunStatus.APPROVED)
+    assert report.held == (held,) and report.refreshed == 1
+    assert (row(owner_engine, held).status, row(owner_engine, held).chargeback_open) == (
+        "shipped",
+        False,
+    ), "a deploy didn't change the facts under the waiting refund"
+    assert row(owner_engine, free).chargeback_open is True
+
+
+def test_a_finished_run_doesnt_hold_its_order(
+    tmp_path: Path, environ: dict[str, str], owner_engine: Engine, ids: list[str], world: World
+) -> None:
+    held, _, report = reseed_with_a_held_order(tmp_path, environ, ids, world, RunStatus.ESCALATED)
+    assert report.held == ()
+    assert row(owner_engine, held).chargeback_open is True
+
+
+def test_orders_the_manifest_doesnt_list_are_never_touched(
+    tmp_path: Path, environ: dict[str, str], owner_engine: Engine, ids: list[str]
+) -> None:
+    alice, listed, unlisted = new_id(ids, "user"), new_id(ids, "ord"), new_id(ids, "ord")
+    seed(
+        manifest(tmp_path, order(listed, alice), order(unlisted, alice, chargeback_open=True)),
+        environ,
+    )
+    before = row(owner_engine, unlisted)
+    seed(manifest(tmp_path, order(listed, alice)), environ)
+    assert row(owner_engine, unlisted) == before, "not refreshed, not deleted"
+
+
+def test_without_the_demo_flag_nothing_is_written(
+    tmp_path: Path,
+    environ: dict[str, str],
+    owner_engine: Engine,
+    ids: list[str],
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    made = new_id(ids, "ord")
+    path = manifest(tmp_path, order(made, new_id(ids, "user")))
+    for flag in (None, "", "false", "1", "TRUE"):
+        with pytest.raises(SeedNotEnabled):
+            seed(
+                path,
+                {k: v for k, v in environ.items() if k != "DEMO_SEED_ENABLED"}
+                | ({} if flag is None else {"DEMO_SEED_ENABLED": flag}),
+            )
+    monkeypatch.setenv("AGENT_DB_OWNER_URL", environ["AGENT_DB_OWNER_URL"])
+    monkeypatch.delenv("DEMO_SEED_ENABLED", raising=False)
+    assert main([str(path)]) == 2
+    assert "this isn't a demo deployment" in capsys.readouterr().err
+    assert row(owner_engine, made) is None
+
+
+def test_the_seed_waits_for_a_customer_lock_held_by_a_pre_send_check(
+    tmp_path: Path, environ: dict[str, str], owner_engine: Engine, ids: list[str]
+) -> None:
+    """ADR-005's order: the seed takes the customers' locks first, so it can't change an order
+    while a pre-send check for its customer holds the customer row."""
+    alice, made = new_id(ids, "user"), new_id(ids, "ord")
+    seed(manifest(tmp_path, order(made, alice)), environ)
+    path = manifest(tmp_path, order(made, alice, chargeback_open=True))
+    done = threading.Event()
+
+    def reseed() -> None:
+        seed(path, environ)
+        done.set()
+
+    worker = threading.Thread(target=reseed, daemon=True)
+    with owner_engine.begin() as holder:
+        holder.execute(
+            select(customers.c.id).where(customers.c.id == alice).with_for_update()
+        ).all()
+        worker.start()
+        assert not done.wait(1.0), "the seed waited for the customer lock"
+    worker.join(timeout=10)
+    assert done.is_set() and row(owner_engine, made).chargeback_open is True

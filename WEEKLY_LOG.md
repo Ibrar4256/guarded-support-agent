@@ -833,3 +833,10 @@ when it's loaded.
 
 **What's next:** the order-lookup tool (its strict-xfail placeholder is waiting).
 
+**Review pass (ADR-019 locked):** orders with an unfinished run are left alone and reported; the
+seed refuses without `DEMO_SEED_ENABLED=true` (exit 2); unlisted orders are never touched; the demo
+manifest gained an order 45 days out so R08's refusal is still demonstrable, and a test keeps demo
+dates away from the window's edge; the seed takes customer locks first (ADR-005). 7 new tests, 5
+plants caught. Flagged: refund-api's seed has no demo guard yet (it also sets the production key
+floor, so it needs a split).
+

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from agent_testing.env import example_worker_env
 
 from agent.seed import SeedError, load_manifest, main
 
@@ -65,5 +66,19 @@ def test_a_bad_manifest_is_refused(tmp_path: Path, content: Any) -> None:
 
 def test_usage_and_a_missing_owner_url(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     assert main([]) == 2
+    monkeypatch.setenv("DEMO_SEED_ENABLED", "true")
     monkeypatch.delenv("AGENT_DB_OWNER_URL", raising=False)
     assert main([str(write(tmp_path, doc(GOOD)))]) == 1
+
+
+def test_demo_dates_sit_clearly_inside_the_window_and_one_clearly_outside() -> None:
+    """ADR-019: no demo order near R08's boundary (whole days, inclusive window), and one beyond
+    it so the demo can show R08 refusing a refund. Against the example window (30 days)."""
+    window_days = int(example_worker_env()["POLICY_REFUND_WINDOW_SECONDS"]) / 86_400
+    days = [
+        o.delivered_days_ago for o in load_manifest(DEMO).orders if o.delivered_days_ago is not None
+    ]
+    inside = [d for d in days if d <= window_days / 2]
+    outside = [d for d in days if d >= window_days * 1.4]
+    assert inside and outside, "both kinds present"
+    assert len(inside) + len(outside) == len(days), "none near the boundary"

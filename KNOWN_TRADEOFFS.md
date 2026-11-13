@@ -78,8 +78,13 @@ lives in `WEEKLY_LOG.md`.
   for longer than the refund window ages out of policy. A scheduled re-seed is the follow-up if the
   demo has to stay live between deploys.
 - **A re-run of the agent's seed overwrites fulfillment state** (status, delivery time, chargeback
-  flag) for the manifest's orders. Nothing else writes those today; if something does, the seed
-  must stop owning that state.
+  flag) for the manifest's orders that have no unfinished run (those are left alone and reported,
+  ADR-019 S5). Nothing else writes that state today; if something does, the seed must stop owning
+  it.
+- **refund-api's seed has no demo guard yet.** The agent's seed refuses without
+  `DEMO_SEED_ENABLED=true` (ADR-019 S6); refund-api's would still insert the demo charges on a real
+  deployment. It also sets the key-retention floor, which a real deployment needs, so its guard has
+  to split the floor (always) from the charges (demo only). Flagged, not yet done.
 - **Demo identities are placeholders** (`user_demo_alice`): once Clerk is set up (ADR-003) the
   manifest's owner ids must be the demo accounts' Clerk user ids.
 - **Row locks on immutable tables go through `SECURITY DEFINER` functions.** `FOR UPDATE`

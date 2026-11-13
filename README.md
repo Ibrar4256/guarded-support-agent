@@ -82,9 +82,11 @@ scripts/ci/service_checks.sh refund_api
 ### Seeding the demo
 
 One manifest, [`infra/seed/demo_manifest.json`](infra/seed/demo_manifest.json), feeds both
-services' seed commands, each as its own owner role (ADR-010, ADR-019). Run both at every deploy:
-re-running refreshes delivery dates (`delivered_days_ago`), so demo orders stay inside the refund
-window.
+services' seed commands, each as its own owner role (ADR-010, ADR-019). Run both at every demo
+deploy, before starting the worker: re-running refreshes delivery dates (`delivered_days_ago`), so
+demo orders stay inside the refund window. The agent's seed runs only with `DEMO_SEED_ENABLED=true`,
+leaves orders with an unfinished run alone (and says which), and never touches orders the manifest
+doesn't list.
 
 ```bash
 (cd services/agent && uv run python -m agent.seed ../../infra/seed/demo_manifest.json)          # customers + orders

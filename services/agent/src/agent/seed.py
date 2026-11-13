@@ -2,12 +2,19 @@
 
     python -m agent.seed <manifest.json>
 
-Runs as the **owner** role (AGENT_DB_OWNER_URL), like migrations, in one transaction:
+Runs as the **owner** role (AGENT_DB_OWNER_URL), like migrations, and only with
+``DEMO_SEED_ENABLED=true`` (it writes fake customers and orders: a real deployment's deploy step
+must never run it by accident). In one transaction, taking the customers' locks first (ADR-005's
+order):
 - an existing order whose **facts** (owner, charged amount, currency) differ from the manifest
   refuses the whole seed, changing nothing: they mirror refund-api's immutable charge, which
   refund-api's own seed writes from the same manifest;
 - otherwise missing customers and orders are inserted, and every listed order's **fulfillment
-  state** (status, delivery time, chargeback flag) is set from the manifest;
+  state** (status, delivery time, chargeback flag) is set from the manifest, **except** for orders
+  with an unfinished run: a deploy mustn't change the facts under a refund someone is waiting on,
+  so those are left alone and reported;
+- orders the manifest doesn't list are never touched or deleted (runs and decisions point at
+  them);
 - delivery times are relative (``delivered_days_ago``) and resolved on the database clock, so
   re-running the seed keeps demo orders inside ADR-009's refund window.
 
@@ -26,15 +33,21 @@ from sqlalchemy import Connection, create_engine, func, insert, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from agent import envvars
+from agent.core.lifecycle import TERMINAL_STATUSES
 from agent.core.policy import FulfillmentStatus
-from agent.db.schema import customers, orders
+from agent.db.schema import customers, orders, runs
 from agent.refund_client.models import BIGINT_MAX, CURRENCY_PATTERN, ID_PATTERN
 
 OWNER_URL = "AGENT_DB_OWNER_URL"
+ENABLED = "DEMO_SEED_ENABLED"
 
 
 class SeedError(RuntimeError):
     """The seed was refused; nothing was written."""
+
+
+class SeedNotEnabled(SeedError):
+    """``DEMO_SEED_ENABLED`` isn't ``true``: not a demo deployment, nothing written."""
 
 
 class ManifestOrder(BaseModel):
@@ -68,6 +81,8 @@ class SeedReport:
     inserted: int
     refreshed: int
     customers_inserted: int
+    # Listed orders whose fulfillment state was left alone: they have an unfinished run.
+    held: tuple[str, ...] = ()
 
 
 def load_manifest(path: Path) -> Manifest:
@@ -102,6 +117,15 @@ def fulfillment(order: ManifestOrder) -> dict[str, Any]:
 def apply(connection: Connection, wanted_orders: Sequence[ManifestOrder]) -> SeedReport:
     """In the caller's transaction: check every existing order's facts first, then write."""
     wanted = {order.order_id: order for order in wanted_orders}
+    owners = sorted({order.owner_user_id for order in wanted_orders})
+    # ADR-005's lock order: customers first. Holding them, no pre-send check for these customers
+    # runs concurrently, so "has an unfinished run" can't change under the seed.
+    connection.execute(
+        select(customers.c.id)
+        .where(customers.c.id.in_(owners))
+        .order_by(customers.c.id)
+        .with_for_update()
+    ).all()
     existing = {
         row.id: (row.owner_user_id, row.charged_minor, row.currency)
         for row in connection.execute(
@@ -116,7 +140,18 @@ def apply(connection: Connection, wanted_orders: Sequence[ManifestOrder]) -> See
             "existing orders differ from the manifest in owner, amount or currency: "
             + ", ".join(mismatched)
         )
-    owners = sorted({order.owner_user_id for order in wanted_orders})
+    held = tuple(
+        sorted(
+            connection.execute(
+                select(runs.c.order_id)
+                .where(
+                    runs.c.order_id.in_(existing),
+                    runs.c.status.not_in(sorted(TERMINAL_STATUSES)),
+                )
+                .distinct()
+            ).scalars()
+        )
+    )
     added_customers = connection.execute(
         pg_insert(customers)
         .values([{"id": owner} for owner in owners])
@@ -140,15 +175,22 @@ def apply(connection: Connection, wanted_orders: Sequence[ManifestOrder]) -> See
             )
         )
     for order_id in existing:
+        if order_id in held:
+            continue
         connection.execute(
             update(orders).where(orders.c.id == order_id).values(**fulfillment(wanted[order_id]))
         )
     return SeedReport(
-        inserted=len(new), refreshed=len(existing), customers_inserted=len(added_customers)
+        inserted=len(new),
+        refreshed=len(existing) - len(held),
+        customers_inserted=len(added_customers),
+        held=held,
     )
 
 
 def seed(manifest_path: Path, environ: Mapping[str, str]) -> SeedReport:
+    if environ.get(ENABLED) != "true":
+        raise SeedNotEnabled(f"{ENABLED} is not 'true': this isn't a demo deployment")
     owner_url = envvars.required(environ, OWNER_URL, SeedError)
     manifest = load_manifest(manifest_path)
     engine = create_engine(owner_url)
@@ -166,6 +208,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     try:
         report = seed(Path(args[0]), os.environ)
+    except SeedNotEnabled as exc:
+        print(f"seed not run, nothing written: {exc}", file=sys.stderr)
+        return 2
     except SeedError as exc:
         print(f"seed refused, nothing written: {exc}", file=sys.stderr)
         return 1
@@ -173,6 +218,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"orders inserted: {report.inserted}, refreshed: {report.refreshed}; "
         f"customers inserted: {report.customers_inserted}"
     )
+    if report.held:
+        print(f"left alone (unfinished runs): {', '.join(report.held)}")
     return 0
 
 
