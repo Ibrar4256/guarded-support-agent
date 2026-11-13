@@ -6,8 +6,8 @@
   ``EXECUTING`` runs first (they're aging against their window), then the oldest approval.
 - **Fencing**: every write a worker makes is conditional on the ``claim_version`` it claimed.
 - **Release** (S9, S12): always bumps ``claim_version``, so the releasing worker's version is
-  dead the moment it lets go. A cooldown release also sets ``claimable_after`` and counts
-  toward ``release_streak``.
+  dead the moment it lets go. A cooldown release also sets ``claimable_after``; whether it
+  counts toward ``release_streak`` is the caller's choice (ADR-016 S5).
 - Lease times use the database clock (``now()``), never the worker's.
 """
 
@@ -22,7 +22,7 @@ from sqlalchemy import ColumnElement, FromClause, and_, func, or_, select, text,
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from agent.core.capacity import ApprovalSource
-from agent.core.lifecycle import WORKER_CLAIMABLE, RunStatus
+from agent.core.lifecycle import RECONCILER_CLAIMABLE, WORKER_CLAIMABLE, RunStatus
 from agent.db.schema import policy_controls, runs
 
 # Kept as a module constant so the negative control can show what SKIP LOCKED buys.
@@ -73,12 +73,20 @@ def current_controls() -> Controls:
     )
 
 
+def lease_free(r: FromClause) -> ColumnElement[bool]:
+    return or_(r.c.worker_id.is_(None), r.c.lease_expires_at < func.now())
+
+
+def cooldown_passed(r: FromClause) -> ColumnElement[bool]:
+    return or_(r.c.claimable_after.is_(None), r.c.claimable_after <= func.now())
+
+
 def claim_conditions(r: FromClause, controls: Controls) -> dict[str, ColumnElement[bool]]:
     """What makes a run claimable by a worker. Named, so each one can be tested on its own."""
     return {
         "status": r.c.status.in_(sorted(WORKER_CLAIMABLE)),
-        "lease_free": or_(r.c.worker_id.is_(None), r.c.lease_expires_at < func.now()),
-        "cooldown_passed": or_(r.c.claimable_after.is_(None), r.c.claimable_after <= func.now()),
+        "lease_free": lease_free(r),
+        "cooldown_passed": cooldown_passed(r),
         # R14 (ADR-009): the kill switch holds every APPROVED run, the breaker holds all but
         # reviewer-approved ones. EXECUTING runs may already be sent and are never held.
         "not_held": or_(
@@ -135,19 +143,27 @@ async def claim_run(conn: AsyncConnection, worker_id: str, lease: timedelta) -> 
     )
 
 
+def holdable(claim: Claim) -> frozenset[RunStatus]:
+    """The statuses a claim may be held in: the reconciler's own, or the worker's (an APPROVED
+    claim moves to EXECUTING while held)."""
+    return RECONCILER_CLAIMABLE if claim.status in RECONCILER_CLAIMABLE else WORKER_CLAIMABLE
+
+
 async def renew_lease(conn: AsyncConnection, claim: Claim, lease: timedelta) -> bool:
     """The heartbeat's write. False means the claim is lost: stop, send and write nothing.
     ``greatest``: never shortens a lease the attempt transaction extended to cover an attempt
     on the wire (ADR-014 Part 3)."""
     result = await conn.execute(
         update(runs)
-        .where(fenced(claim), runs.c.status.in_(sorted(WORKER_CLAIMABLE)))
+        .where(fenced(claim), runs.c.status.in_(sorted(holdable(claim))))
         .values(lease_expires_at=func.greatest(runs.c.lease_expires_at, func.now() + lease))
     )
     return result.rowcount == 1
 
 
-def release_values(cooldown: timedelta | None, *, reset_streak: bool = False) -> dict[str, Any]:
+def release_values(
+    cooldown: timedelta | None, *, reset_streak: bool = False, count_streak: bool = True
+) -> dict[str, Any]:
     values: dict[str, Any] = {
         "worker_id": None,
         "lease_expires_at": None,
@@ -156,7 +172,8 @@ def release_values(cooldown: timedelta | None, *, reset_streak: bool = False) ->
     }
     if cooldown is not None:
         values["claimable_after"] = func.now() + cooldown
-        values["release_streak"] = runs.c.release_streak + 1
+        if count_streak:
+            values["release_streak"] = runs.c.release_streak + 1
     elif reset_streak:
         values["release_streak"] = 0
     return values
@@ -168,15 +185,19 @@ async def release_claim(
     *,
     cooldown: timedelta | None = None,
     reset_streak: bool = False,
+    count_streak: bool = True,
 ) -> Release:
     """Let go of a run (S9). The caller cancels its heartbeat first. With ``cooldown``, the
-    run isn't claimable again until it passes and the release counts toward the streak (S12).
-    ``reset_streak`` is for releases that follow progress (a pre-send HOLD)."""
+    run isn't claimable again until it passes, and the release counts toward the streak (S12)
+    unless ``count_streak`` is off: the cooldown and the streak are separate choices
+    (ADR-016 S5). ``reset_streak`` is for releases that follow progress (a pre-send HOLD)."""
     row = (
         await conn.execute(
             update(runs)
             .where(fenced(claim))
-            .values(**release_values(cooldown, reset_streak=reset_streak))
+            .values(
+                **release_values(cooldown, reset_streak=reset_streak, count_streak=count_streak)
+            )
             .returning(runs.c.release_streak)
         )
     ).one_or_none()

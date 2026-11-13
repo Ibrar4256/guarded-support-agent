@@ -53,6 +53,8 @@ TIMINGS = WorkerTimings(
     max_failed_reads=3,
     poll=timedelta(seconds=0.05),
     shutdown_grace=timedelta(seconds=10),
+    quiet_margin=timedelta(seconds=2),
+    stale_unknown_after=timedelta(seconds=3600),
     policy=RETRY,
 )
 SETTINGS = RefundClientSettings(

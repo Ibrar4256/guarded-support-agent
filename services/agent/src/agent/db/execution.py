@@ -1,5 +1,5 @@
-"""Database side of an EXECUTING run's attempts and outcomes (ADR-004, ADR-008, ADR-012 Part 3,
-ADR-014 Part 3, Part 4).
+"""Database side of an EXECUTING run's attempts and outcomes, and of the reconciler's two exits
+(ADR-004, ADR-008, ADR-012 Part 3, ADR-014 Part 3, Part 4, ADR-016 S3).
 
 Every write is fenced by ``claim_version``. Every exit from EXECUTING clears the claim and bumps
 the version (ADR-008, ADR-014 S9), so a stale worker can't write after the run has moved on.
@@ -137,10 +137,16 @@ def _leave_executing(**values: Any) -> dict[str, Any]:
     }
 
 
-async def _move(conn: AsyncConnection, claim: Claim, **values: Any) -> bool:
+async def _move(
+    conn: AsyncConnection,
+    claim: Claim,
+    *,
+    from_status: RunStatus = RunStatus.EXECUTING,
+    **values: Any,
+) -> bool:
     result = await conn.execute(
         update(runs)
-        .where(fenced(claim), runs.c.status == RunStatus.EXECUTING)
+        .where(fenced(claim), runs.c.status == from_status)
         .values(**_leave_executing(**values))
     )
     return result.rowcount == 1
@@ -172,11 +178,14 @@ async def confirm(
     order_id: str,
     amount_minor: int,
     currency: str,
+    from_status: RunStatus = RunStatus.EXECUTING,
 ) -> bool:
-    """``EXECUTING → COMPLETED``, ``confirmed`` (ADR-008), with the "refund issued" reply."""
+    """``EXECUTING`` (or, for the reconciler, ``NEEDS_RECONCILIATION``) ``→ COMPLETED``,
+    ``confirmed`` (ADR-008, ADR-016 S3), with the "refund issued" reply."""
     if not await _move(
         conn,
         claim,
+        from_status=from_status,
         status=RunStatus.COMPLETED,
         refund_outcome=RefundOutcome.CONFIRMED,
         release_streak=0,
@@ -208,6 +217,27 @@ async def reject(conn: AsyncConnection, claim: Claim, conversation_id: uuid.UUID
     ):
         return False
     await _reply(conn, claim, conversation_id, "escalated", ReplyTemplate.NEEDS_PERSON)
+    return True
+
+
+async def reject_unconfirmed(
+    conn: AsyncConnection, claim: Claim, conversation_id: uuid.UUID
+) -> bool:
+    """The reconciler found no refund after the quiet period: ``NEEDS_RECONCILIATION →
+    ESCALATED``, ``rejected``, the capacity freed (ADR-008, ADR-016 S3). ``escalated_at`` keeps
+    the time the run first needed attention. The reply says "we couldn't confirm", never
+    "rejected" (ADR-008)."""
+    if not await _move(
+        conn,
+        claim,
+        from_status=RunStatus.NEEDS_RECONCILIATION,
+        status=RunStatus.ESCALATED,
+        refund_outcome=RefundOutcome.REJECTED,
+        escalated_at=func.coalesce(runs.c.escalated_at, func.now()),
+        release_streak=0,
+    ):
+        return False
+    await _reply(conn, claim, conversation_id, "escalated", ReplyTemplate.NOT_CONFIRMED)
     return True
 
 

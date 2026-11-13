@@ -23,8 +23,15 @@ from sqlalchemy.exc import IntegrityError
 from refund_api.app import JSON, create_app
 from refund_api.config import APP_ENV, PRODUCTION, ConfigError, Settings, check_production_gate
 from refund_api.db.schema import charges
-from refund_api.models import CURRENCY_PATTERN, ID_PATTERN
-from refund_api_testing.faults import FaultBook, FaultHooks, FaultMode, FaultPlan, InjectedFault
+from refund_api.models import CURRENCY_PATTERN, ID_PATTERN, BusinessError, BusinessErrorCode
+from refund_api_testing.faults import (
+    FaultBook,
+    FaultHooks,
+    FaultMode,
+    FaultPlan,
+    InjectedFault,
+    InjectedInvalidRequest,
+)
 
 FAULT_FLAG = "DEBUG_FAULT_INJECTION"
 TEST_PREFIX = "/_test"
@@ -70,6 +77,14 @@ def injected_fault(_: Request, exc: Exception) -> Response:
     if not isinstance(exc, InjectedFault):
         raise exc
     return Response(Injected().model_dump_json(), status_code=500, media_type=JSON)
+
+
+def injected_invalid_request(_: Request, exc: Exception) -> Response:
+    """The same body refund-api's validation handler sends, with no field locations."""
+    if not isinstance(exc, InjectedInvalidRequest):
+        raise exc
+    body = BusinessError(code=BusinessErrorCode.INVALID_REQUEST)
+    return Response(body.model_dump_json(), status_code=400, media_type=JSON)
 
 
 def fault_routes(app: FastAPI, book: FaultBook) -> APIRouter:
@@ -130,6 +145,7 @@ def create_fault_app(
     app = create_app(settings, FaultHooks(faults))
     app.state.faults = faults
     app.add_exception_handler(InjectedFault, injected_fault)
+    app.add_exception_handler(InjectedInvalidRequest, injected_invalid_request)
     app.include_router(fault_routes(app, faults))
     return app
 

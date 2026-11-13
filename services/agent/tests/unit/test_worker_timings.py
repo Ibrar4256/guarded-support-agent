@@ -40,6 +40,8 @@ VALID = WorkerTimings(
     max_failed_reads=5,
     poll=timedelta(seconds=2),
     shutdown_grace=timedelta(seconds=10),
+    quiet_margin=timedelta(seconds=2),
+    stale_unknown_after=timedelta(seconds=3600),
     policy=POLICY,
 )
 ENV = {
@@ -57,6 +59,8 @@ ENV = {
     "WORKER_MAX_FAILED_READS": "5",
     "WORKER_POLL_SECONDS": "2",
     "WORKER_SHUTDOWN_GRACE_SECONDS": "10",
+    "RECONCILER_QUIET_MARGIN_SECONDS": "2",
+    "RECONCILER_STALE_ALERT_SECONDS": "3600",
 }
 
 
@@ -140,7 +144,15 @@ def test_negative_control_staleness_of_exactly_two_refreshes_is_accepted() -> No
 
 @pytest.mark.parametrize(
     "name",
-    ["lease", "heartbeat", "liveness_margin", "claim_cooldown", "config_refresh"],
+    [
+        "lease",
+        "heartbeat",
+        "liveness_margin",
+        "claim_cooldown",
+        "config_refresh",
+        "quiet_margin",
+        "stale_unknown_after",
+    ],
 )
 def test_non_positive_durations_are_refused(name: str) -> None:
     with pytest.raises(WorkerConfigError, match=name):

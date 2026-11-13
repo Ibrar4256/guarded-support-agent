@@ -15,6 +15,8 @@ S7).
 - **Stopping** (S7): handlers release at their next step boundary; an attempt on the wire gets
   ``shutdown_grace`` to finish and be recorded, then the run is cancelled and its lease left
   to expire.
+- **The reconcile loop** (ADR-016 Part 1) runs beside the send loop as its own task, over the
+  same engine, client, gate and alerter; a reconcile pass in progress gets the same grace.
 """
 
 import asyncio
@@ -29,6 +31,7 @@ from agent.worker.execute import handle_executing
 from agent.worker.gate import refresh_forever, startup_check
 from agent.worker.lease import LostClaim, StepClock, StepOverrun, hold_claim
 from agent.worker.presend import ApprovedStep, handle_approved
+from agent.worker.reconcile import reconcile_forever
 from agent.worker.releases import release_with_cooldown
 
 logger = logging.getLogger(__name__)
@@ -94,9 +97,14 @@ async def run_worker(ctx: WorkerContext, worker_id: str) -> None:
     """Until ``ctx.stopping`` is set. Raises ``WorkerConfigError`` at startup if refund-api's
     window could never fit a retry schedule."""
     await startup_check(ctx.client, ctx.refund_settings, ctx.gate)
-    logger.info("worker %s running; claim gate %s", worker_id, ctx.gate.closed_reason() or "open")
     refresher = asyncio.create_task(
         refresh_forever(ctx.client, ctx.refund_settings, ctx.gate, ctx.timings.config_refresh)
+    )
+    reconciler = asyncio.create_task(reconcile_forever(ctx, worker_id))
+    logger.info(
+        "worker %s running: send loop and reconcile loop; claim gate %s",
+        worker_id,
+        ctx.gate.closed_reason() or "open",
     )
     stop = asyncio.create_task(ctx.stopping.wait())
     try:
@@ -116,6 +124,9 @@ async def run_worker(ctx: WorkerContext, worker_id: str) -> None:
                     run.cancel()
             await asyncio.gather(run, return_exceptions=True)
     finally:
-        for task in (refresher, stop):
+        if ctx.stopping.is_set() and not reconciler.done():
+            # A lookup on the wire finishes and its outcome is recorded, within the grace.
+            await asyncio.wait({reconciler}, timeout=ctx.timings.shutdown_grace.total_seconds())
+        for task in (refresher, stop, reconciler):
             task.cancel()
-        await asyncio.gather(refresher, stop, return_exceptions=True)
+        await asyncio.gather(refresher, stop, reconciler, return_exceptions=True)

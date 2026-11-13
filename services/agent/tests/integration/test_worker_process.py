@@ -12,7 +12,7 @@ import pytest
 from agent_testing.env import example_worker_env
 from conftest import SERVICE_ROOT, env
 
-READY = b"running; claim gate"
+READY = b"running: send loop and reconcile loop; claim gate"
 BOUND = 20.0
 
 

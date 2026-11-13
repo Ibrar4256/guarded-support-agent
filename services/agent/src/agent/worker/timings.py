@@ -29,6 +29,8 @@ RELEASE_STREAK_LIMIT = "WORKER_RELEASE_STREAK_LIMIT"
 MAX_FAILED_READS = "WORKER_MAX_FAILED_READS"
 POLL = "WORKER_POLL_SECONDS"
 SHUTDOWN_GRACE = "WORKER_SHUTDOWN_GRACE_SECONDS"
+QUIET_MARGIN = "RECONCILER_QUIET_MARGIN_SECONDS"
+STALE_ALERT = "RECONCILER_STALE_ALERT_SECONDS"
 
 MIN_HEARTBEATS_PER_LEASE = 3
 # The cached provider config goes stale after this many missed refreshes, so one late
@@ -63,6 +65,11 @@ class WorkerTimings:
     poll: timedelta
     # S7: how long a stopping worker lets an attempt on the wire finish before exiting.
     shutdown_grace: timedelta
+    # ADR-016 Part 2: added to every quiet period, for refund-api's gap between its deadline
+    # check and its commit, and transit time.
+    quiet_margin: timedelta
+    # ADR-004, ADR-016 Part 3: a NEEDS_RECONCILIATION run unresolved this long alerts.
+    stale_unknown_after: timedelta
     policy: RetryPolicy
 
     def __post_init__(self) -> None:
@@ -77,6 +84,8 @@ class WorkerTimings:
             "config_staleness",
             "poll",
             "shutdown_grace",
+            "quiet_margin",
+            "stale_unknown_after",
         ):
             if getattr(self, name) <= timedelta(0):
                 raise WorkerConfigError(f"{name} must be positive")
@@ -138,6 +147,8 @@ class WorkerTimings:
             max_failed_reads=_count(environ, MAX_FAILED_READS),
             poll=_seconds(environ, POLL),
             shutdown_grace=_seconds(environ, SHUTDOWN_GRACE),
+            quiet_margin=_seconds(environ, QUIET_MARGIN),
+            stale_unknown_after=_seconds(environ, STALE_ALERT),
             policy=policy,
         )
 

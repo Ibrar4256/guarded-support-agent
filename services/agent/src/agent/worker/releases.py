@@ -4,8 +4,12 @@ A lock-timeout streak or an unexpected error releases the claim with a cooldown,
 isn't reclaimed straight into the same failure, and counts toward ``release_streak`` (reset by
 any progress). At the limit:
 - an **APPROVED** run escalates: safe, nothing was sent;
-- an **EXECUTING** run keeps its status (its outcome is unknown; only the age check or the
-  reconciler may move it) and **pages**, with its ``run_id``, so a person looks.
+- an **EXECUTING** or **NEEDS_RECONCILIATION** run keeps its status (its outcome is unknown;
+  only the age check or the reconciler may move it) and **pages**, with its ``run_id``, so a
+  person looks.
+
+A release that mustn't count (ADR-016 S5: the kill switch holding a "not found", a first
+refund-api-type lookup failure) still gets the cooldown, so the run isn't reclaimed at once.
 """
 
 from enum import StrEnum
@@ -23,7 +27,9 @@ class Released(StrEnum):
     LOST = "lost"
 
 
-async def release_with_cooldown(ctx: WorkerContext, claim: Claim, *, reason: str) -> Released:
+async def release_with_cooldown(
+    ctx: WorkerContext, claim: Claim, *, reason: str, count_streak: bool = True
+) -> Released:
     page_after_commit = False
     async with claims.worker_transaction(
         ctx.engine,
@@ -33,7 +39,7 @@ async def release_with_cooldown(ctx: WorkerContext, claim: Claim, *, reason: str
         held = await claims.lock_for_release(conn, claim)
         if held is None:
             return Released.LOST
-        at_limit = held.release_streak + 1 >= ctx.timings.release_streak_limit
+        at_limit = count_streak and held.release_streak + 1 >= ctx.timings.release_streak_limit
         if at_limit and held.status is RunStatus.APPROVED:
             if not await presend_db.escalate_unsent(conn, claim, held.conversation_id):
                 return Released.LOST
@@ -41,7 +47,9 @@ async def release_with_cooldown(ctx: WorkerContext, claim: Claim, *, reason: str
                 "release_streak_limit", run_id=claim.run_id, status="APPROVED", reason=reason
             )
             return Released.ESCALATED
-        released = await claims.release_claim(conn, claim, cooldown=ctx.timings.claim_cooldown)
+        released = await claims.release_claim(
+            conn, claim, cooldown=ctx.timings.claim_cooldown, count_streak=count_streak
+        )
         if not released.released:
             return Released.LOST
         page_after_commit = at_limit

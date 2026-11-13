@@ -176,6 +176,40 @@ class World:
             **extra,
         )
 
+    def add_uncertain(
+        self,
+        amount_minor: int = 2_000,
+        *,
+        last_attempt_ago: float = 60.0,
+        send_attempts: int = 1,
+        **extra: Any,
+    ) -> uuid.UUID:
+        """A NEEDS_RECONCILIATION refund whose last attempt was ``last_attempt_ago`` seconds
+        ago on the database clock, with the bounds its sends recorded (ADR-016), escalated when
+        that attempt ended."""
+        last = datetime.now(UTC) - timedelta(seconds=last_attempt_ago)
+        if send_attempts > 0:
+            extra.setdefault("max_client_timeout_ms", BOUND_TIMEOUT_MS)
+            extra.setdefault("in_flight_bound_ms", BOUND_TIMEOUT_MS + BOUND_BUDGET_MS)
+        run = self.add_refund_run(
+            self.add_order(),
+            amount_minor,
+            RunStatus.NEEDS_RECONCILIATION,
+            approved_at=last - timedelta(minutes=1),
+            first_send_started_at=last,
+            last_attempt_at=last,
+            escalated_at=last,
+            send_window_ms=300_000,
+            send_attempts=send_attempts,
+            **extra,
+        )
+        self.set(run, last_attempt_at=text(f"now() - interval '{last_attempt_ago} seconds'"))
+        return run
+
+    def end_cooldown(self, run: uuid.UUID) -> None:
+        """The run's cooldown has passed (time moved on), not removed."""
+        self.set(run, claimable_after=text("now() - interval '1 second'"))
+
     def decisions(self, run: uuid.UUID) -> list[Row[Any]]:
         with self.owner.connect() as connection:
             return list(

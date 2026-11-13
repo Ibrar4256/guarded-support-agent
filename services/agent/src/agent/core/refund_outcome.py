@@ -186,26 +186,49 @@ class LookupKind(StrEnum):
     LOOKUP_FAILED = "lookup_failed"
 
 
+class LookupFault(StrEnum):
+    """Whose failure a failed lookup is (ADR-016 Part 3, ADR-017 S2)."""
+
+    PROVIDER = "provider"  # refund-api didn't answer: no response, non-200, malformed body
+    RUN = "run"  # refund-api answered, with a refund that isn't this one
+
+
 @dataclass(frozen=True)
 class LookupOutcome:
     kind: LookupKind
     reason: str
     alert: bool = False
     refund_ids: tuple[str, ...] = ()
+    fault: LookupFault | None = None  # set exactly when the lookup failed
 
 
 def classify_lookup(result: HttpResult, sent: SentRefund) -> LookupOutcome:
     """Only a 200 with a well-formed list, every row matching the stored payload, is an
-    answer. An error is never 'not found'; a foreign row is never 'found' (ADR-012)."""
+    answer. An error is never 'not found'; a foreign row is never 'found' (ADR-012). A failure
+    says whose it is: refund-api's (it didn't answer) or the run's (it answered with a refund
+    that isn't this one), because only the run's counts toward its streak (ADR-016, ADR-017)."""
     if result.status != 200:
-        return LookupOutcome(LookupKind.LOOKUP_FAILED, f"lookup got {result.status}", alert=True)
+        return LookupOutcome(
+            LookupKind.LOOKUP_FAILED,
+            f"lookup got {result.status}",
+            alert=True,
+            fault=LookupFault.PROVIDER,
+        )
     body = _json_object(result.body)
     rows = body.get("refunds") if body is not None else None
     if not isinstance(rows, list) or not all(isinstance(row, dict) for row in rows):
-        return LookupOutcome(LookupKind.LOOKUP_FAILED, "lookup body malformed", alert=True)
+        return LookupOutcome(
+            LookupKind.LOOKUP_FAILED,
+            "lookup body malformed",
+            alert=True,
+            fault=LookupFault.PROVIDER,
+        )
     if not all(_matches(row, sent) for row in rows):
         return LookupOutcome(
-            LookupKind.LOOKUP_FAILED, "lookup returned a refund that isn't this one", alert=True
+            LookupKind.LOOKUP_FAILED,
+            "lookup returned a refund that isn't this one",
+            alert=True,
+            fault=LookupFault.RUN,
         )
     if not rows:
         return LookupOutcome(LookupKind.NOT_FOUND, "no refund for this action")

@@ -171,7 +171,36 @@ lives in `WEEKLY_LOG.md`.
 - **A refund-api bug returning mismatched rows for every action pages per run** (rate-limited),
   because a mismatch looks run-specific.
 - **The "failed before" mark for repeated provider-type failures lives in memory.** A worker
-  restart costs one extra cycle before such a run counts toward its streak.
+  restart costs one extra cycle before such a run counts toward its streak. Marks for runs that
+  another process resolves are never cleared; the dict grows by one entry per such run until a
+  restart (small, but unbounded in principle).
+- **A run whose lookups fail alone never pages through its streak** (ADR-017): with no other
+  run's lookup answered in between, its refund-api-type failures don't count. Its route to a
+  person is the stale-unknown signal. ADR-017 S3/S4 make that a page
+  (`RECONCILER_STALE_PAGE_SECONDS`, its paging delay); **until that is built, it is only the
+  stale-unknown alert.**
+- **A degraded (not down) refund-api pages per failing run** (ADR-017): when some lookups fail and
+  others are answered, the evidence counter moves, so each failing run builds a streak and pages,
+  although the cause is one dependency. Bounded by the streak limit and per-run rate limiting.
+- **The send path is blind to a refund-api database outage** (ADR-017 Consequences, owner ADR-018):
+  the claim gate is fed only by config reads, and `GET /config` never touches refund-api's
+  database. During such an outage sends get fast 5xx, attempts run out in seconds, and after
+  recovery each run is correctly found missing and ends `rejected`/`ESCALATED`: every refund
+  approved during the outage goes to a person. No money is lost. ADR-018 (a provider circuit
+  breaker on real request outcomes) must land before the worker is deployed.
+- **An idle reconciler reads `GET /config` once per poll interval** (a fresh read each pass,
+  ADR-016 Part 2), and scans for stale runs. Both are cheap now; neither has a dedicated index for
+  `NEEDS_RECONCILIATION` runs (the partial index covers APPROVED/EXECUTING only). Add one if
+  uncertain runs ever number more than a handful.
+- **The kill switch is read, not locked, in the deciding transaction.** The runtime role can't
+  `SELECT … FOR SHARE` the controls row (it needs UPDATE), so a switch flipped in the same
+  instant as a reject can lose the race by one transaction.
+- **e2e `slow_commit`'s negative control is a lookup, not a planted reconciler** (as ADR-015's
+  stale-worker test): at the moment the run needs reconciliation the test asserts refund-api holds
+  no refund, which is what a reconciler without a quiet period would act on. The "not found →
+  rejected" mapping and the quiet-period plants are proven in-process; a manual plant that drops
+  the quiet condition makes the e2e test end `rejected`. The e2e profile's refund-api budget
+  (5 s) is longer than the agent's three attempts so a commit can land after they end.
 
 ## End-to-end crash tests (ADR-015)
 

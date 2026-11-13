@@ -3,7 +3,8 @@
 A plan belongs to one ``action_id``, so tests running in parallel can't affect each other.
 Consumption is per mode:
 - the crash modes (fail_before_commit, fail_after_commit, timeout_after_commit,
-  slow_commit) are one-shot: the first request that reaches their point uses them up;
+  slow_commit, invalid_request_after_commit) are one-shot: the first request that reaches
+  their point uses them up;
 - dedup_disabled and a retention override stay in effect until the plan is removed,
   because a one-shot dedup_disabled would let the retry deduplicate and the negative
   control could never fail.
@@ -29,6 +30,9 @@ class FaultMode(StrEnum):
     FAIL_AFTER_COMMIT = "fail_after_commit"
     TIMEOUT_AFTER_COMMIT = "timeout_after_commit"
     SLOW_COMMIT = "slow_commit"
+    # Commits, then answers 400 invalid_request instead of the 201 (ADR-010, ADR-016): the
+    # agent must treat it as unknown, never as "no money moved".
+    INVALID_REQUEST_AFTER_COMMIT = "invalid_request_after_commit"
     DEDUP_DISABLED = "dedup_disabled"
 
 
@@ -38,6 +42,7 @@ ONE_SHOT = frozenset(
         FaultMode.FAIL_AFTER_COMMIT,
         FaultMode.TIMEOUT_AFTER_COMMIT,
         FaultMode.SLOW_COMMIT,
+        FaultMode.INVALID_REQUEST_AFTER_COMMIT,
     }
 )
 NEEDS_SECONDS = frozenset({FaultMode.TIMEOUT_AFTER_COMMIT, FaultMode.SLOW_COMMIT})
@@ -46,6 +51,10 @@ RETENTION_OVERRIDE = "key_retention_override"
 
 class InjectedFault(Exception):
     """Raised by a fault hook; the test app turns it into a 500."""
+
+
+class InjectedInvalidRequest(Exception):
+    """Raised by a fault hook; the test app answers with refund-api's own 400 invalid_request."""
 
 
 @dataclass
@@ -126,6 +135,8 @@ class FaultHooks(RefundHooks):
     async def after_commit(self, context: RequestContext) -> None:
         if self.book.fire(context.action_id, FaultMode.FAIL_AFTER_COMMIT):
             raise InjectedFault(FaultMode.FAIL_AFTER_COMMIT)
+        if self.book.fire(context.action_id, FaultMode.INVALID_REQUEST_AFTER_COMMIT):
+            raise InjectedInvalidRequest(FaultMode.INVALID_REQUEST_AFTER_COMMIT)
         hang = self.book.fire(context.action_id, FaultMode.TIMEOUT_AFTER_COMMIT)
         if hang and hang.seconds:
             await asyncio.sleep(hang.seconds)

@@ -20,6 +20,7 @@ from agent.core.refund_outcome import (
     RESPONSE_SIZE_CAP_BYTES,
     ConfigReadKind,
     HttpResult,
+    LookupFault,
     LookupKind,
     RefundErrorCode,
     RetryPolicy,
@@ -234,29 +235,39 @@ def lookup(status: int | None, payload: Any = None) -> Any:
     return classify_lookup(HttpResult(status=status, body=raw), SENT)
 
 
-LOOKUPS: list[tuple[str, int | None, Any, LookupKind, bool]] = [
-    ("empty list", 200, {"refunds": []}, LookupKind.NOT_FOUND, False),
-    ("one refund", 200, {"refunds": [REFUND]}, LookupKind.FOUND, False),
-    ("two refunds", 200, {"refunds": [REFUND, REFUND | {"id": "other"}]}, LookupKind.FOUND, True),
+P, R = LookupFault.PROVIDER, LookupFault.RUN
+LOOKUPS: list[tuple[str, int | None, Any, LookupKind, bool, LookupFault | None]] = [
+    ("empty list", 200, {"refunds": []}, LookupKind.NOT_FOUND, False, None),
+    ("one refund", 200, {"refunds": [REFUND]}, LookupKind.FOUND, False, None),
+    (
+        "two refunds",
+        200,
+        {"refunds": [REFUND, REFUND | {"id": "other"}]},
+        LookupKind.FOUND,
+        True,
+        None,
+    ),
     (
         "other action's row",
         200,
         {"refunds": [REFUND | {"action_id": "act_2"}]},
         LookupKind.LOOKUP_FAILED,
         True,
+        R,
     ),
-    ("no response", None, None, LookupKind.LOOKUP_FAILED, True),
-    ("500", 500, None, LookupKind.LOOKUP_FAILED, True),
-    ("401", 401, {"status": "unauthorized"}, LookupKind.LOOKUP_FAILED, True),
-    ("400", 400, {"code": "invalid_request"}, LookupKind.LOOKUP_FAILED, True),
-    ("200 malformed", 200, {"refund": []}, LookupKind.LOOKUP_FAILED, True),
-    ("200 rows not objects", 200, {"refunds": [1]}, LookupKind.LOOKUP_FAILED, True),
+    ("no response", None, None, LookupKind.LOOKUP_FAILED, True, P),
+    ("500", 500, None, LookupKind.LOOKUP_FAILED, True, P),
+    ("401", 401, {"status": "unauthorized"}, LookupKind.LOOKUP_FAILED, True, P),
+    ("400", 400, {"code": "invalid_request"}, LookupKind.LOOKUP_FAILED, True, P),
+    ("200 malformed", 200, {"refund": []}, LookupKind.LOOKUP_FAILED, True, P),
+    ("200 rows not objects", 200, {"refunds": [1]}, LookupKind.LOOKUP_FAILED, True, P),
     (
         "other amount",
         200,
         {"refunds": [REFUND | {"amount_minor": 999}]},
         LookupKind.LOOKUP_FAILED,
         True,
+        R,
     ),
     (
         "other currency",
@@ -264,6 +275,7 @@ LOOKUPS: list[tuple[str, int | None, Any, LookupKind, bool]] = [
         {"refunds": [REFUND | {"currency": "EUR"}]},
         LookupKind.LOOKUP_FAILED,
         True,
+        R,
     ),
     (
         "other order",
@@ -271,17 +283,31 @@ LOOKUPS: list[tuple[str, int | None, Any, LookupKind, bool]] = [
         {"refunds": [REFUND | {"order_id": "ord_2"}]},
         LookupKind.LOOKUP_FAILED,
         True,
+        R,
     ),
 ]
 
 
 @pytest.mark.parametrize(
-    ("status", "payload", "kind", "alert"),
+    ("status", "payload", "kind", "alert", "fault"),
     [pytest.param(*row[1:], id=row[0]) for row in LOOKUPS],
 )
-def test_lookup_table(status: int | None, payload: Any, kind: LookupKind, alert: bool) -> None:
+def test_lookup_table(
+    status: int | None, payload: Any, kind: LookupKind, alert: bool, fault: LookupFault | None
+) -> None:
+    """ADR-017 S2: refund-api's failures (it didn't answer) and the run's (it answered with a
+    refund that isn't this one) are told apart, because only the run's counts toward its streak."""
     outcome = lookup(status, payload)
-    assert (outcome.kind, outcome.alert) == (kind, alert)
+    assert (outcome.kind, outcome.alert, outcome.fault) == (kind, alert, fault)
+
+
+@settings(max_examples=400)
+@given(results)
+def test_a_lookup_has_a_fault_exactly_when_it_failed(result: HttpResult) -> None:
+    outcome = classify_lookup(result, SENT)
+    assert (outcome.fault is not None) == (outcome.kind is LookupKind.LOOKUP_FAILED)
+    if outcome.fault is LookupFault.RUN:
+        assert result.status == 200
 
 
 @settings(max_examples=400)

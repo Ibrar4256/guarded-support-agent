@@ -35,6 +35,8 @@ FAST = WorkerTimings(
     max_failed_reads=3,
     poll=timedelta(seconds=0.05),
     shutdown_grace=timedelta(seconds=1),
+    quiet_margin=timedelta(seconds=0.2),
+    stale_unknown_after=timedelta(seconds=60),
     policy=RetryPolicy(
         attempts=1,
         backoff_base=timedelta(seconds=0.05),

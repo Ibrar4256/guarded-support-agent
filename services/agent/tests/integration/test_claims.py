@@ -330,8 +330,8 @@ async def test_negative_control_release_without_the_bump_lets_a_stray_write_comm
     assert claimed is not None
     original = claims.release_values
 
-    def no_bump(cooldown: timedelta | None, *, reset_streak: bool = False) -> dict[str, Any]:
-        values = original(cooldown, reset_streak=reset_streak)
+    def no_bump(cooldown: timedelta | None, **kwargs: Any) -> dict[str, Any]:
+        values = original(cooldown, **kwargs)
         del values["claim_version"]
         return values
 
@@ -368,6 +368,19 @@ async def test_cooldown_release_waits_and_counts_toward_the_streak(
     again = await claim(async_runtime_engine, "C")
     assert again is not None and again.run_id == run
     assert await release(async_runtime_engine, again, cooldown=COOLDOWN) == Release(True, 2)
+
+
+async def test_a_cooldown_release_can_leave_the_streak_alone(
+    world: World, async_runtime_engine: AsyncEngine
+) -> None:
+    """ADR-016 S5: the cooldown and the streak are separate choices."""
+    run = world.add_run(approved_at=EARLY)
+    world.set(run, release_streak=2)
+    claimed = await claim(async_runtime_engine)
+    assert claimed is not None
+    released = await release(async_runtime_engine, claimed, cooldown=COOLDOWN, count_streak=False)
+    assert released == Release(True, 2)
+    assert world.seconds_until(run, "claimable_after") > COOLDOWN.total_seconds() - 5
 
 
 async def test_negative_control_a_plain_release_is_reclaimed_on_the_next_poll(

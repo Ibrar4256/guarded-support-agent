@@ -20,7 +20,8 @@ from agent.core.refund_outcome import HttpResult, RetryPolicy
 from agent.core.replies import ReplyTemplate
 from agent.db import presend as presend_db
 from agent.refund_client.models import RefundPayload
-from agent.worker import execute, presend
+from agent.worker import execute, loop, presend
+from agent.worker.context import WorkerContext
 from agent.worker.hooks import WorkerHooks
 from agent.worker.loop import Ended, process_claim, run_worker
 from agent.worker.timings import WorkerConfigError, WorkerTimings
@@ -44,6 +45,18 @@ LOOP = replace(
 WIDE = config_result(window_ms=300_000, retention_ms=3_600_000)
 UNAVAILABLE = HttpResult(status=503)
 BOUND = 8.0
+
+
+@pytest.fixture(autouse=True)
+def send_loop_only(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests script the send loop's config reads one by one; the reconcile loop's own
+    reads (ADR-016) would take answers from that script. It's swapped for an idle stand-in
+    here; test_reconcile.py runs both loops together."""
+
+    async def idle(ctx: WorkerContext, worker_id: str) -> None:
+        await ctx.stopping.wait()
+
+    monkeypatch.setattr(loop, "reconcile_forever", idle)
 
 
 def payload_of(world: World, run: uuid.UUID) -> RefundPayload:

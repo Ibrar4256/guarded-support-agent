@@ -678,3 +678,54 @@ quiet period, looks the refund up, never sends; then `slow_commit` and ADR-010's
 **What's next:** the reconcile loop: its claim (quiet period with the fresh budget as a
 parameter), lookups and their outcomes, the kill switch, the failure paths and the stale-unknown
 alert; then the two e2e tests (`slow_commit`, `invalid_request` after a commit).
+
+### Agent side, step 3 slice 2: the reconcile loop (ADR-016, ADR-017) (2026-11-12)
+
+**What shipped:**
+- **The reconcile loop** as a second task in the worker process (`agent/worker/reconcile.py`,
+  `agent/db/reconcile.py`): each pass alerts on stale uncertain runs, reads `GET /config` afresh
+  and feeds the gate, claims one `NEEDS_RECONCILIATION` run whose quiet period has passed
+  (`last_attempt_at + greatest(in_flight_bound, max_client_timeout + budget_now) + margin`), and
+  looks it up under the usual lease, heartbeat and fencing. Found → `confirmed` (two or more →
+  alert); not found → `rejected`/`ESCALATED` with the "couldn't confirm" reply, unless the kill
+  switch is on (then no decision, a cooldown, no streak). It never sends.
+- **Failures:** every release has the cooldown; the cooldown and the streak are now separate
+  choices (`release_claim(count_streak=…)`). refund-api's failures close the gate and raise one
+  alert for all runs (401/403 page); the run's own (a mismatched row, no payload, an unexpected
+  error) count toward the streak and page at the limit, status untouched.
+- **ADR-017 (locked 2026-11-13 after two reviews):** a repeated refund-api-type failure counts only if refund-api answered
+  another run's lookup since, not merely a config read. `classify_lookup` now says whose fault a
+  failure is (`provider` / `run`).
+- `RECONCILER_QUIET_MARGIN_SECONDS`, `RECONCILER_STALE_ALERT_SECONDS`; the readiness log names
+  both loops; the heartbeat renews reconciler claims too.
+- **e2e:** `slow_commit` (the agent gives up, refund-api commits 1 s later, the reconciler waits
+  and confirms one refund) and `invalid_request` after a commit (confirmed, never resent, never
+  rejected), via a new one-shot refund-api test-build mode `invalid_request_after_commit`.
+- 48 new reconciler tests; 17 planted regressions, each caught for its own reason (among them: the
+  last send's bound instead of the largest, the kill switch ignored, answered lookups not counted
+  as evidence, the quiet condition dropped, which made the e2e run end `rejected`).
+
+**What broke:**
+- **ADR-016's own rule, before any code ran.** It counted a repeated refund-api-type failure as
+  the run's once a config read had succeeded in between. refund-api's `GET /config` is a static
+  response that never touches its database, so a database outage would have looked like every
+  uncertain run being broken at once and paged for each. Changed the evidence to a successful
+  lookup for another run (ADR-017).
+- A reconciler claim would have been lost at its first heartbeat: `renew_lease` only renewed
+  `APPROVED`/`EXECUTING`. A slow-lookup test with a short lease proves the fix (its control: the
+  old status set loses the claim).
+- The second loop's own config reads consumed answers that the send-loop tests had scripted one
+  by one; those tests now run with the reconcile loop swapped for an idle stand-in, and a separate
+  test runs both loops together.
+- The e2e profile gave refund-api the same 2 s budget as the agent's timeout, so a slow commit
+  could never land after the agent gave up; the budget is now 5 s.
+
+**What I learned:** check what a piece of evidence actually exercises: a health signal from one
+endpoint says nothing about another endpoint's dependencies.
+
+**What's next:** ADR-017's stale-unknown page (S3/S4: pages past a second threshold, skipped
+only for runs whose latest "not found" the kill switch held). Then ADR-018: review found the send
+path is blind to the same outage (the gate trusts the static config read), so a refund-api
+database outage would escalate every refund approved during it; a circuit breaker judged on real
+request outcomes, before the worker is deployed.
+

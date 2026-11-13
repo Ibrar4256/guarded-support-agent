@@ -71,6 +71,29 @@ async def test_fail_after_commit_replays_the_original(runtime_engine: Engine) ->
     assert refund_rows(runtime_engine, action_id=action) == 1
 
 
+async def test_invalid_request_after_commit_commits_then_answers_like_a_real_one(
+    runtime_engine: Engine,
+) -> None:
+    """The agent sees refund-api's own invalid_request body, though the refund committed; the
+    retry replays the commit (ADR-010, ADR-016's e2e)."""
+    async with fault_client() as (client, faults):
+        order, action, key = await setup(client)
+        real = await client.post(
+            "/refunds",
+            json=body(order, action) | {"amount_minor": "ten"},
+            headers=AUTH | {"Idempotency-Key": unique("key")},
+        )
+        await faults.plan(action, "invalid_request_after_commit")
+        injected = await post(client, key, order, action)
+        await faults.assert_applied(action, "invalid_request_after_commit")
+        assert refund_rows(runtime_engine, action_id=action) == 1, "committed"
+        retry = await post(client, key, order, action)
+    assert (real.status_code, injected.status_code) == (400, 400)
+    assert injected.json() == real.json() | {"fields": []}
+    assert retry.status_code == 201 and retry.headers[REPLAYED_HEADER] == "true"
+    assert refund_rows(runtime_engine, action_id=action) == 1
+
+
 async def test_timeout_after_commit_is_committed_not_failed(runtime_engine: Engine) -> None:
     # Logic only: the client gives up; the refund is already committed; a retry replays.
     async with fault_client() as (client, faults):

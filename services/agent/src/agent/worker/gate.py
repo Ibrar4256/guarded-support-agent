@@ -10,7 +10,9 @@ Every read feeds it, the interval refresh and each per-send read alike:
 - **a failed or invalid read closes it until a read succeeds** (ADR-014 Part 4: refund-api
   isn't answering, so a released run mustn't be reclaimed into the same failure);
 - 401/403 closes it and **pages**: a wrong token would otherwise stop every refund;
-- a window below the worst case closes it and alerts; at startup that's fatal.
+- a window below the worst case closes it and alerts; at startup that's fatal;
+- a reconcile lookup refund-api didn't answer closes it too (ADR-016 Part 3), with no alert of
+  its own: the reconciler raises it.
 Unreachable at startup is not fatal: the worker just doesn't send yet.
 """
 
@@ -42,6 +44,7 @@ class GateState(StrEnum):
     READ_FAILED = "read_failed"
     AUTH_FAILED = "auth_failed"
     WINDOW_TOO_SMALL = "window_too_small"
+    LOOKUP_FAILED = "lookup_failed"
 
 
 class ConfigGate:
@@ -81,6 +84,11 @@ class ConfigGate:
 
     def is_open(self) -> bool:
         return self.closed_reason() is None
+
+    def lookup_failed(self) -> None:
+        """refund-api didn't answer a lookup: no claims by either loop until a config read
+        succeeds (ADR-016 Part 3)."""
+        self._state = GateState.LOOKUP_FAILED
 
     def record(self, read: ConfigRead) -> None:
         if read.kind is ConfigReadKind.OK:

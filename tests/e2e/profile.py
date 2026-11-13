@@ -2,7 +2,9 @@
 
 Short enough that every wait stays bounded, and inside every startup guard:
 - refund-api: retention (300 s) > window (60 s) + recovery delay (60 s); its pool timeout
-  (1 s) < its processing budget (2 s).
+  (1 s) < its processing budget (5 s). The budget is longer than the agent's three attempts
+  (about 2.3 s when the first times out and the rest get 409), so a ``slow_commit`` can commit
+  after the agent has given up (ADR-016).
 - agent: worst case 3 x 2 s + 2 x 0.5 s = 7 s <= the 60 s window it reads, and the window
   <= its 900 s cap; retention > window + client timeout; lease (3 s) >= 3 heartbeats (1 s);
   statement timeout (1.5 s) < its step bound (2 + 0.5 + 0.5 + 0.5 = 3.5 s); shutdown grace
@@ -15,12 +17,17 @@ CLIENT_TIMEOUT_SECONDS = 2.0
 LEASE_SECONDS = 3.0
 # timeout_after_commit hangs past the client timeout, so the agent sees no answer.
 HANG_SECONDS = 4.0
+PROCESSING_BUDGET_SECONDS = 5.0
+# ADR-016: the reconciler waits the quiet period (here 2 s timeout + 5 s budget) plus this.
+QUIET_MARGIN_SECONDS = 1.0
+# Commits after the agent's attempts are spent, inside refund-api's budget.
+SLOW_COMMIT_SECONDS = 3.5
 
 REFUND_API = {
     "APP_ENV": "test",
     "DEBUG_FAULT_INJECTION": "true",
     "REFUND_API_TOKEN_NEXT": "",
-    "REFUND_API_PROCESSING_BUDGET_SECONDS": "2",
+    "REFUND_API_PROCESSING_BUDGET_SECONDS": str(PROCESSING_BUDGET_SECONDS),
     "REFUND_API_KEY_RETENTION_SECONDS": "300",
     "REFUND_API_MAX_RETRY_WINDOW_SECONDS": "60",
     "REFUND_API_MAX_RECOVERY_DELAY_SECONDS": "60",
@@ -53,6 +60,8 @@ WORKER = {
     "WORKER_MAX_FAILED_READS": "3",
     "WORKER_POLL_SECONDS": "0.2",
     "WORKER_SHUTDOWN_GRACE_SECONDS": "3",
+    "RECONCILER_QUIET_MARGIN_SECONDS": str(QUIET_MARGIN_SECONDS),
+    "RECONCILER_STALE_ALERT_SECONDS": "3600",
     "POLICY_CURRENCY": "USD",
     "POLICY_AUTO_APPROVE_MAX_MINOR": "5000",
     "POLICY_AUTO_APPROVE_BUDGET_MINOR": "10000",

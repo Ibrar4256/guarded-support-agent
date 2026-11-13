@@ -35,6 +35,16 @@ def created_result(refund: RefundPayload, refund_id: str = "re_1") -> HttpResult
     return HttpResult(status=201, body=json.dumps(body).encode())
 
 
+def lookup_result(*refunds: RefundPayload, ids: Iterable[str] = ()) -> HttpResult:
+    """refund-api's ``GET /refunds`` answer: these refunds (none means "not found")."""
+    named = list(ids) or [f"re_{n}" for n in range(1, len(refunds) + 1)]
+    rows = [
+        {"id": refund_id, **refund.model_dump()}
+        for refund_id, refund in zip(named, refunds, strict=True)
+    ]
+    return HttpResult(status=200, body=json.dumps({"refunds": rows}).encode())
+
+
 def business_error(code: str) -> HttpResult:
     return HttpResult(status=400, body=json.dumps({"code": code}).encode())
 
