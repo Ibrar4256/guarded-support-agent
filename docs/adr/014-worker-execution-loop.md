@@ -10,6 +10,11 @@ fails on every claim; every release bumps `claim_version`.
 **Locked 2026-11-12.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Amended by [ADR-018](018-provider-circuit-breaker.md):** the send loop also claims only while the write provider breaker
+allows (Part 2), checks it between attempts and releases an `EXECUTING` run with the cooldown
+and no streak when it is open (Part 3), and a half-open probe claim uses its own ordering.
+Part 4's handling of failed config reads is unchanged.
+
 **Precedence:** for the worker's behavior this ADR fills gaps in ADR-004 step 7,
 ADR-005, ADR-009, ADR-012 Parts 3–4 and ADR-013. It changes no rule they set, with three narrow
 exceptions, each stated where it applies:

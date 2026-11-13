@@ -33,6 +33,11 @@ send shares its time budget; the window snapshot is stored as `runs.send_window_
 bound (`in_flight_bound_ms`, `max_client_timeout_ms`, recorded with each send) and a fresh
 config read at reconcile time, whichever is larger.
 
+**Amended by [ADR-018](018-provider-circuit-breaker.md):** Part 4's gate is no longer the only thing that stops claiming: a
+provider breaker per path (sends, lookups), judged on real request outcomes, stops its loop
+after repeated refund-api-type failures, because `GET /config` never touches refund-api's
+database. Config reads still validate every send and still close the gate.
+
 **Precedence:** for the agent's handling of refund-api, **and for refund-api's
 idempotency-key lifetime and its `GET /config` endpoint**, this ADR wins over ADR-004,
 ADR-010 and ADR-011. Specifically, it:

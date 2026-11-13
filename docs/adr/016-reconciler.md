@@ -152,6 +152,11 @@ counts toward the streak only if refund-api answered another run's lookup in bet
 config read, since `GET /config` never touches refund-api's database); the stale-unknown signal
 also pages, except for runs whose latest "not found" the kill switch held.
 
+**Amended by [ADR-018](018-provider-circuit-breaker.md):** a refund-api-type lookup failure feeds the read provider breaker
+instead of closing the shared gate (which also stopped the send loop); the reconcile loop claims
+only while that breaker allows (S2); and while it is open, per-run stale pages are skipped except
+for runs whose last outcome was their own failure.
+
 - How it works (ADR-014 Part 4's distinction, applied to lookups):
   - **Every reconciler release applies the cooldown.** Only the streak depends on the cause.
     Status codes can't tell a refund-api outage from a refund-api bug that fails on one

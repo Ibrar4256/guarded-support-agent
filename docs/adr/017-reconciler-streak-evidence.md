@@ -9,6 +9,11 @@ ADR-018.
 **Locked 2026-11-13.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Amended by [ADR-018](018-provider-circuit-breaker.md):** the evidence counter (lookups refund-api answered) moves into the read
+provider breaker, unchanged in meaning; a send's 201 is not evidence. S3's per-run stale page is
+also skipped while the read breaker is open, except for runs whose last outcome was their own
+failure.
+
 **Precedence:** supersedes one clause of [ADR-016](016-reconciler.md) Part 3: what counts as
 evidence that a repeated refund-api-type lookup failure is the run's own. Everything else in
 ADR-016 stands: every reconciler release applies the cooldown, a refund-api-type failure marks

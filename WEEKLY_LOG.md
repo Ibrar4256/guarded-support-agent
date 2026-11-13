@@ -755,3 +755,21 @@ switch holds "not found" decisions, not runs.
 **What's next:** ADR-018, a provider circuit breaker on real request outcomes, before the worker
 is deployed.
 
+### ADR-018 locked: provider breakers (2026-11-13)
+
+**What shipped:** ADR-018 after two review passes, with pointer lines in ADR-012, 014, 016 and
+017. Two in-process provider breakers judged on real request outcomes, one per path (sends gate
+the send loop, lookups the reconcile loop); probes from the run that costs least to lose; every
+smaller rule tested by a planned negative control.
+
+**What broke (in the design):** the first draft shared one breaker, so a successful lookup could
+reopen the send path during a write outage, and counting sends as evidence reintroduced ADR-017's
+bug. The second pass found that a failed probe on a fresh run starts its send window, that read
+outages would page once per uncertain run through the stale page, and that "breaker" already meant
+ADR-009's policy breaker.
+
+**What I learned:** a health check proves only what it touches; and a probe is never free, so
+choose who pays for it.
+
+**What's next:** the code, starting with refund-api's per-action fault mode for the e2e test.
+
