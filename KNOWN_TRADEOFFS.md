@@ -71,10 +71,17 @@ lives in `WEEKLY_LOG.md`.
 - **The Docker image check runs in CI only.** The development machine has too little free
   disk for routine image builds, so `production_image_check.sh` is verified on GitHub's
   runners; run it locally only when there's space.
-- **The seed is half-built.** refund-api seeds charges and the key floor from the shared
-  manifest; the agent's half (customers and orders from the same file) comes with the agent
-  service. Until then, the demo's two databases are only consistent if both are seeded from
-  `infra/seed/demo_manifest.json`.
+- **The demo's two databases are consistent only if both seeds run** from
+  `infra/seed/demo_manifest.json` (ADR-010, ADR-019); nothing checks one against the other at
+  runtime, by design (no shared state between the services).
+- **Demo dates are relative and refreshed by re-seeding** (ADR-019): a demo left without a re-run
+  for longer than the refund window ages out of policy. A scheduled re-seed is the follow-up if the
+  demo has to stay live between deploys.
+- **A re-run of the agent's seed overwrites fulfillment state** (status, delivery time, chargeback
+  flag) for the manifest's orders. Nothing else writes those today; if something does, the seed
+  must stop owning that state.
+- **Demo identities are placeholders** (`user_demo_alice`): once Clerk is set up (ADR-003) the
+  manifest's owner ids must be the demo accounts' Clerk user ids.
 - **Row locks on immutable tables go through `SECURITY DEFINER` functions.** `FOR UPDATE`
   needs `UPDATE` privilege, which charges deliberately don't grant, so `lock_charge` takes
   the lock on the runtime role's behalf (migration 0003). Each such function is another

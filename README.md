@@ -79,6 +79,18 @@ scripts/ci/service_checks.sh agent      # lint, types, purity, contracts, migrat
 scripts/ci/service_checks.sh refund_api
 ```
 
+### Seeding the demo
+
+One manifest, [`infra/seed/demo_manifest.json`](infra/seed/demo_manifest.json), feeds both
+services' seed commands, each as its own owner role (ADR-010, ADR-019). Run both at every deploy:
+re-running refreshes delivery dates (`delivered_days_ago`), so demo orders stay inside the refund
+window.
+
+```bash
+(cd services/agent && uv run python -m agent.seed ../../infra/seed/demo_manifest.json)          # customers + orders
+(cd services/refund_api && uv run python -m refund_api.seed ../../infra/seed/demo_manifest.json) # charges + key floor
+```
+
 ### refund-api by hand
 
 ```bash

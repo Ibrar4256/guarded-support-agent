@@ -32,7 +32,7 @@ def order(order_id: str, charged_minor: int = 5_000, **extra: Any) -> dict[str, 
         "charged_minor": charged_minor,
         "currency": "USD",
         "status": "delivered",
-        "delivered_at": "2026-11-01T10:00:00Z",
+        "delivered_days_ago": 3,
         "chargeback_open": False,
         **extra,
     }

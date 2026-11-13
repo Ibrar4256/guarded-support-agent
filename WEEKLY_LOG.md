@@ -813,3 +813,23 @@ and a test helper that passes the default explicitly can't catch a changed defau
 
 **What's next:** the agent half of the seed and the order-lookup tool.
 
+### Agent side, step 5: the agent's demo seed (ADR-019) (2026-11-13)
+
+**What shipped:**
+- ADR-019 (both choices by the user, in chat): an existing order whose facts (owner, amount,
+  currency) differ from the manifest refuses the seed; its fulfillment state is updated; delivery
+  dates are relative (`delivered_days_ago`) on the database clock.
+- `python -m agent.seed <manifest>` as the owner role, one transaction; the demo manifest switched
+  to relative dates; README deploy steps run both seeds.
+- 22 tests (manifest validation, first run, re-run, refused facts, exit codes); 7 plants caught.
+
+**What broke:** nothing in the code, but the manifest's absolute dates would have put every demo
+order outside the 30-day refund window by early December, silently. And one of my plants was
+invalid (it compared a 1-tuple with a 3-tuple, so everything mismatched and the test "passed" for
+the wrong reason); re-planted on both sides, it was caught.
+
+**What I learned:** fixture data rots like code; dates in a demo dataset need to be relative to
+when it's loaded.
+
+**What's next:** the order-lookup tool (its strict-xfail placeholder is waiting).
+

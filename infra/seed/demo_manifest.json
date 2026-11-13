@@ -7,7 +7,7 @@
       "charged_minor": 5000,
       "currency": "USD",
       "status": "delivered",
-      "delivered_at": "2026-11-01T10:00:00Z",
+      "delivered_days_ago": 3,
       "chargeback_open": false
     },
     {
@@ -16,7 +16,7 @@
       "charged_minor": 12999,
       "currency": "USD",
       "status": "shipped",
-      "delivered_at": null,
+      "delivered_days_ago": null,
       "chargeback_open": false
     },
     {
@@ -25,7 +25,7 @@
       "charged_minor": 2500,
       "currency": "USD",
       "status": "delivered",
-      "delivered_at": "2026-11-05T15:30:00Z",
+      "delivered_days_ago": 5,
       "chargeback_open": false
     }
   ]
