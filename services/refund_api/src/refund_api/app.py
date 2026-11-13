@@ -6,13 +6,18 @@ Middleware order matters. Starlette runs the middleware added **last** first, so
 2. ``AuthMiddleware`` checks the bearer token before routing or validation, so an
    unauthenticated request gets 401, never a 400 that reveals the schema (Part 6).
 
+At startup the app refuses to serve unless the key-retention floor is set (ADR-021 Part 2), so a
+deploy that skipped ``python -m refund_api.retention_floor`` stops here, not at the first refund.
+
 Run it with ``uvicorn --factory refund_api.app:app_from_env``.
 """
 
+import asyncio
 import hmac
 import os
 import time
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
+from contextlib import asynccontextmanager
 from datetime import timedelta
 from typing import Annotated, Any
 
@@ -20,6 +25,8 @@ from fastapi import FastAPI, Header, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import Response
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -115,14 +122,51 @@ def response_spec(model: type[Any], description: str) -> dict[str, Any]:
     return {"model": model, "description": description}
 
 
+FLOOR_CHECK = text("SELECT public.retention_floor_is_set()")
+FLOOR_MISSING = (
+    "key retention floor is not set, refund-api not started: run "
+    "`python -m refund_api.retention_floor` as the owner role (REFUND_DB_OWNER_URL) before "
+    "starting refund-api (ADR-021)"
+)
+
+
+class StartupError(RuntimeError):
+    """refund-api must not serve: the deploy is incomplete or the database is unreachable."""
+
+
+async def check_retention_floor(engine: AsyncEngine, timeout: timedelta) -> None:
+    """ADR-021 Part 2 and S8: the floor must be set, and an unreachable database (or one not
+    migrated to head) stops the start too, under an explicit timeout because the pool timeout
+    doesn't bound a connect."""
+    try:
+        async with asyncio.timeout(timeout.total_seconds()):
+            async with engine.connect() as connection:
+                floor_is_set = (await connection.execute(FLOOR_CHECK)).scalar_one()
+    except (SQLAlchemyError, OSError, TimeoutError) as exc:
+        raise StartupError(
+            "startup check failed, refund-api not started (database unreachable or not "
+            f"migrated to head): {exc!r}"
+        ) from exc
+    if not floor_is_set:
+        raise StartupError(FLOOR_MISSING)
+
+
 def create_app(settings: Settings, hooks: RefundHooks | None = None) -> FastAPI:
     engine: AsyncEngine = create_async_engine(
         settings.database_url, pool_timeout=settings.pool_timeout.total_seconds()
     )
     refund_hooks = hooks or RefundHooks()
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        await check_retention_floor(engine, settings.pool_timeout)
+        yield
+
     # No interactive docs or public spec: the service isn't public (ADR-010 Part 6).
     # The spec is exported from app.openapi() into contracts/.
-    app = FastAPI(title="refund-api", docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(
+        title="refund-api", docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan
+    )
     app.state.engine = engine
     # Kept so a test can assert the production entry point runs the no-op hooks only:
     # `deduplicates` can switch off idempotency (ADR-011).

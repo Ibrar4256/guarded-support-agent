@@ -1,13 +1,16 @@
-"""Deploy-time seed for refund-api (ADR-010 Part 2 and Part 5).
+"""Deploy-time demo seed for refund-api (ADR-010 Part 2, ADR-021).
 
     python -m refund_api.seed <manifest.json>
 
-Runs as the **owner** role (REFUND_DB_OWNER_URL), like migrations. It:
+Runs as the **owner** role (REFUND_DB_OWNER_URL), like migrations, and only with
+``DEMO_SEED_ENABLED=true`` (it writes fake charges: a real deployment's deploy step must never
+run it by accident). It:
 - inserts the charges the manifest lists that don't exist yet;
 - refuses, changing nothing, if an existing charge differs from the manifest (charges
-  are immutable, so a mismatch means the manifest or the database is wrong);
-- sets the key-retention floor to REFUND_API_KEY_RETENTION_SECONDS, without which key
-  pruning fails closed.
+  are immutable, so a mismatch means the manifest or the database is wrong).
+
+The key-retention floor every deployment needs is set by ``refund_api.retention_floor``, not
+here (ADR-021).
 
 The manifest is shared with the agent's own seed command (orders and customers), which is
 why it uses the agent's field names. This command reads only the charge fields; one input
@@ -19,18 +22,18 @@ import os
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import timedelta
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
-from sqlalchemy import Connection, create_engine, delete, insert, select
+from sqlalchemy import Connection, create_engine, insert, select
 
-from refund_api.config import KEY_RETENTION, ConfigError, required, seconds
-from refund_api.db.schema import charges, key_retention_policy
+from refund_api.config import ConfigError, required
+from refund_api.db.schema import charges
 from refund_api.models import BIGINT_MAX, CURRENCY_PATTERN, ID_PATTERN
 
 OWNER_URL = "REFUND_DB_OWNER_URL"
+ENABLED = "DEMO_SEED_ENABLED"
 MANIFEST_VERSION = 1
 
 
@@ -54,11 +57,14 @@ class SeedError(RuntimeError):
     """The seed was refused; nothing was written."""
 
 
+class SeedNotEnabled(SeedError):
+    """``DEMO_SEED_ENABLED`` isn't ``true``: not a demo deployment, nothing written."""
+
+
 @dataclass(frozen=True)
 class SeedReport:
     inserted: int
     unchanged: int
-    floor: timedelta
 
 
 def load_manifest(path: Path) -> Manifest:
@@ -73,7 +79,7 @@ def load_manifest(path: Path) -> Manifest:
     return manifest
 
 
-def apply(connection: Connection, orders: Sequence[ManifestOrder], floor: timedelta) -> SeedReport:
+def apply(connection: Connection, orders: Sequence[ManifestOrder]) -> SeedReport:
     """In the caller's transaction: check every charge first, then write."""
     wanted = {order.order_id: order for order in orders}
     existing = {
@@ -97,20 +103,17 @@ def apply(connection: Connection, orders: Sequence[ManifestOrder], floor: timede
                 for o in new
             ],
         )
-    connection.execute(delete(key_retention_policy))
-    connection.execute(insert(key_retention_policy).values(id=1, min_retention=floor))
-    return SeedReport(inserted=len(new), unchanged=len(existing), floor=floor)
+    return SeedReport(inserted=len(new), unchanged=len(existing))
 
 
 def seed(manifest_path: Path, environ: Mapping[str, str]) -> SeedReport:
-    floor = seconds(environ, KEY_RETENTION)
-    if floor <= timedelta(0):
-        raise ConfigError(f"{KEY_RETENTION} must be positive")
+    if environ.get(ENABLED) != "true":
+        raise SeedNotEnabled(f"{ENABLED} is not 'true': this isn't a demo deployment")
     manifest = load_manifest(manifest_path)
     engine = create_engine(required(environ, OWNER_URL))
     try:
         with engine.begin() as connection:
-            return apply(connection, manifest.orders, floor)
+            return apply(connection, manifest.orders)
     finally:
         engine.dispose()
 
@@ -122,13 +125,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     try:
         report = seed(Path(args[0]), os.environ)
+    except SeedNotEnabled as exc:
+        print(f"seed not run, nothing written: {exc}", file=sys.stderr)
+        return 2
     except (SeedError, ConfigError) as exc:
         print(f"seed refused, nothing written: {exc}", file=sys.stderr)
         return 1
-    print(
-        f"charges inserted: {report.inserted}, already present: {report.unchanged}; "
-        f"key retention floor: {report.floor.total_seconds():g}s"
-    )
+    print(f"charges inserted: {report.inserted}, already present: {report.unchanged}")
     return 0
 
 

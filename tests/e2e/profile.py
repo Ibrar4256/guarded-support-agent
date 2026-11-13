@@ -34,6 +34,13 @@ REFUND_API = {
     "REFUND_API_POOL_TIMEOUT_SECONDS": "1",
 }
 
+# refund-api's deploy-time commands (ADR-021): the harness deploys a demo, so it sets the floor
+# with the service's own retention and then runs the demo seed, which refuses without the flag.
+REFUND_API_DEPLOY = {
+    "REFUND_API_KEY_RETENTION_SECONDS": REFUND_API["REFUND_API_KEY_RETENTION_SECONDS"],
+    "DEMO_SEED_ENABLED": "true",
+}
+
 WORKER = {
     "APP_ENV": "test",
     "DEBUG_FAULT_INJECTION": "true",

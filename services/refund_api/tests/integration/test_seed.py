@@ -1,4 +1,4 @@
-"""The deploy-time seed (ADR-010 Parts 2 and 5): charges from the manifest, plus the floor."""
+"""The demo seed (ADR-010 Part 2, ADR-021): charges from the manifest, only on a demo."""
 
 import json
 from collections.abc import Iterator
@@ -11,17 +11,12 @@ from conftest import TOKEN, api_client, env, set_floor, unique
 from sqlalchemy import Engine, select
 
 from refund_api.db.schema import charges, key_retention_policy
-from refund_api.seed import SeedError, main, seed
-
-RETENTION_SECONDS = "3600"
+from refund_api.seed import SeedError, SeedNotEnabled, main, seed
 
 
 @pytest.fixture
 def environ(owner_engine: Engine) -> Iterator[dict[str, str]]:
-    yield {
-        "REFUND_DB_OWNER_URL": env("REFUND_DB_OWNER_URL"),
-        "REFUND_API_KEY_RETENTION_SECONDS": RETENTION_SECONDS,
-    }
+    yield {"REFUND_DB_OWNER_URL": env("REFUND_DB_OWNER_URL"), "DEMO_SEED_ENABLED": "true"}
     set_floor(owner_engine, None)
 
 
@@ -58,14 +53,42 @@ def floor(engine: Engine) -> timedelta | None:
     return value
 
 
-def test_seed_inserts_charges_and_sets_the_floor(
-    tmp_path: Path, environ: dict[str, str], owner_engine: Engine
+@pytest.mark.parametrize("before", [None, timedelta(hours=6)], ids=["no-floor", "floor-set"])
+def test_seed_inserts_charges_and_leaves_the_floor(
+    tmp_path: Path, environ: dict[str, str], owner_engine: Engine, before: timedelta | None
 ) -> None:
+    """ADR-021 S1: the floor has one writer, ``refund_api.retention_floor``; the seed never
+    touches it, whether it is set or not."""
+    set_floor(owner_engine, before)
     a, b = unique("ord"), unique("ord")
     report = seed(manifest(tmp_path, order(a), order(b, 999)), environ)
     assert (report.inserted, report.unchanged) == (2, 0)
     assert charge_amounts(owner_engine, a, b) == {a: 5_000, b: 999}
-    assert floor(owner_engine) == timedelta(seconds=int(RETENTION_SECONDS))
+    assert floor(owner_engine) == before
+
+
+def test_without_the_demo_flag_nothing_is_written(
+    tmp_path: Path,
+    environ: dict[str, str],
+    owner_engine: Engine,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """ADR-021 S2 (as ADR-019 S6): demo charges only on a demo deployment."""
+    made = unique("ord")
+    path = manifest(tmp_path, order(made))
+    for flag in (None, "", "false", "1", "TRUE"):
+        with pytest.raises(SeedNotEnabled):
+            seed(
+                path,
+                {k: v for k, v in environ.items() if k != "DEMO_SEED_ENABLED"}
+                | ({} if flag is None else {"DEMO_SEED_ENABLED": flag}),
+            )
+    monkeypatch.setenv("REFUND_DB_OWNER_URL", environ["REFUND_DB_OWNER_URL"])
+    monkeypatch.delenv("DEMO_SEED_ENABLED", raising=False)
+    assert main([str(path)]) == 2
+    assert "this isn't a demo deployment" in capsys.readouterr().err
+    assert charge_amounts(owner_engine, made) == {}
 
 
 def test_seed_is_idempotent(tmp_path: Path, environ: dict[str, str]) -> None:
@@ -99,6 +122,7 @@ def test_cli_exit_codes(
     assert main([]) == 2
 
 
+@pytest.mark.usefixtures("retention_floor")
 async def test_a_seeded_charge_can_be_refunded(tmp_path: Path, environ: dict[str, str]) -> None:
     order_id = unique("ord")
     seed(manifest(tmp_path, order(order_id, 5_000)), environ)

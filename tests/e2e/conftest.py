@@ -14,6 +14,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from pathlib import Path
 from profile import REFUND_API as REFUND_API_PROFILE
+from profile import REFUND_API_DEPLOY
 from profile import WORKER as WORKER_PROFILE
 from typing import Any
 from urllib.parse import urlsplit
@@ -99,25 +100,23 @@ async def prepared(postgres: Postgres) -> AsyncIterator[None]:
         cwd=REFUND_API,
         seconds=120,
     )
-    # refund-api's deploy-time seed sets the key-retention floor; without it refund-api fails
-    # closed on every refund (ADR-010 Part 5), exactly as a deploy that skipped it would.
-    await run_to_completion(
-        [
-            venv_python(REFUND_API),
-            "-m",
-            "refund_api.seed",
-            str(REPO / "infra" / "seed" / "demo_manifest.json"),
-        ],
-        env={
-            **base_env(),
-            "REFUND_DB_OWNER_URL": os.environ["REFUND_DB_OWNER_URL"],
-            "REFUND_API_KEY_RETENTION_SECONDS": REFUND_API_PROFILE[
-                "REFUND_API_KEY_RETENTION_SECONDS"
-            ],
-        },
-        cwd=REFUND_API,
-        seconds=60,
-    )
+    # refund-api's demo deploy (ADR-021): the key-retention floor, without which refund-api fails
+    # closed on every refund (ADR-010 Part 5) exactly as a deploy that skipped it would, then
+    # the demo seed's charges.
+    for command in (
+        ["refund_api.retention_floor"],
+        ["refund_api.seed", str(REPO / "infra" / "seed" / "demo_manifest.json")],
+    ):
+        await run_to_completion(
+            [venv_python(REFUND_API), "-m", *command],
+            env={
+                **base_env(),
+                "REFUND_DB_OWNER_URL": os.environ["REFUND_DB_OWNER_URL"],
+                **REFUND_API_DEPLOY,
+            },
+            cwd=REFUND_API,
+            seconds=60,
+        )
     # The real agent database too: test_harness compares a test database's grants with it.
     await run_to_completion(
         [str(AGENT / ".venv" / "bin" / "alembic"), "upgrade", "head"],

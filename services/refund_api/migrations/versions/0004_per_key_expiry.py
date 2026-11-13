@@ -38,7 +38,7 @@ BEGIN
     IF EXISTS (SELECT 1 FROM public.idempotency_keys)
        AND NOT EXISTS (SELECT 1 FROM public.key_retention_policy WHERE id = 1) THEN
         RAISE EXCEPTION 'idempotency keys exist but no key retention floor is set; set it '
-            '(python -m refund_api.seed <manifest>) and run the migration again';
+            '(python -m refund_api.retention_floor) and run the migration again';
     END IF;
 END
 $$

@@ -840,3 +840,37 @@ dates away from the window's edge; the seed takes customer locks first (ADR-005)
 plants caught. Flagged: refund-api's seed has no demo guard yet (it also sets the production key
 floor, so it needs a split).
 
+
+### refund-api: the key-retention floor split from the demo seed (ADR-021) (2026-11-14)
+
+**What shipped:**
+- ADR-021 (option chosen by the user, in chat): the key-retention floor has its own owner-role
+  command, `python -m refund_api.retention_floor`, run on every deployment; `refund_api.seed`
+  writes only the demo charges and refuses (exit 2) unless `DEMO_SEED_ENABLED=true`, like the
+  agent's seed. Rejected: one command with the flag gating only the charges, an Alembic hook, and
+  setting the floor at app startup (the runtime role must not write it).
+- The e2e harness deploys a demo: the floor command, then the seed with the flag from its
+  profile. README deploy steps, `.env.example` and migration 0004's refusal hint name the new
+  command.
+- 12 new test cases (9 for the floor command, 3 for the seed); 7 plants caught, two of them
+  end-to-end (no floor: refund-api answers 500 with "key retention floor is not set" and the run
+  never completes; no flag: the harness's setup stops at the seed's exit 2).
+
+**What broke:** my first round of plants all "passed" because I sourced `.env` from a wrong path,
+so the integration tests were skipped, not run. Re-run with the right path, every plant was caught.
+The plant script now prints pytest's summary line, so a skip can't pass for a result.
+
+**What I learned:** a command that mixes a production setting with fixture data can't be safely
+gated by either; and a negative control that ends in "exit 0" proves nothing until you've seen
+the tests actually run.
+
+**What's next:** the order-lookup tool (ADR-020, locked). Flagged: refund-api's `seconds()` config
+helper raises `OverflowError` on `inf` or `1e30` instead of a clean refusal.
+
+**Review pass (ADR-021 locked):** a skipped floor was safe but found late, at the first refund, as
+a provider-breaker page that didn't name the skipped step. refund-api now checks at startup,
+through a read-only `SECURITY DEFINER` function (migration 0005, executable only by the app group),
+and refuses to start with a message naming the command; an unreachable database stops the start
+too, with its own message (user's choice). Both builds, tested against real uvicorn because
+in-process clients don't run the lifespan; 8 tests, 5 plants caught. I'd first written that a
+down database gives 503; checking the code showed it's a 500 (only pool timeouts map to 503).

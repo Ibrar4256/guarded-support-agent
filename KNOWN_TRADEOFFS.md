@@ -81,10 +81,15 @@ lives in `WEEKLY_LOG.md`.
   flag) for the manifest's orders that have no unfinished run (those are left alone and reported,
   ADR-019 S5). Nothing else writes that state today; if something does, the seed must stop owning
   it.
-- **refund-api's seed has no demo guard yet.** The agent's seed refuses without
-  `DEMO_SEED_ENABLED=true` (ADR-019 S6); refund-api's would still insert the demo charges on a real
-  deployment. It also sets the key-retention floor, which a real deployment needs, so its guard has
-  to split the floor (always) from the charges (demo only). Flagged, not yet done.
+- **The key-retention floor is one more deploy step** (ADR-021). It has its own command, run on
+  every deployment, so the demo-only seed can be guarded by `DEMO_SEED_ENABLED=true` like the
+  agent's. Skipping it stops refund-api at startup, with a message naming the command. A floor
+  deleted after startup isn't seen until the next refund: refund-api answers 500, the agent's write
+  breaker opens and alerts (and pages if it stays open).
+- **refund-api no longer starts with its database down** (ADR-021 S8): the startup floor check
+  needs the database, so an unreachable one fails the start (its own message, under a timeout)
+  and the orchestrator has to restart it. Before, it started and failed requests until the
+  database came back.
 - **Demo identities are placeholders** (`user_demo_alice`): once Clerk is set up (ADR-003) the
   manifest's owner ids must be the demo accounts' Clerk user ids.
 - **Row locks on immutable tables go through `SECURITY DEFINER` functions.** `FOR UPDATE`

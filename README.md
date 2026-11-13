@@ -79,18 +79,28 @@ scripts/ci/service_checks.sh agent      # lint, types, purity, contracts, migrat
 scripts/ci/service_checks.sh refund_api
 ```
 
+### Every deployment: refund-api's key-retention floor
+
+After migrations and before starting refund-api, every deployment (demo or not) sets refund-api's
+key-retention floor from `REFUND_API_KEY_RETENTION_SECONDS`, as the owner role (ADR-010, ADR-021).
+refund-api refuses to start without it, with a message naming this command.
+
+```bash
+(cd services/refund_api && uv run python -m refund_api.retention_floor)
+```
+
 ### Seeding the demo
 
 One manifest, [`infra/seed/demo_manifest.json`](infra/seed/demo_manifest.json), feeds both
-services' seed commands, each as its own owner role (ADR-010, ADR-019). Run both at every demo
-deploy, before starting the worker: re-running refreshes delivery dates (`delivered_days_ago`), so
-demo orders stay inside the refund window. The agent's seed runs only with `DEMO_SEED_ENABLED=true`,
-leaves orders with an unfinished run alone (and says which), and never touches orders the manifest
-doesn't list.
+services' seed commands, each as its own owner role (ADR-010, ADR-019, ADR-021). Run both at every
+demo deploy, after the floor and before starting the worker: re-running refreshes delivery dates
+(`delivered_days_ago`), so demo orders stay inside the refund window. Both seeds run only with
+`DEMO_SEED_ENABLED=true` (otherwise exit 2, nothing written). The agent's seed leaves orders with an
+unfinished run alone (and says which), and never touches orders the manifest doesn't list.
 
 ```bash
 (cd services/agent && uv run python -m agent.seed ../../infra/seed/demo_manifest.json)          # customers + orders
-(cd services/refund_api && uv run python -m refund_api.seed ../../infra/seed/demo_manifest.json) # charges + key floor
+(cd services/refund_api && uv run python -m refund_api.seed ../../infra/seed/demo_manifest.json) # charges
 ```
 
 ### refund-api by hand
@@ -98,7 +108,8 @@ doesn't list.
 ```bash
 cd services/refund_api
 uv run alembic upgrade head                                  # as the owner role
-uv run python -m refund_api.seed ../../infra/seed/demo_manifest.json   # charges + key floor
+uv run python -m refund_api.retention_floor                   # every deployment
+uv run python -m refund_api.seed ../../infra/seed/demo_manifest.json   # demo only (DEMO_SEED_ENABLED=true)
 uv run uvicorn --factory refund_api.app:app_from_env         # production build
 DEBUG_FAULT_INJECTION=true uv run uvicorn --factory \
   refund_api_testing.app:fault_app_from_env --workers 1      # fault-injection build
