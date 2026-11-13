@@ -240,6 +240,46 @@ def classify_lookup(result: HttpResult, sent: SentRefund) -> LookupOutcome:
     return LookupOutcome(LookupKind.FOUND, "refund found", refund_ids=ids)
 
 
+class Health(StrEnum):
+    """What one real request says about refund-api's health on its path (ADR-018 S6)."""
+
+    SUCCESS = "success"  # a well-formed refund-api answer
+    FAILURE = "failure"  # no answer, a 5xx, or something refund-api doesn't send
+    NEUTRAL = "neutral"  # says nothing either way: in-flight key, backpressure, auth (the gate's)
+
+
+# The statuses refund-api documents for each endpoint (contracts/refund_api.openapi.json; a unit
+# test keeps these equal to the contract). Anything else came from something in front of it.
+SEND_STATUSES = frozenset({201, 400, 401, 409, 422, 503})
+LOOKUP_STATUSES = frozenset({200, 400, 401, 503})
+NEUTRAL_STATUSES = frozenset({401, 403, 409, 429})
+
+
+def send_health(result: HttpResult) -> Health:
+    return _health(result, SEND_STATUSES, _json_object(result.body) is not None)
+
+
+def lookup_health(result: HttpResult) -> Health:
+    body = _json_object(result.body)
+    rows = body.get("refunds") if body is not None else None
+    if result.status == 200:
+        well_formed = isinstance(rows, list) and all(isinstance(row, dict) for row in rows)
+    else:
+        well_formed = body is not None
+    return _health(result, LOOKUP_STATUSES, well_formed)
+
+
+def _health(result: HttpResult, documented: frozenset[int], well_formed: bool) -> Health:
+    status = result.status
+    if status is None or status >= 500:
+        return Health.FAILURE
+    if status in NEUTRAL_STATUSES:
+        return Health.NEUTRAL
+    if status not in documented:
+        return Health.FAILURE  # a 404 from a misrouted URL, an ingress's own page (S6)
+    return Health.SUCCESS if well_formed else Health.FAILURE
+
+
 @dataclass(frozen=True)
 class RetryPolicy:
     attempts: int

@@ -43,6 +43,10 @@ VALID = WorkerTimings(
     quiet_margin=timedelta(seconds=2),
     stale_unknown_after=timedelta(seconds=3600),
     stale_page_after=timedelta(seconds=7200),
+    provider_failure_threshold=3,
+    provider_open=timedelta(seconds=30),
+    provider_max_open=timedelta(seconds=300),
+    provider_page_after=timedelta(seconds=600),
     policy=POLICY,
 )
 ENV = {
@@ -63,6 +67,10 @@ ENV = {
     "RECONCILER_QUIET_MARGIN_SECONDS": "2",
     "RECONCILER_STALE_ALERT_SECONDS": "3600",
     "RECONCILER_STALE_PAGE_SECONDS": "7200",
+    "PROVIDER_BREAKER_FAILURE_THRESHOLD": "3",
+    "PROVIDER_BREAKER_OPEN_SECONDS": "30",
+    "PROVIDER_BREAKER_MAX_OPEN_SECONDS": "300",
+    "PROVIDER_BREAKER_PAGE_AFTER_SECONDS": "600",
 }
 
 
@@ -155,6 +163,9 @@ def test_negative_control_staleness_of_exactly_two_refreshes_is_accepted() -> No
         "quiet_margin",
         "stale_unknown_after",
         "stale_page_after",
+        "provider_open",
+        "provider_max_open",
+        "provider_page_after",
     ],
 )
 def test_non_positive_durations_are_refused(name: str) -> None:
@@ -205,3 +216,26 @@ def test_a_stale_page_not_later_than_the_alert_is_refused(page_seconds: int) -> 
     """ADR-017 S3: the page is the later, louder signal."""
     with pytest.raises(WorkerConfigError, match="RECONCILER_STALE_PAGE_SECONDS"):
         replace(VALID, stale_page_after=timedelta(seconds=page_seconds))
+
+
+@pytest.mark.parametrize("threshold", [5, 6])
+def test_a_provider_threshold_not_below_the_attempt_count_is_refused(threshold: int) -> None:
+    """ADR-018 S1: the run that opens the write breaker must still have an attempt left."""
+    with pytest.raises(WorkerConfigError, match="PROVIDER_BREAKER_FAILURE_THRESHOLD"):
+        replace(VALID, provider_failure_threshold=threshold)
+
+
+def test_the_largest_threshold_below_the_attempt_count_is_accepted() -> None:
+    assert replace(VALID, provider_failure_threshold=4).provider_failure_threshold == 4
+
+
+@pytest.mark.parametrize("page_after", [7200, 9000])
+def test_a_provider_page_not_before_the_stale_page_is_refused(page_after: int) -> None:
+    """ADR-018 S9: the breaker's page stands in for per-run stale pages during a read outage."""
+    with pytest.raises(WorkerConfigError, match="PROVIDER_BREAKER_PAGE_AFTER_SECONDS"):
+        replace(VALID, provider_page_after=timedelta(seconds=page_after))
+
+
+def test_a_maximum_open_interval_below_the_first_is_refused() -> None:
+    with pytest.raises(WorkerConfigError, match="PROVIDER_BREAKER_MAX_OPEN_SECONDS"):
+        replace(VALID, provider_max_open=timedelta(seconds=10))

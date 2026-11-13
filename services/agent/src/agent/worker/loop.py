@@ -3,8 +3,10 @@ S7).
 
 - **Startup:** one config read. A window below the worst case is fatal; anything else just
   leaves the gate closed until a refresh opens it.
-- **Claim only while the gate is open** (ADR-012 Part 4), one run at a time (S3), polling when
-  idle. The config refresh runs as its own task.
+- **Claim only while the gate is open** (ADR-012 Part 4) **and the write breaker allows it**
+  (ADR-018), one run at a time (S3), polling when idle. In half-open the claim is the probe, chosen
+  by what a failed probe would cost (S3); a probe claim that ends without a send frees the slot
+  (S4). The config refresh runs as its own task.
 - **One claimed run:** the heartbeat holds it while the run is dispatched by status. An
   APPROVED run goes through pre-send and, if it moves, straight into the send loop with the
   same config read. An EXECUTING run goes to the send loop only: **the policy check never runs
@@ -25,7 +27,7 @@ from enum import StrEnum
 
 from agent.core.lifecycle import RunStatus
 from agent.db import claims
-from agent.db.claims import Claim
+from agent.db.claims import Claim, ProbeOrder
 from agent.worker.context import WorkerContext
 from agent.worker.execute import handle_executing
 from agent.worker.gate import refresh_forever, startup_check
@@ -85,12 +87,23 @@ async def _after_failure(ctx: WorkerContext, claim: Claim, exc: BaseException) -
 
 
 async def claim_next(ctx: WorkerContext, worker_id: str) -> Claim | None:
+    """A claim the gate and the write breaker allow; in half-open, the probe (ADR-018 S3)."""
+    breaker = ctx.write_breaker
+    if not (ctx.gate.is_open() and breaker.allows_claim()):
+        return None
+    probing = breaker.probing()
+    probe = (
+        ProbeOrder(ctx.timings.policy.client_timeout, breaker.next_open_for()) if probing else None
+    )
     async with claims.worker_transaction(
         ctx.engine,
         statement_timeout=ctx.timings.statement_timeout,
         lock_timeout=ctx.timings.lock_timeout,
     ) as conn:
-        return await claims.claim_run(conn, worker_id, ctx.timings.lease)
+        claim = await claims.claim_run(conn, worker_id, ctx.timings.lease, probe=probe)
+    if claim is not None and probing:
+        breaker.take_probe()
+    return claim
 
 
 async def run_worker(ctx: WorkerContext, worker_id: str) -> None:
@@ -102,14 +115,18 @@ async def run_worker(ctx: WorkerContext, worker_id: str) -> None:
     )
     reconciler = asyncio.create_task(reconcile_forever(ctx, worker_id))
     logger.info(
-        "worker %s running: send loop and reconcile loop; claim gate %s",
+        "worker %s running: send loop and reconcile loop; claim gate %s; "
+        "provider breakers write %s, read %s",
         worker_id,
         ctx.gate.closed_reason() or "open",
+        ctx.write_breaker.state.value,
+        ctx.read_breaker.state.value,
     )
     stop = asyncio.create_task(ctx.stopping.wait())
     try:
         while not ctx.stopping.is_set():
-            claim = await claim_next(ctx, worker_id) if ctx.gate.is_open() else None
+            ctx.write_breaker.check_page()
+            claim = await claim_next(ctx, worker_id)
             if claim is None:
                 await asyncio.wait({stop}, timeout=ctx.timings.poll.total_seconds())
                 continue
@@ -123,6 +140,7 @@ async def run_worker(ctx: WorkerContext, worker_id: str) -> None:
                     logger.warning("run %s: still busy after the grace period", claim.run_id)
                     run.cancel()
             await asyncio.gather(run, return_exceptions=True)
+            ctx.write_breaker.release_probe()  # S4: a no-op once the probe's send was heard
     finally:
         if ctx.stopping.is_set() and not reconciler.done():
             # A lookup on the wire finishes and its outcome is recorded, within the grace.

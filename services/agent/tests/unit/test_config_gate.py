@@ -1,4 +1,4 @@
-"""The claim gate (ADR-012 Part 4, ADR-013, ADR-014 Part 4, ADR-016 Part 3)."""
+"""The claim gate (ADR-012 Part 4, ADR-013, ADR-014 Part 4)."""
 
 import asyncio
 from datetime import timedelta
@@ -197,14 +197,3 @@ async def test_refresh_keeps_going_and_an_unexpected_error_closes_the_gate() -> 
         await asyncio.gather(task, return_exceptions=True)
     assert gate.is_open(), "later refreshes reopened it"
     assert "provider_config_read_failed" in alerter.kinds(Severity.ALERT)
-
-
-async def test_a_failed_reconcile_lookup_closes_the_gate_until_a_read_succeeds() -> None:
-    gate, alerter, _ = make_gate()
-    await feed(gate, FITS)
-    assert gate.is_open()
-    gate.lookup_failed()
-    assert (gate.state, gate.closed_reason()) == (GateState.LOOKUP_FAILED, "lookup_failed")
-    assert alerter.raised == [], "the reconciler raises its own alert"
-    await feed(gate, FITS)
-    assert gate.is_open()

@@ -30,7 +30,7 @@ from agent.refund_client.http import RefundClient
 from agent.refund_client.models import RefundPayload
 from agent.worker import execute, gate
 from agent.worker.execute import ExecutingResult, ExecutingStep, handle_executing
-from agent.worker.hooks import WorkerHooks
+from agent.worker.hooks import NO_FAULTS, WorkerHooks
 from agent.worker.lease import StepClock
 
 RETRY = RetryPolicy(
@@ -39,7 +39,7 @@ RETRY = RetryPolicy(
     backoff_cap=timedelta(seconds=0.5),
     client_timeout=timedelta(seconds=3),
 )  # worst case 10 s
-FAST = replace(TIMINGS, policy=RETRY, max_failed_reads=3)
+FAST = replace(TIMINGS, policy=RETRY, max_failed_reads=3, provider_failure_threshold=2)
 TIMEOUT = RETRY.client_timeout.total_seconds()
 WIDE = config_result(window_ms=300_000, retention_ms=3_600_000)
 NO_RESPONSE = HttpResult(status=None)
@@ -59,8 +59,9 @@ def harness(
     client: ScriptedRefundClient | None = None,
 ) -> Harness:
     configs = list(configs) or [WIDE] * 5
-    kwargs = {"hooks": hooks} if hooks else {}
-    return Harness(engine, configs=configs, sends=sends, timings=FAST, client=client, **kwargs)
+    return Harness(
+        engine, configs=configs, sends=sends, timings=FAST, client=client, hooks=hooks or NO_FAULTS
+    )
 
 
 async def execute_run(

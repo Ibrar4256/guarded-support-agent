@@ -5,18 +5,22 @@ Each pass, one run at a time:
    unresolved past ``RECONCILER_STALE_ALERT_SECONDS`` alerts, and past
    ``RECONCILER_STALE_PAGE_SECONDS`` pages, both limited per run by the alerter. A run whose
    latest "not found" the kill switch held doesn't page on its own: those page once, together.
+   While the read breaker is in an outage, only runs whose last outcome was their own failure
+   page on their own; the breaker's page stands for the rest (ADR-018 S9).
 2. **A fresh ``GET /config``** (ADR-016 Part 2), not the gate's cache, which can be a refresh
-   interval old. It feeds the gate; the loop claims only while the gate is open, with the budget
-   just read in the quiet period.
+   interval old. It feeds the gate; the loop claims only while the gate is open **and the read
+   breaker allows it** (ADR-018), with the budget just read in the quiet period. In half-open the
+   claim is the probe; one that makes no lookup frees the slot (S4).
 3. **Look the refund up** by ``action_id`` under the worker's lease, heartbeat and fencing, and
    classify it against the stored payload (ADR-012).
 4. **Found** → ``confirmed``, plus an alert for two or more (ADR-010). **Not found** →
    ``rejected``/``ESCALATED``, unless the kill switch is on: then no decision, a cooldown and no
    streak (Part 4). The switch is read in the transaction that decides.
 5. **A failure** always releases with the cooldown (S5):
-   - refund-api's (it didn't answer): the gate closes until a config read succeeds, one alert
-     for all runs per interval (ADR-017 S1), 401/403 pages. It counts toward the run's streak
-     only if refund-api answered another run's lookup since this run last failed (ADR-017).
+   - refund-api's (it didn't answer): the read breaker hears it (ADR-018; it no longer closes
+     the shared gate, which would also stop the send loop), one alert for all runs per interval
+     (ADR-017 S1), 401/403 pages. It counts toward the run's streak only if refund-api answered
+     another run's lookup since this run last failed (ADR-017; the count is the read breaker's).
    - the run's (a mismatched refund, no payload to look up, an unexpected error): an alert and
      the streak; at the limit a page with the ``run_id``, status untouched.
 """
@@ -24,6 +28,7 @@ Each pass, one run at a time:
 import asyncio
 import logging
 import uuid
+from collections.abc import Callable
 from contextlib import AbstractAsyncContextManager
 from datetime import timedelta
 from enum import StrEnum
@@ -39,6 +44,7 @@ from agent.core.refund_outcome import (
     LookupKind,
     LookupOutcome,
     classify_lookup,
+    lookup_health,
 )
 from agent.db import claims, execution
 from agent.db import reconcile as db
@@ -66,41 +72,52 @@ class Reconciled(StrEnum):
 class LookupEvidence:
     """What the loop remembers about runs between passes (ADR-017), in process memory.
 
-    - Whether a repeated refund-api-type failure is the run's own: counts the lookups refund-api
-      answered (any well-formed 200) and, per run, that count at the run's last refund-api-type
-      failure. A repeat counts toward the streak only if refund-api has answered someone else
-      since. A restart costs one extra cycle.
-    - Which runs' latest lookup was a "not found" the kill switch held (S4): set by that outcome
-      only, cleared whenever the run is claimed again. A restart forgets it, so those runs page
-      on their own until their next pass: the safe direction."""
+    - Whether a repeated refund-api-type failure is the run's own: per run, how many lookups
+      refund-api had answered (the read breaker's success count, ADR-018 S7) at the run's last
+      refund-api-type failure. A repeat counts toward the streak only if refund-api has answered
+      someone else since. A restart costs one extra cycle.
+    - Which runs' latest lookup was a "not found" the kill switch held (S4), and which runs' last
+      outcome was their own failure (ADR-018 S9): set by that outcome only, cleared whenever the
+      run is claimed again. A restart forgets them, so those runs page on their own until their
+      next pass: the safe direction for held runs, and during a read outage the breaker's own
+      page stands in."""
 
-    def __init__(self) -> None:
-        self._answered = 0
+    def __init__(self, answered: Callable[[], int]) -> None:
+        self._answered = answered
         self._failed_at: dict[uuid.UUID, int] = {}
         self._held: set[uuid.UUID] = set()
+        self._own_failure: set[uuid.UUID] = set()
+
+    def claimed(self, run_id: uuid.UUID) -> None:
+        """Only this pass's outcome may set the marks again."""
+        self._held.discard(run_id)
+        self._own_failure.discard(run_id)
 
     def hold(self, run_id: uuid.UUID) -> None:
         self._held.add(run_id)
 
-    def unhold(self, run_id: uuid.UUID) -> None:
-        self._held.discard(run_id)
-
     def is_held(self, run_id: uuid.UUID) -> bool:
         return run_id in self._held
 
+    def failed_on_its_own(self, run_id: uuid.UUID) -> None:
+        self._own_failure.add(run_id)
+
+    def last_failed_on_its_own(self, run_id: uuid.UUID) -> bool:
+        return run_id in self._own_failure
+
     def answered(self, run_id: uuid.UUID) -> None:
-        self._answered += 1
         self._failed_at.pop(run_id, None)
 
     def provider_failure_counts(self, run_id: uuid.UUID) -> bool:
         before = self._failed_at.get(run_id)
-        self._failed_at[run_id] = self._answered
-        return before is not None and self._answered > before
+        now = self._answered()
+        self._failed_at[run_id] = now
+        return before is not None and now > before
 
 
 async def reconcile_forever(ctx: WorkerContext, worker_id: str) -> None:
     """Until ``ctx.stopping`` is set. A pass in progress finishes; ``run_worker`` bounds it."""
-    evidence = LookupEvidence()
+    evidence = LookupEvidence(lambda: ctx.read_breaker.successes)
     stop = asyncio.create_task(ctx.stopping.wait())
     try:
         while not ctx.stopping.is_set():
@@ -121,21 +138,29 @@ async def reconcile_once(
     ctx: WorkerContext, worker_id: str, evidence: LookupEvidence
 ) -> Reconciled | None:
     """One pass. None means nothing was claimed."""
+    breaker = ctx.read_breaker
+    breaker.check_page()
     await _signal_stale(ctx, evidence)
     read = await _fresh_read(ctx)
     ctx.gate.record(read)
-    if read.config is None or not ctx.gate.is_open():
+    if read.config is None or not ctx.gate.is_open() or not breaker.allows_claim():
         return None
+    probing = breaker.probing()
     claim = await _claim(ctx, worker_id, read.config.processing_budget)
     if claim is None:
         return None
-    return await process_reconcile(ctx, claim, evidence)
+    if probing:
+        breaker.take_probe()
+    try:
+        return await process_reconcile(ctx, claim, evidence)
+    finally:
+        breaker.release_probe()  # S4: a no-op once the probe's lookup was heard
 
 
 async def process_reconcile(
     ctx: WorkerContext, claim: Claim, evidence: LookupEvidence
 ) -> Reconciled:
-    evidence.unhold(claim.run_id)  # only a held "not found" in this pass sets it again
+    evidence.claimed(claim.run_id)
     clock = StepClock(ctx.timings.max_step)
     try:
         return await hold_claim(
@@ -147,7 +172,7 @@ async def process_reconcile(
         kind = "reconcile_step_overrun" if isinstance(exc, StepOverrun) else "reconcile_error"
         logger.error("run %s: %s", claim.run_id, kind, exc_info=exc)
         try:
-            return await _run_failed(ctx, claim, kind, type(exc).__name__)
+            return await _run_failed(ctx, claim, evidence, kind, type(exc).__name__)
         except Exception:
             # The lease expires normally; the run stays NEEDS_RECONCILIATION.
             logger.exception("run %s: release after failure failed", claim.run_id)
@@ -165,16 +190,19 @@ async def _reconcile(
         return Reconciled.LOST
     payload = _payload(state.canonical_payload)
     if payload is None:
-        return await _run_failed(ctx, claim, "reconcile_unreadable_run", "no canonical payload")
+        return await _run_failed(
+            ctx, claim, evidence, "reconcile_unreadable_run", "no canonical payload"
+        )
 
     clock.begin_step()
     result = await ctx.client.lookup(payload.order_id, payload.action_id)
+    ctx.read_breaker.record(lookup_health(result))
     outcome = classify_lookup(result, payload.as_sent())
     if outcome.fault is LookupFault.PROVIDER:
         return await _provider_failed(ctx, claim, evidence, result.status, outcome.reason)
     evidence.answered(claim.run_id)
     if outcome.fault is LookupFault.RUN:
-        return await _run_failed(ctx, claim, "reconcile_lookup_mismatch", outcome.reason)
+        return await _run_failed(ctx, claim, evidence, "reconcile_lookup_mismatch", outcome.reason)
     clock.begin_step()
     return await _decide(ctx, claim, payload, outcome, evidence)
 
@@ -232,7 +260,6 @@ async def _provider_failed(
     status: int | None,
     reason: str,
 ) -> Reconciled:
-    ctx.gate.lookup_failed()
     if status in AUTH_STATUSES:
         ctx.alerter.page("refund_api_auth_failed", reason=reason)
     else:
@@ -247,7 +274,10 @@ async def _provider_failed(
     return Reconciled.LOST if released is Released.LOST else Reconciled.PROVIDER_FAILED
 
 
-async def _run_failed(ctx: WorkerContext, claim: Claim, kind: str, reason: str) -> Reconciled:
+async def _run_failed(
+    ctx: WorkerContext, claim: Claim, evidence: LookupEvidence, kind: str, reason: str
+) -> Reconciled:
+    evidence.failed_on_its_own(claim.run_id)
     ctx.alerter.alert(kind, run_id=claim.run_id, reason=reason)
     released = await release_with_cooldown(ctx, claim, reason=kind)
     return Reconciled.LOST if released is Released.LOST else Reconciled.RUN_FAILED
@@ -263,6 +293,7 @@ async def _signal_stale(ctx: WorkerContext, evidence: LookupEvidence) -> None:
         ctx.alerter.alert("reconcile_stale_scan_failed", error=type(exc).__name__)
         return
     held_past_page = 0
+    read_outage = ctx.read_breaker.in_outage()
     for run in stale:
         seconds = round(run.unresolved.total_seconds())
         ctx.alerter.alert("reconcile_stale_unknown", run_id=run.run_id, unresolved_seconds=seconds)
@@ -270,6 +301,8 @@ async def _signal_stale(ctx: WorkerContext, evidence: LookupEvidence) -> None:
             continue
         if evidence.is_held(run.run_id):
             held_past_page += 1
+        elif read_outage and not evidence.last_failed_on_its_own(run.run_id):
+            continue  # ADR-018 S9: the read breaker's page stands for it
         else:
             ctx.alerter.page(
                 "reconcile_stale_unknown", run_id=run.run_id, unresolved_seconds=seconds

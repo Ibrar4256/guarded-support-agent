@@ -19,6 +19,7 @@ from agent.worker.gate import ConfigGate
 from agent.worker.hooks import NO_FAULTS, WorkerHooks
 from agent.worker.lease import new_worker_id
 from agent.worker.loop import run_worker
+from agent.worker.provider_health import provider_breakers
 from agent.worker.settings import CONFIG_ERRORS, WorkerSettings
 
 logger = logging.getLogger("agent.worker")
@@ -43,6 +44,7 @@ async def serve(settings: WorkerSettings, hooks: WorkerHooks = NO_FAULTS) -> Non
     )
     client = HttpRefundClient(settings.refund)
     alerter = LogAlerter(settings.alert_interval)
+    write_breaker, read_breaker = provider_breakers(settings.timings, alerter)
     ctx = WorkerContext(
         engine=engine,
         client=client,
@@ -55,6 +57,8 @@ async def serve(settings: WorkerSettings, hooks: WorkerHooks = NO_FAULTS) -> Non
             alerter=alerter,
         ),
         alerter=alerter,
+        write_breaker=write_breaker,
+        read_breaker=read_breaker,
         hooks=hooks,
     )
     loop = asyncio.get_running_loop()

@@ -29,13 +29,20 @@ async def refunds(e2e: E2E, made: dict[str, Any]) -> int:
 
 async def test_a_slow_commit_is_waited_out_and_confirmed(e2e: E2E) -> None:
     """The agent's attempts end (a timeout, then 409s) before refund-api commits; the reconciler
-    waits out the quiet period, finds the refund and confirms it."""
+    waits out the quiet period, finds the refund and confirms it.
+
+    A warm-up refund goes first, so the write breaker is closed (ADR-018): there the timeout
+    counts once toward its threshold and the 409s are neutral, so the attempts run out as they
+    would in a running worker. In a fresh worker the timeout would be the half-open probe, and
+    the run would be paused instead of reconciled."""
+    warm_up = await approved(e2e, 1_000)
     made = await approved(e2e, 2_000)
     await e2e.refund_api.plan(made["action_id"], "slow_commit", seconds=SLOW_COMMIT_SECONDS)
     worker = await e2e.start_worker()
     row = await e2e.until_status(made["run_id"], UNSETTLED)
     assert (row["status"], row["send_attempts"]) == ("NEEDS_RECONCILIATION", 3)
     assert await refunds(e2e, made) == 0, "a zero quiet period would find nothing here"
+    assert (await e2e.run_row(warm_up["run_id"]))["status"] == "COMPLETED"
     row = await e2e.until_status(made["run_id"], SETTLED)
     assert (row["status"], row["outcome"]) == ("COMPLETED", "confirmed")
     assert "slow_commit" in await e2e.refund_api.applied(made["action_id"])

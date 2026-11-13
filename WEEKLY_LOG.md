@@ -773,3 +773,43 @@ choose who pays for it.
 
 **What's next:** the code, starting with refund-api's per-action fault mode for the e2e test.
 
+### Agent side, step 4: provider breakers (ADR-018) (2026-11-13)
+
+**What shipped:**
+- `agent/worker/provider_health.py`: two in-process provider breakers, write (fed by sends, gates
+  the send loop) and read (fed by lookups, gates the reconcile loop), starting half-open, with a
+  doubling, capped open interval and a page for long outages. `core.refund_outcome.send_health` /
+  `lookup_health` say what a response means for health (no answer, 5xx, an undocumented status or
+  a non-JSON body fail; 409/429/401/403 are neutral), with the documented status sets pinned to the
+  OpenAPI contract by a test.
+- The send loop claims only while its breaker allows; a half-open probe claim orders by cost (a run
+  doomed by its window, then an approval, then fewest attempts); a run between attempts is released
+  with the cooldown and no streak when the breaker opens; a probe claim that sends nothing frees
+  the slot. The reconcile loop's read breaker replaces `gate.lookup_failed()` (which also stopped
+  the send loop), holds ADR-017's evidence count, and suppresses per-run stale pages during a read
+  outage except for runs that last failed on their own.
+- `PROVIDER_BREAKER_*` settings with startup guards (threshold below the attempt count; the
+  breaker's page before the stale page).
+- refund-api's test build: a per-action `fail_all` fault (sends via the existing hook; lookups via
+  an innermost middleware, after auth).
+- e2e: an outage on the test's actions pauses sending (runs stay `EXECUTING`, attempts left) and
+  every refund completes after the plan is lifted, none escalated.
+- Tests: 38 unit, 22 integration, 1 e2e; 21 plants caught.
+
+**What broke:**
+- Two plants slipped through at first. The doomed-first test passed without the probe ordering,
+  because the doomed run was also the only `EXECUTING` one, which ADR-014's order picks anyway; it
+  now has a healthy `EXECUTING` run approved earlier. The half-open-start test passed with breakers
+  starting closed, because its helper passed the state explicitly; a test now builds them through
+  the production factory.
+- Two e2e tests changed meaning: a fresh worker's first send is a probe, so a timeout there pauses
+  sending instead of retrying. They now warm the worker with one refund, which is the running
+  worker their paths belong to, and say so.
+- A plant of mine was itself broken (an emptied function body is a syntax error, exit code 4);
+  re-planted as `pass`, it was caught.
+
+**What I learned:** a negative control has to make the two orders disagree, or it proves nothing;
+and a test helper that passes the default explicitly can't catch a changed default.
+
+**What's next:** the agent half of the seed and the order-lookup tool.
+

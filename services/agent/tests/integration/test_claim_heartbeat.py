@@ -38,8 +38,12 @@ FAST = WorkerTimings(
     quiet_margin=timedelta(seconds=0.2),
     stale_unknown_after=timedelta(seconds=60),
     stale_page_after=timedelta(seconds=120),
+    provider_failure_threshold=1,
+    provider_open=timedelta(seconds=1),
+    provider_max_open=timedelta(seconds=4),
+    provider_page_after=timedelta(seconds=60),
     policy=RetryPolicy(
-        attempts=1,
+        attempts=2,
         backoff_base=timedelta(seconds=0.05),
         backoff_cap=timedelta(seconds=0.05),
         client_timeout=timedelta(seconds=0.2),

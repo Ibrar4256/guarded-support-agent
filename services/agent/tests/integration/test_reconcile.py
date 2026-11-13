@@ -4,17 +4,17 @@ control; every wait is bounded; the reconciler never sends (checked after every 
 import asyncio
 import logging
 import uuid
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import timedelta
 from typing import Any
 
 import pytest
-from agent_testing.fakes import ScriptedRefundClient, config_result, created_result, lookup_result
+from agent_testing.fakes import config_result, created_result, lookup_result
 from sqlalchemy import ColumnElement, FromClause, func, text, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine
-from worker_harness import FITS, READ_WINDOW_MS, RETRY, TIMINGS, Harness
+from worker_harness import READ_WINDOW_MS, RETRY, TIMINGS, Harness, Lookups
 from worker_world import World
 
 from agent.alerts import LogAlerter, Severity
@@ -40,40 +40,6 @@ MARGIN = TIMINGS.quiet_margin  # 2 s
 NOTHING = lookup_result()
 UNAVAILABLE = HttpResult(status=500)
 
-Answer = HttpResult | Exception | Callable[[], Awaitable[HttpResult]]
-
-
-class Lookups(ScriptedRefundClient):
-    """Answers each lookup by ``action_id`` (the order runs are claimed in doesn't matter);
-    config reads answer ``FITS`` unless scripted. Sends stay strict: none are scripted."""
-
-    def __init__(
-        self,
-        answers: dict[str, Answer] | None = None,
-        *,
-        configs: Iterable[HttpResult] = (),
-        then_config: HttpResult = FITS,
-        sends: Iterable[HttpResult] = (),
-    ) -> None:
-        super().__init__(configs=configs, then_config=then_config, sends=sends)
-        self.answers: dict[str, Answer] = dict(answers or {})
-        self.then_config: HttpResult = then_config
-
-    async def read_config(self) -> HttpResult:
-        self._then_config = self.then_config
-        return await super().read_config()
-
-    async def lookup(self, order_id: str, action_id: str) -> HttpResult:
-        self.lookups.append((order_id, action_id))
-        if action_id not in self.answers:
-            raise AssertionError(f"unscripted lookup for {action_id}")
-        answer = self.answers[action_id]
-        if isinstance(answer, Exception):
-            raise answer
-        if callable(answer):
-            return await answer()
-        return answer
-
 
 class Reconciler:
     def __init__(
@@ -86,7 +52,7 @@ class Reconciler:
     ) -> None:
         self.client = client
         self.h = Harness(engine, client=client, timings=timings, hooks=hooks)
-        self.evidence = LookupEvidence()
+        self.evidence = LookupEvidence(lambda: self.h.ctx.read_breaker.successes)
 
     async def run_pass(self) -> Reconciled | None:
         sent_before = len(self.client.sent)
@@ -259,13 +225,15 @@ class Redeploy(WorkerHooks):
         self.client.then_config = self.raised
 
 
-ONE_SHOT = replace(TIMINGS, policy=replace(RETRY, attempts=1))
+# Two attempts so ADR-018 S1 holds; the one send is answered 422, which reconciles at once.
+ONE_SHOT = replace(TIMINGS, policy=replace(RETRY, attempts=2), provider_failure_threshold=1)
+UNKNOWN_OUTCOME = HttpResult(status=422)
 RAISED = config_result(window_ms=READ_WINDOW_MS, retention_ms=3_600_000, budget_ms=20_000)
 
 
 async def send_once_then_wait(world: World, r: Reconciler) -> uuid.UUID:
-    """One send under the 5 s budget read before it, no answer, so the run needs
-    reconciliation; then 16 s pass: the recorded bound (8 + 5 + 2 s) is over, the new budget's
+    """One send under the 5 s budget read before it, answered 422 (outcome unknown), so the run
+    needs reconciliation; then 16 s pass: the recorded bound (8 + 5 + 2 s) is over, the new budget's
     (8 + 20 + 2 s) isn't."""
     run = world.add_executing(sent_seconds_ago=1)
     claimed = await r.h.claim()
@@ -280,7 +248,7 @@ async def send_once_then_wait(world: World, r: Reconciler) -> uuid.UUID:
 async def test_a_budget_raised_between_the_read_and_the_send_is_waited_for(
     world: World, make: Callable[..., Reconciler]
 ) -> None:
-    client = Lookups(sends=[HttpResult(status=None)])
+    client = Lookups(sends=[UNKNOWN_OUTCOME])
     r = make(client, timings=ONE_SHOT, hooks=Redeploy(client, RAISED))
     run = await send_once_then_wait(world, r)
     assert await r.run_pass() is None, "the fresh read's 20 s budget keeps it waiting"
@@ -291,7 +259,7 @@ async def test_a_budget_raised_between_the_read_and_the_send_is_waited_for(
 async def test_negative_control_the_recorded_bound_alone_claims_it_early(
     world: World, make: Callable[..., Reconciler], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    client = Lookups(sends=[HttpResult(status=None)])
+    client = Lookups(sends=[UNKNOWN_OUTCOME])
     r = make(client, timings=ONE_SHOT, hooks=Redeploy(client, RAISED))
     run = await send_once_then_wait(world, r)
     monkeypatch.setattr(
@@ -572,7 +540,7 @@ async def test_an_outage_of_refund_apis_lookups_counts_toward_no_streak_and_page
     for _ in range(2):
         for _ in uncertain:
             assert await r.run_pass() is Reconciled.PROVIDER_FAILED
-            assert r.h.ctx.gate.state is GateState.LOOKUP_FAILED, "the gate closes"
+            assert r.h.ctx.gate.is_open(), "a lookup failure never stops the send loop (ADR-018)"
         assert await r.run_pass() is None, "every run is in its cooldown"
         for run in uncertain:
             world.end_cooldown(run)
@@ -589,7 +557,7 @@ async def test_negative_control_adr016s_config_read_evidence_counts_the_outage(
     def config_read_in_between(self: LookupEvidence, run_id: uuid.UUID) -> bool:
         # Every claim follows a successful config read, so under ADR-016 any repeat counts.
         before = run_id in self._failed_at
-        self._failed_at[run_id] = self._answered
+        self._failed_at[run_id] = self._answered()
         return before
 
     monkeypatch.setattr(LookupEvidence, "provider_failure_counts", config_read_in_between)
@@ -676,7 +644,7 @@ async def test_unauthorized_lookups_page_and_close_the_gate(
     r = make(Lookups({action_of(world, run): HttpResult(status=401)}))
     assert await r.run_pass() is Reconciled.PROVIDER_FAILED
     assert r.h.alerter.kinds(Severity.PAGE) == ["refund_api_auth_failed"]
-    assert r.h.ctx.gate.state is GateState.LOOKUP_FAILED
+    assert r.h.ctx.gate.is_open(), "the read breaker's concern, not the send loop's (ADR-018)"
     row = world.row(run)
     assert (row.status, row.release_streak, row.worker_id) == (
         RunStatus.NEEDS_RECONCILIATION,
@@ -941,7 +909,7 @@ async def test_a_restart_forgets_holds_so_held_runs_page_on_their_own(
 ) -> None:
     r = make()
     held, _ = await hold_one_fail_one(world, r)
-    r.evidence = LookupEvidence()  # a new process
+    r.evidence = LookupEvidence(lambda: r.h.ctx.read_breaker.successes)  # a new process
     assert await r.run_pass() is None
     assert held in stale_pages(r)
 

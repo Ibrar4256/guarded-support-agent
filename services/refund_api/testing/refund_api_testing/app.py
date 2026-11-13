@@ -13,12 +13,15 @@ import os
 from collections.abc import Mapping
 from datetime import timedelta
 from typing import Literal
+from urllib.parse import parse_qs
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import insert
 from sqlalchemy.exc import IntegrityError
+from starlette.middleware import Middleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from refund_api.app import JSON, create_app
 from refund_api.config import APP_ENV, PRODUCTION, ConfigError, Settings, check_production_gate
@@ -87,6 +90,25 @@ def injected_invalid_request(_: Request, exc: Exception) -> Response:
     return Response(body.model_dump_json(), status_code=400, media_type=JSON)
 
 
+class FailingLookups:
+    """``fail_all`` for lookups: ``GET /refunds`` for a planned action answers 500. Production has
+    no hook in the lookup path, and gets none: this runs innermost, after auth and the receipt
+    middleware, so an unauthenticated request is still refused first."""
+
+    def __init__(self, app: ASGIApp, book: FaultBook) -> None:
+        self.app, self.book = app, book
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["method"] == "GET" and scope["path"] == "/refunds":
+            query = parse_qs(scope.get("query_string", b"").decode())
+            action_id = (query.get("action_id") or [""])[0]
+            if action_id and self.book.fire(action_id, FaultMode.FAIL_ALL):
+                failed = Response(Injected().model_dump_json(), status_code=500, media_type=JSON)
+                await failed(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
+
+
 def fault_routes(app: FastAPI, book: FaultBook) -> APIRouter:
     router = APIRouter(prefix=TEST_PREFIX, include_in_schema=False)
 
@@ -146,6 +168,8 @@ def create_fault_app(
     app.state.faults = faults
     app.add_exception_handler(InjectedFault, injected_fault)
     app.add_exception_handler(InjectedInvalidRequest, injected_invalid_request)
+    # Innermost (add_middleware would make it outermost, before auth).
+    app.user_middleware.append(Middleware(FailingLookups, book=faults))
     app.include_router(fault_routes(app, faults))
     return app
 

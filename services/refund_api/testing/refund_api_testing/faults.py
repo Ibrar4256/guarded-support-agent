@@ -7,7 +7,9 @@ Consumption is per mode:
   their point uses them up;
 - dedup_disabled and a retention override stay in effect until the plan is removed,
   because a one-shot dedup_disabled would let the retry deduplicate and the negative
-  control could never fail.
+  control could never fail;
+- fail_all stays in effect too: every refund request and lookup for the action answers 500,
+  as with refund-api's database down, while ``/config`` keeps answering (ADR-018's e2e).
 There is no TTL: a plan that silently expired would let a test pass in normal mode. Every
 applied fault is logged per action, and tests assert the log, so a fault that never fired
 fails the test instead.
@@ -34,6 +36,8 @@ class FaultMode(StrEnum):
     # agent must treat it as unknown, never as "no money moved".
     INVALID_REQUEST_AFTER_COMMIT = "invalid_request_after_commit"
     DEDUP_DISABLED = "dedup_disabled"
+    # Every POST and GET /refunds for the action answers 500 until the plan is removed.
+    FAIL_ALL = "fail_all"
 
 
 ONE_SHOT = frozenset(
@@ -124,6 +128,10 @@ class FaultHooks(RefundHooks):
             return configured
         self.book.record(context.action_id, RETENTION_OVERRIDE)
         return plan.key_retention
+
+    async def before_transaction(self, context: RequestContext) -> None:
+        if self.book.fire(context.action_id, FaultMode.FAIL_ALL):
+            raise InjectedFault(FaultMode.FAIL_ALL)
 
     async def before_commit(self, context: RequestContext) -> None:
         if self.book.fire(context.action_id, FaultMode.FAIL_BEFORE_COMMIT):

@@ -35,6 +35,7 @@ QUICK = RetryPolicy(
 LOOP = replace(
     TIMINGS,
     policy=QUICK,
+    provider_failure_threshold=2,
     lease=timedelta(seconds=1),
     heartbeat=timedelta(seconds=0.1),
     liveness_margin=timedelta(seconds=0.05),

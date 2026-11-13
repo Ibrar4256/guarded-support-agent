@@ -94,6 +94,41 @@ async def test_invalid_request_after_commit_commits_then_answers_like_a_real_one
     assert refund_rows(runtime_engine, action_id=action) == 1
 
 
+async def test_fail_all_fails_every_refund_and_lookup_for_its_action_only(
+    runtime_engine: Engine,
+) -> None:
+    """ADR-018's e2e: refund-api as with its database down, for one action; /config answers."""
+    async with fault_client() as (client, faults):
+        order, action, key = await setup(client)
+        other_order, other_action, other_key = await setup(client)
+        await faults.plan(action, "fail_all")
+        sends = [await post(client, key, order, action) for _ in range(2)]
+        lookup = await client.get(
+            "/refunds", params={"order_id": order, "action_id": action}, headers=AUTH
+        )
+        config = await client.get("/config", headers=AUTH)
+        other = await post(client, other_key, other_order, other_action)
+        applied = await faults.applied(action)
+        await client.delete(f"/_test/faults/{action}", headers=AUTH)
+        after = await post(client, key, order, action)
+    assert [r.status_code for r in sends] == [500, 500] and sends[0].json() == INJECTED
+    assert (lookup.status_code, lookup.json()) == (500, INJECTED)
+    assert applied == ["fail_all"] * 3, "every request, not one-shot"
+    assert (config.status_code, other.status_code) == (200, 201)
+    assert after.status_code == 201 and REPLAYED_HEADER not in after.headers, "nothing committed"
+    assert refund_rows(runtime_engine, action_id=action) == 1
+
+
+async def test_fail_all_still_refuses_an_unauthenticated_lookup_first() -> None:
+    async with fault_client() as (client, faults):
+        order, action, _ = await setup(client)
+        await faults.plan(action, "fail_all")
+        lookup = await client.get("/refunds", params={"order_id": order, "action_id": action})
+        applied = await faults.applied(action)
+    assert lookup.status_code == 401
+    assert applied == [], "auth ran before the fault"
+
+
 async def test_timeout_after_commit_is_committed_not_failed(runtime_engine: Engine) -> None:
     # Logic only: the client gives up; the refund is already committed; a retry replays.
     async with fault_client() as (client, faults):

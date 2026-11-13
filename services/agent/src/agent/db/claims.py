@@ -4,6 +4,8 @@
   ``FOR UPDATE SKIP LOCKED``. The outer ``WHERE`` repeats every condition, so the
   compare-and-set is the guarantee and ``SKIP LOCKED`` only stops workers queueing on one row.
   ``EXECUTING`` runs first (they're aging against their window), then the oldest approval.
+  A half-open write breaker's probe claim orders by what a failed probe would cost instead
+  (ADR-018 S3): a run already doomed by its window, then an approval, then fewest attempts.
 - **Fencing**: every write a worker makes is conditional on the ``claim_version`` it claimed.
 - **Release** (S9, S12): always bumps ``claim_version``, so the releasing worker's version is
   dead the moment it lets go. A cooldown release also sets ``claimable_after``; whether it
@@ -18,7 +20,19 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import ColumnElement, FromClause, and_, func, or_, select, text, update
+from sqlalchemy import (
+    ColumnElement,
+    FromClause,
+    Interval,
+    and_,
+    case,
+    func,
+    literal_column,
+    or_,
+    select,
+    text,
+    update,
+)
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from agent.core.capacity import ApprovalSource
@@ -52,6 +66,27 @@ class Held:
 class Release:
     released: bool
     release_streak: int | None = None
+
+
+@dataclass(frozen=True)
+class ProbeOrder:
+    """ADR-018 S3: a probe claim's inputs. A run is doomed when its window (on its snapshot)
+    leaves less than ``next_open`` before its last possible send."""
+
+    client_timeout: timedelta
+    next_open: timedelta
+
+
+MILLISECOND = literal_column("interval '1 millisecond'", Interval)
+
+
+def probe_order(r: FromClause, probe: ProbeOrder) -> list[ColumnElement[Any]]:
+    last_send_by = (
+        r.c.first_send_started_at + r.c.send_window_ms * MILLISECOND - probe.client_timeout
+    )
+    doomed = and_(r.c.status == RunStatus.EXECUTING, last_send_by < func.now() + probe.next_open)
+    rank = case((doomed, 0), (r.c.status == RunStatus.APPROVED, 1), else_=2)
+    return [rank, r.c.send_attempts, r.c.approved_at, r.c.id]
 
 
 @dataclass(frozen=True)
@@ -107,16 +142,23 @@ def fenced(claim: Claim) -> ColumnElement[bool]:
     return and_(runs.c.id == claim.run_id, runs.c.claim_version == claim.claim_version)
 
 
-async def claim_run(conn: AsyncConnection, worker_id: str, lease: timedelta) -> Claim | None:
+async def claim_run(
+    conn: AsyncConnection, worker_id: str, lease: timedelta, *, probe: ProbeOrder | None = None
+) -> Claim | None:
     candidate = runs.alias("candidate")
-    pick = (
-        select(candidate.c.id)
-        .where(*claim_conditions(candidate, current_controls()).values())
-        .order_by(
+    order: list[ColumnElement[Any]] = (
+        [
             (candidate.c.status == RunStatus.EXECUTING).desc(),
             candidate.c.approved_at,
             candidate.c.id,
-        )
+        ]
+        if probe is None
+        else probe_order(candidate, probe)
+    )
+    pick = (
+        select(candidate.c.id)
+        .where(*claim_conditions(candidate, current_controls()).values())
+        .order_by(*order)
         .limit(1)
         .with_for_update(of=candidate, skip_locked=SKIP_LOCKED)
         .correlate(None)

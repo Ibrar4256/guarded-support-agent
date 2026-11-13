@@ -184,12 +184,6 @@ lives in `WEEKLY_LOG.md`.
 - **A degraded (not down) refund-api pages per failing run** (ADR-017): when some lookups fail and
   others are answered, the evidence counter moves, so each failing run builds a streak and pages,
   although the cause is one dependency. Bounded by the streak limit and per-run rate limiting.
-- **The send path is blind to a refund-api database outage** (ADR-017 Consequences, owner ADR-018):
-  the claim gate is fed only by config reads, and `GET /config` never touches refund-api's
-  database. During such an outage sends get fast 5xx, attempts run out in seconds, and after
-  recovery each run is correctly found missing and ends `rejected`/`ESCALATED`: every refund
-  approved during the outage goes to a person. No money is lost. ADR-018 (a provider circuit
-  breaker on real request outcomes) must land before the worker is deployed.
 - **An idle reconciler reads `GET /config` once per poll interval** (a fresh read each pass,
   ADR-016 Part 2), and scans for stale runs. Both are cheap now; neither has a dedicated index for
   `NEEDS_RECONCILIATION` runs (the partial index covers APPROVED/EXECUTING only). Add one if
@@ -203,6 +197,39 @@ lives in `WEEKLY_LOG.md`.
   rejected" mapping and the quiet-period plants are proven in-process; a manual plant that drops
   the quiet condition makes the e2e test end `rejected`. The e2e profile's refund-api budget
   (5 s) is longer than the agent's three attempts so a commit can land after they end.
+
+## Provider breakers (ADR-018)
+
+- **Per-process learning.** Each worker process has its own breakers; with several workers each
+  spends a threshold's worth of failures before it pauses. Shared state (ADR-018 Option C) is the
+  fix once more than one worker runs.
+- **A failed write probe can cost one run its send window.** A probe on a fresh approval starts
+  its window; the probe order (a doomed run first, then an approval, then fewest attempts) bounds
+  the loss at one run per failed probe, logarithmic in the outage's length up to
+  `PROVIDER_BREAKER_MAX_OPEN_SECONDS`. That maximum trades recovery speed against this cost; keep
+  it below refund-api's retry window minus the client timeout.
+- **A probe is a real, counted request**, and may commit.
+- **S1 protects only runs with a full budget**: a run resumed with most attempts used can reach
+  reconciliation before the write breaker opens.
+- **An unrecognized status still reconciles up to a threshold's worth of runs** (a 404 for
+  everything): ADR-012 keeps classifying it as `RECONCILE`, and the breaker opens only after the
+  threshold.
+- **A degraded refund-api can pause every refund on a path**, including those that would have gone
+  through.
+- **An outage longer than a run's window** still ends in reconciliation and escalation for runs
+  already `EXECUTING`.
+- **A fresh worker's first send is a probe** (breakers start half-open): one blip there pauses
+  sending for the claim cooldown. Two e2e tests warm the worker with one refund first, because
+  the paths they test (a timeout retried; attempts spent, then reconciliation) are a running,
+  closed-breaker worker's.
+- **`REFUND_CLIENT_MAX_ATTEMPTS` must now be at least 2** (the threshold must be at least 1 and
+  below it).
+- **The send-loop and reconciler integration tests run with breakers that never open**
+  (`worker_harness.never_opening`), so they test those loops' own rules; the breaker interactions
+  are tested with production-built breakers in `test_provider_breakers.py`.
+- **refund-api's `fail_all` lookup fault is a test-build middleware**, installed innermost (after
+  auth) through Starlette's `user_middleware` list, because production has no hook in the lookup
+  path and gets none.
 
 ## End-to-end crash tests (ADR-015)
 

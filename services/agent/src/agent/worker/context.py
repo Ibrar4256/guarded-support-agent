@@ -13,6 +13,7 @@ from agent.refund_client.config import RefundClientSettings
 from agent.refund_client.http import RefundClient
 from agent.worker.gate import ConfigGate
 from agent.worker.hooks import NO_FAULTS, WorkerHooks
+from agent.worker.provider_health import ProviderBreaker
 from agent.worker.timings import WorkerTimings
 
 
@@ -25,6 +26,9 @@ class WorkerContext:
     policy: PolicyConfig
     gate: ConfigGate
     alerter: Alerter
+    # ADR-018: refund-api's health per path, judged on real requests (sends; lookups).
+    write_breaker: ProviderBreaker
+    read_breaker: ProviderBreaker
     hooks: WorkerHooks = NO_FAULTS
     # Injected so tests are deterministic and fast (ADR-007: randomness and time injected).
     jitter: Callable[[], float] = random.random

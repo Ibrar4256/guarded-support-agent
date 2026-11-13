@@ -114,10 +114,17 @@ async def test_negative_control_the_tight_case_under_dedup_disabled_refunds_twic
 async def test_a_timeout_after_commit_is_retried_with_the_same_key(e2e: E2E) -> None:
     """refund-api holds one fault plan per action, so this can't also run under
     ``dedup_disabled``; its control is that the timeout fired and a second attempt really went
-    out: one refund after two sends means the key was deduplicated."""
+    out: one refund after two sends means the key was deduplicated.
+
+    A warm-up refund goes first (claimed first, as the older approval): a fresh worker's write
+    breaker is half-open (ADR-018 S5), so its first send is a probe and a timeout there would
+    pause sending for the cooldown. A running worker's breaker is closed, and one timeout counts
+    once toward its threshold; that is the case tested here."""
+    warm_up = await approved(e2e, 1_000)
     made = await approved(e2e, 2_000)
     await e2e.refund_api.plan(made["action_id"], "timeout_after_commit", seconds=HANG_SECONDS)
     row = await resume_to(e2e, made, {"COMPLETED"})
+    assert (await e2e.run_row(warm_up["run_id"]))["status"] == "COMPLETED"
     assert (row["outcome"], row["send_attempts"]) == ("confirmed", 2)
     assert "timeout_after_commit" in await e2e.refund_api.applied(made["action_id"])
     assert await refunds(e2e, made) == 1

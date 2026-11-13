@@ -13,6 +13,10 @@ Each round, in this order:
 5. **Classify** (ADR-012) and move, or back off and go round again.
 A failed read sends nothing and counts nothing; it ends through the run's own snapshot, a
 bounded number of failed reads, or a successful read (Part 4).
+
+**The write breaker** (ADR-018) hears every real send's outcome. Before each attempt the run
+checks it: open, and this run isn't the probe, means release with the cooldown and no streak
+(S2). Nothing more is sent, so nothing more is counted; the run resumes when the breaker closes.
 """
 
 import time
@@ -31,6 +35,7 @@ from agent.core.refund_outcome import (
     SendKind,
     classify_send,
     send_allowed,
+    send_health,
 )
 from agent.db import claims
 from agent.db import execution as db
@@ -81,6 +86,8 @@ async def handle_executing(
         if ctx.stopping.is_set():
             # S7: between attempts; the last one's outcome is already recorded or retryable.
             return await _release(ctx, claim, "worker stopping")
+        if not ctx.write_breaker.allows_attempt():
+            return await _release_for_outage(ctx, claim)
         clock.begin_step()
         if provider is None:
             read = await read_config(ctx.client, ctx.refund_settings)
@@ -111,6 +118,7 @@ async def handle_executing(
         remaining = deadline - monotonic()
         if remaining > 0:
             result = await ctx.client.send(attempt.payload, attempt.key, timeout=remaining)
+            ctx.write_breaker.record(send_health(result))
         else:
             result = HttpResult(status=None)  # budget spent before sending: counted, unsent
         await ctx.hooks.after_refund_response(claim.run_id)
@@ -220,6 +228,18 @@ async def _release(ctx: WorkerContext, claim: Claim, reason: str) -> ExecutingRe
         released = await claims.release_claim(conn, claim)
     return ExecutingResult(
         ExecutingStep.RELEASED if released.released else ExecutingStep.LOST, reason
+    )
+
+
+async def _release_for_outage(ctx: WorkerContext, claim: Claim) -> ExecutingResult:
+    """ADR-018 S2: refund-api's fault, not the run's: the cooldown (ADR-016 S6), no streak."""
+    async with _transaction(ctx) as conn:
+        released = await claims.release_claim(
+            conn, claim, cooldown=ctx.timings.claim_cooldown, count_streak=False
+        )
+    return ExecutingResult(
+        ExecutingStep.RELEASED if released.released else ExecutingStep.LOST,
+        "write breaker open",
     )
 
 

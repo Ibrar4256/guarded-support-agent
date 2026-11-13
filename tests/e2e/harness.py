@@ -273,6 +273,12 @@ class RefundApi:
             response = await http.post("/_test/faults", json=body)
         assert response.status_code == 201, response.text
 
+    async def remove(self, action_id: str) -> None:
+        """Lift the action's plan (its applied log goes with it)."""
+        async with self.client() as http:
+            response = await http.delete(f"/_test/faults/{action_id}")
+        assert response.status_code == 204, response.text
+
     async def applied(self, action_id: str) -> list[str]:
         async with self.client() as http:
             response = await http.get(f"/_test/faults/{action_id}")
