@@ -147,6 +147,11 @@ Not settled:
 ### Part 3 — A lookup that fails
 
 #### Option A: Tell refund-api's failures from the run's; only the run's count toward the streak — CHOSEN
+**Amended by [ADR-017](017-reconciler-streak-evidence.md):** a repeated refund-api-type failure
+counts toward the streak only if refund-api answered another run's lookup in between (not merely a
+config read, since `GET /config` never touches refund-api's database); the stale-unknown signal
+also pages, except for runs whose latest "not found" the kill switch held.
+
 - How it works (ADR-014 Part 4's distinction, applied to lookups):
   - **Every reconciler release applies the cooldown.** Only the streak depends on the cause.
     Status codes can't tell a refund-api outage from a refund-api bug that fails on one
