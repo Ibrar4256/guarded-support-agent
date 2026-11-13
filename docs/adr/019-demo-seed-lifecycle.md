@@ -9,6 +9,10 @@ seed follows ADR-005's lock order (S9).
 **Locked 2026-11-13.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Amended by [ADR-021](021-refund-api-floor-and-demo-seed-split.md):** refund-api's seed takes
+S6's guard too (same flag, exit 2) and writes only charges; the key-retention floor moved to its
+own command, run on every deployment.
+
 **Precedence:** fills in ADR-010 Part 2 ("the agent's seed command writes orders") for the agent
 side. refund-api's seed is unchanged: it reads only the charge fields and ignores the rest.
 

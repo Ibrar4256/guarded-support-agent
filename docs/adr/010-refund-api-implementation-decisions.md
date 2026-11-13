@@ -20,6 +20,11 @@ an authenticated `GET /config`; idempotency keys carry an `expires_at` stamped a
 `prune_expired_key(key)` deletes only when that has passed **and** the key is older than the
 floor (Part 5's promises unchanged).
 
+**Amended by [ADR-021](021-refund-api-floor-and-demo-seed-split.md):** Part 5's floor is set by
+its own owner-role command, `python -m refund_api.retention_floor`, on every deployment, and
+refund-api refuses to start without it; Part 2's seed command writes only the demo charges, and
+only with `DEMO_SEED_ENABLED=true`.
+
 **Precedence:** for **refund-api behavior and the agent's handling of refund-api
 responses**, ADR-010 > ADR-009 > ADR-008 > ADR-001–007. It changes nothing in ADR-009's
 policy rules. The amendments to earlier ADRs are listed in "Amends" below; their locked text
