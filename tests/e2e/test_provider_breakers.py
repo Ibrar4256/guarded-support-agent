@@ -22,6 +22,18 @@ async def approved(e2e: E2E, amount: int) -> dict[str, Any]:
     return made
 
 
+async def settled(e2e: E2E, made: dict[str, Any]) -> dict[str, Any]:
+    """The run once the worker has let go of it or moved it on. refund-api logs a fault when it
+    answers; the worker still has to hear the 500, back off and release, so reading the row right
+    after the log raced that release on a slower machine (CI)."""
+    async with asyncio.timeout(OUTAGE_SECONDS):
+        while True:
+            row = await e2e.run_row(made["run_id"])
+            if row["worker_id"] is None or row["status"] != "EXECUTING":
+                return row
+            await asyncio.sleep(0.1)
+
+
 async def test_a_refund_api_outage_pauses_sending_and_every_refund_completes_after_it(
     e2e: E2E,
 ) -> None:
@@ -34,7 +46,7 @@ async def test_a_refund_api_outage_pauses_sending_and_every_refund_completes_aft
         while not all([await e2e.refund_api.applied(m["action_id"]) for m in runs]):
             await asyncio.sleep(0.2)
     for made in runs:
-        row = await e2e.run_row(made["run_id"])
+        row = await settled(e2e, made)
         assert (row["status"], row["worker_id"]) == ("EXECUTING", None), "paused, not reconciled"
         assert row["send_attempts"] < 3, "released with an attempt left"
         await e2e.refund_api.remove(made["action_id"])
