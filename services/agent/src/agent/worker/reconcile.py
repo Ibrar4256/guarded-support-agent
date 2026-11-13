@@ -1,8 +1,10 @@
 """The reconcile loop (ADR-008 Part 2, ADR-010, ADR-016, ADR-017). It never sends.
 
 Each pass, one run at a time:
-1. **Stale-unknown alert** (ADR-004): every ``NEEDS_RECONCILIATION`` run unresolved past
-   ``RECONCILER_STALE_ALERT_SECONDS`` alerts; the alerter limits it per run.
+1. **Stale-unknown signals** (ADR-004, ADR-017 S3/S4): every ``NEEDS_RECONCILIATION`` run
+   unresolved past ``RECONCILER_STALE_ALERT_SECONDS`` alerts, and past
+   ``RECONCILER_STALE_PAGE_SECONDS`` pages, both limited per run by the alerter. A run whose
+   latest "not found" the kill switch held doesn't page on its own: those page once, together.
 2. **A fresh ``GET /config``** (ADR-016 Part 2), not the gate's cache, which can be a refresh
    interval old. It feeds the gate; the loop claims only while the gate is open, with the budget
    just read in the quiet period.
@@ -62,15 +64,29 @@ class Reconciled(StrEnum):
 
 
 class LookupEvidence:
-    """Whether a repeated refund-api-type failure is the run's own (ADR-017).
+    """What the loop remembers about runs between passes (ADR-017), in process memory.
 
-    Counts the lookups refund-api answered (any well-formed 200) and, per run, that count at
-    the run's last refund-api-type failure. A repeat counts toward the streak only if refund-api
-    has answered someone else since. Kept in process memory: a restart costs one extra cycle."""
+    - Whether a repeated refund-api-type failure is the run's own: counts the lookups refund-api
+      answered (any well-formed 200) and, per run, that count at the run's last refund-api-type
+      failure. A repeat counts toward the streak only if refund-api has answered someone else
+      since. A restart costs one extra cycle.
+    - Which runs' latest lookup was a "not found" the kill switch held (S4): set by that outcome
+      only, cleared whenever the run is claimed again. A restart forgets it, so those runs page
+      on their own until their next pass: the safe direction."""
 
     def __init__(self) -> None:
         self._answered = 0
         self._failed_at: dict[uuid.UUID, int] = {}
+        self._held: set[uuid.UUID] = set()
+
+    def hold(self, run_id: uuid.UUID) -> None:
+        self._held.add(run_id)
+
+    def unhold(self, run_id: uuid.UUID) -> None:
+        self._held.discard(run_id)
+
+    def is_held(self, run_id: uuid.UUID) -> bool:
+        return run_id in self._held
 
     def answered(self, run_id: uuid.UUID) -> None:
         self._answered += 1
@@ -105,7 +121,7 @@ async def reconcile_once(
     ctx: WorkerContext, worker_id: str, evidence: LookupEvidence
 ) -> Reconciled | None:
     """One pass. None means nothing was claimed."""
-    await _alert_stale(ctx)
+    await _signal_stale(ctx, evidence)
     read = await _fresh_read(ctx)
     ctx.gate.record(read)
     if read.config is None or not ctx.gate.is_open():
@@ -119,6 +135,7 @@ async def reconcile_once(
 async def process_reconcile(
     ctx: WorkerContext, claim: Claim, evidence: LookupEvidence
 ) -> Reconciled:
+    evidence.unhold(claim.run_id)  # only a held "not found" in this pass sets it again
     clock = StepClock(ctx.timings.max_step)
     try:
         return await hold_claim(
@@ -159,11 +176,15 @@ async def _reconcile(
     if outcome.fault is LookupFault.RUN:
         return await _run_failed(ctx, claim, "reconcile_lookup_mismatch", outcome.reason)
     clock.begin_step()
-    return await _decide(ctx, claim, payload, outcome)
+    return await _decide(ctx, claim, payload, outcome, evidence)
 
 
 async def _decide(
-    ctx: WorkerContext, claim: Claim, payload: RefundPayload, outcome: LookupOutcome
+    ctx: WorkerContext,
+    claim: Claim,
+    payload: RefundPayload,
+    outcome: LookupOutcome,
+    evidence: LookupEvidence,
 ) -> Reconciled:
     async with _transaction(ctx) as conn:
         state = await db.lock_state(conn, claim)
@@ -199,6 +220,7 @@ async def _decide(
             "duplicate_refunds", run_id=claim.run_id, refund_ids=list(outcome.refund_ids)
         )
     if step is Reconciled.HELD:
+        evidence.hold(claim.run_id)
         ctx.alerter.alert("reconcile_held_by_kill_switch", held_run=str(claim.run_id))
     return step
 
@@ -231,7 +253,7 @@ async def _run_failed(ctx: WorkerContext, claim: Claim, kind: str, reason: str) 
     return Reconciled.LOST if released is Released.LOST else Reconciled.RUN_FAILED
 
 
-async def _alert_stale(ctx: WorkerContext) -> None:
+async def _signal_stale(ctx: WorkerContext, evidence: LookupEvidence) -> None:
     """Never blocks reconciling: a failed scan alerts and the pass goes on."""
     try:
         async with _transaction(ctx) as conn:
@@ -240,12 +262,21 @@ async def _alert_stale(ctx: WorkerContext) -> None:
         logger.exception("stale-unknown scan failed")
         ctx.alerter.alert("reconcile_stale_scan_failed", error=type(exc).__name__)
         return
+    held_past_page = 0
     for run in stale:
-        ctx.alerter.alert(
-            "reconcile_stale_unknown",
-            run_id=run.run_id,
-            unresolved_seconds=round(run.unresolved.total_seconds()),
-        )
+        seconds = round(run.unresolved.total_seconds())
+        ctx.alerter.alert("reconcile_stale_unknown", run_id=run.run_id, unresolved_seconds=seconds)
+        if run.unresolved <= ctx.timings.stale_page_after:
+            continue
+        if evidence.is_held(run.run_id):
+            held_past_page += 1
+        else:
+            ctx.alerter.page(
+                "reconcile_stale_unknown", run_id=run.run_id, unresolved_seconds=seconds
+            )
+    if held_past_page:
+        # S4: the switch holds these by design; one signal for all of them, not one per run.
+        ctx.alerter.page("reconcile_stale_held_by_kill_switch", held_runs=held_past_page)
 
 
 async def _fresh_read(ctx: WorkerContext) -> ConfigRead:

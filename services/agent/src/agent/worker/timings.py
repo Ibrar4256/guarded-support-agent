@@ -31,6 +31,7 @@ POLL = "WORKER_POLL_SECONDS"
 SHUTDOWN_GRACE = "WORKER_SHUTDOWN_GRACE_SECONDS"
 QUIET_MARGIN = "RECONCILER_QUIET_MARGIN_SECONDS"
 STALE_ALERT = "RECONCILER_STALE_ALERT_SECONDS"
+STALE_PAGE = "RECONCILER_STALE_PAGE_SECONDS"
 
 MIN_HEARTBEATS_PER_LEASE = 3
 # The cached provider config goes stale after this many missed refreshes, so one late
@@ -70,6 +71,9 @@ class WorkerTimings:
     quiet_margin: timedelta
     # ADR-004, ADR-016 Part 3: a NEEDS_RECONCILIATION run unresolved this long alerts.
     stale_unknown_after: timedelta
+    # ADR-017 S3: ... and this long pages: the only route to a person for a run whose lookups
+    # fail alone, since those never count toward its streak.
+    stale_page_after: timedelta
     policy: RetryPolicy
 
     def __post_init__(self) -> None:
@@ -86,6 +90,7 @@ class WorkerTimings:
             "shutdown_grace",
             "quiet_margin",
             "stale_unknown_after",
+            "stale_page_after",
         ):
             if getattr(self, name) <= timedelta(0):
                 raise WorkerConfigError(f"{name} must be positive")
@@ -111,6 +116,10 @@ class WorkerTimings:
             raise WorkerConfigError(
                 f"{SHUTDOWN_GRACE} must exceed the client timeout, so an attempt on the wire "
                 "can finish and be recorded before the worker exits"
+            )
+        if self.stale_page_after <= self.stale_unknown_after:
+            raise WorkerConfigError(
+                f"{STALE_PAGE} must exceed {STALE_ALERT}: the page is the later, louder signal"
             )
         if self.lock_timeout > self.statement_timeout:
             raise WorkerConfigError(f"{LOCK_TIMEOUT} must not exceed {STATEMENT_TIMEOUT}")
@@ -149,6 +158,7 @@ class WorkerTimings:
             shutdown_grace=_seconds(environ, SHUTDOWN_GRACE),
             quiet_margin=_seconds(environ, QUIET_MARGIN),
             stale_unknown_after=_seconds(environ, STALE_ALERT),
+            stale_page_after=_seconds(environ, STALE_PAGE),
             policy=policy,
         )
 

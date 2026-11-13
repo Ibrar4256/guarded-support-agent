@@ -42,6 +42,7 @@ VALID = WorkerTimings(
     shutdown_grace=timedelta(seconds=10),
     quiet_margin=timedelta(seconds=2),
     stale_unknown_after=timedelta(seconds=3600),
+    stale_page_after=timedelta(seconds=7200),
     policy=POLICY,
 )
 ENV = {
@@ -61,6 +62,7 @@ ENV = {
     "WORKER_SHUTDOWN_GRACE_SECONDS": "10",
     "RECONCILER_QUIET_MARGIN_SECONDS": "2",
     "RECONCILER_STALE_ALERT_SECONDS": "3600",
+    "RECONCILER_STALE_PAGE_SECONDS": "7200",
 }
 
 
@@ -152,6 +154,7 @@ def test_negative_control_staleness_of_exactly_two_refreshes_is_accepted() -> No
         "config_refresh",
         "quiet_margin",
         "stale_unknown_after",
+        "stale_page_after",
     ],
 )
 def test_non_positive_durations_are_refused(name: str) -> None:
@@ -195,3 +198,10 @@ def test_negative_control_without_begin_step_the_same_time_overruns() -> None:
 
 def test_worker_ids_are_unique_per_call() -> None:
     assert new_worker_id() != new_worker_id()
+
+
+@pytest.mark.parametrize("page_seconds", [3600, 1800])
+def test_a_stale_page_not_later_than_the_alert_is_refused(page_seconds: int) -> None:
+    """ADR-017 S3: the page is the later, louder signal."""
+    with pytest.raises(WorkerConfigError, match="RECONCILER_STALE_PAGE_SECONDS"):
+        replace(VALID, stale_page_after=timedelta(seconds=page_seconds))

@@ -839,6 +839,113 @@ async def test_a_failing_stale_scan_alerts_and_never_blocks_reconciling(
     assert r.raised(Severity.ALERT, "reconcile_stale_scan_failed")
 
 
+# --- the stale-unknown page (ADR-017 S3, S4) ------------------------------------------------
+
+PAGE_AFTER = TIMINGS.stale_page_after.total_seconds()
+ALERT_AFTER = TIMINGS.stale_unknown_after.total_seconds()
+
+
+def stale_pages(r: Reconciler) -> list[uuid.UUID | None]:
+    return [page.run_id for page in r.raised(Severity.PAGE, "reconcile_stale_unknown")]
+
+
+async def test_a_run_failing_alone_pages_past_the_page_threshold_once_per_interval(
+    world: World, make: Callable[..., Reconciler], caplog: pytest.LogCaptureFixture
+) -> None:
+    """Its streak never moves (ADR-017), so the stale page is its route to a person. A run only
+    past the alert threshold alerts and doesn't page."""
+    alone = world.add_uncertain(last_attempt_ago=600)
+    alerted_only = world.add_uncertain(last_attempt_ago=600)
+    world.set(alone, escalated_at=ago(PAGE_AFTER + 60))
+    world.set(alerted_only, escalated_at=ago(ALERT_AFTER + 60))
+    world.set(alerted_only, claimable_after=text("now() + interval '60 seconds'"))
+    r = make(Lookups({action_of(world, alone): UNAVAILABLE}))
+    r.logging_alerts()
+    with caplog.at_level(logging.WARNING, logger="agent.alerts"):
+        for _ in range(3):
+            await r.run_pass()
+            world.end_cooldown(alone)
+    pages = [rec.getMessage() for rec in caplog.records if rec.levelno == logging.CRITICAL]
+    assert len(pages) == 1 and '"reconcile_stale_unknown"' in pages[0] and str(alone) in pages[0]
+    assert world.row(alone).release_streak == 0, "it pages without a streak"
+    alerts = [rec.getMessage() for rec in caplog.records if rec.levelno == logging.WARNING]
+    assert any('"reconcile_stale_unknown"' in a and str(alerted_only) in a for a in alerts)
+
+
+async def hold_one_fail_one(world: World, r: Reconciler) -> tuple[uuid.UUID, uuid.UUID]:
+    """Kill switch on: one run's "not found" is held, another's lookups fail on their own; both
+    then sit past the page threshold, in their cooldowns."""
+    world.controls(sends_enabled=False)
+    held = world.add_uncertain(last_attempt_ago=600)
+    failing = world.add_uncertain(last_attempt_ago=300)
+    r.client.answers.update(
+        {action_of(world, held): NOTHING, action_of(world, failing): UNAVAILABLE}
+    )
+    assert await r.run_pass() is Reconciled.HELD
+    assert await r.run_pass() is Reconciled.PROVIDER_FAILED
+    for run in (held, failing):
+        world.set(run, escalated_at=ago(PAGE_AFTER + 60))
+    return held, failing
+
+
+async def test_with_the_switch_on_only_runs_it_held_skip_their_own_page(
+    world: World, make: Callable[..., Reconciler]
+) -> None:
+    r = make()
+    held, failing = await hold_one_fail_one(world, r)
+    assert await r.run_pass() is None
+    assert stale_pages(r) == [failing], "a run stuck for its own reason keeps its page"
+    [together] = r.raised(Severity.PAGE, "reconcile_stale_held_by_kill_switch")
+    assert (together.run_id, together.fields["held_runs"]) == (None, 1)
+    alerted = {a.run_id for a in r.raised(Severity.ALERT, "reconcile_stale_unknown")}
+    assert alerted == {held, failing}, "the per-run alert still fires for both"
+
+
+async def test_negative_control_suppressing_every_run_while_the_switch_is_on_silences_it(
+    world: World, make: Callable[..., Reconciler], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    r = make()
+    _, failing = await hold_one_fail_one(world, r)
+    monkeypatch.setattr(LookupEvidence, "is_held", lambda self, run_id: True)
+    assert await r.run_pass() is None
+    assert failing not in stale_pages(r)
+
+
+async def test_negative_control_paging_held_runs_pages_once_per_held_run(
+    world: World, make: Callable[..., Reconciler], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    r = make()
+    held, failing = await hold_one_fail_one(world, r)
+    monkeypatch.setattr(LookupEvidence, "is_held", lambda self, run_id: False)
+    assert await r.run_pass() is None
+    assert set(stale_pages(r)) == {held, failing}
+
+
+async def test_any_other_outcome_clears_the_hold(
+    world: World, make: Callable[..., Reconciler]
+) -> None:
+    """Held, then its lookups start failing on their own: it is no longer the switch's, so it
+    pages on its own again, from the next pass's scan (each pass scans before it claims)."""
+    r = make()
+    held, _ = await hold_one_fail_one(world, r)
+    r.client.answers[action_of(world, held)] = UNAVAILABLE
+    world.end_cooldown(held)
+    assert await r.run_pass() is Reconciled.PROVIDER_FAILED
+    assert held not in stale_pages(r), "this pass scanned while it was still held"
+    assert await r.run_pass() is None
+    assert held in stale_pages(r)
+
+
+async def test_a_restart_forgets_holds_so_held_runs_page_on_their_own(
+    world: World, make: Callable[..., Reconciler]
+) -> None:
+    r = make()
+    held, _ = await hold_one_fail_one(world, r)
+    r.evidence = LookupEvidence()  # a new process
+    assert await r.run_pass() is None
+    assert held in stale_pages(r)
+
+
 # --- both loops in one process (Part 1) -----------------------------------------------------
 
 

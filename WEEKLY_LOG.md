@@ -729,3 +729,29 @@ path is blind to the same outage (the gate trusts the static config read), so a 
 database outage would escalate every refund approved during it; a circuit breaker judged on real
 request outcomes, before the worker is deployed.
 
+### Agent side, step 3 slice 3: the stale-unknown page (ADR-017 S3/S4) (2026-11-13)
+
+**What shipped:**
+- ADR-017 locked after a second review, with a pointer line in ADR-016 Part 3; reconcile loop
+  pushed (`6f0aec5`).
+- **A stale-unknown page** past `RECONCILER_STALE_PAGE_SECONDS` (refused at startup unless it
+  exceeds the alert threshold), rate-limited per run: the route to a person for a run whose
+  lookups fail alone and so never build a streak.
+- **Scoped to what the kill switch actually held:** a run whose latest lookup was a "not found"
+  the switch held skips its own page (its alert still fires), and those runs page once together;
+  every other uncertain run keeps its page while the switch is on.
+- 7 tests (lone run pages once per interval; switch on with one held and one self-failing run;
+  any other outcome clears the hold; a restart forgets holds; the threshold guard), with controls
+  for suppressing every run and for paging every held run; 6 plants caught.
+
+**What broke:** the first version of the review's S4 would have silenced every uncertain run
+while the switch was on, including one stuck for its own reason: its only route to a person. And
+one of my own tests expected the page in the same pass that cleared the hold; the scan runs
+before the claim, so it arrives one pass later, which the test now states.
+
+**What I learned:** a suppression rule needs the same precision as the thing it suppresses: the
+switch holds "not found" decisions, not runs.
+
+**What's next:** ADR-018, a provider circuit breaker on real request outcomes, before the worker
+is deployed.
+

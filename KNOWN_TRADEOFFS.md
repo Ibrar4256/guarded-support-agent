@@ -176,9 +176,11 @@ lives in `WEEKLY_LOG.md`.
   restart (small, but unbounded in principle).
 - **A run whose lookups fail alone never pages through its streak** (ADR-017): with no other
   run's lookup answered in between, its refund-api-type failures don't count. Its route to a
-  person is the stale-unknown signal. ADR-017 S3/S4 make that a page
-  (`RECONCILER_STALE_PAGE_SECONDS`, its paging delay); **until that is built, it is only the
-  stale-unknown alert.**
+  person is the stale-unknown page (ADR-017 S3), so `RECONCILER_STALE_PAGE_SECONDS` is its paging
+  delay. It is scanned at the start of each pass, so a run that stops being held by the kill
+  switch pages from the next pass, one poll interval later.
+- **Which runs the kill switch held is kept in memory** (ADR-017 S4). A restart forgets it, so
+  held runs page one by one until their next pass: noise in the safe direction.
 - **A degraded (not down) refund-api pages per failing run** (ADR-017): when some lookups fail and
   others are answered, the evidence counter moves, so each failing run builds a streak and pages,
   although the cause is one dependency. Bounded by the streak limit and per-run rate limiting.
