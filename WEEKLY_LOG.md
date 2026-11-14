@@ -930,3 +930,26 @@ conversation is long, it's every turn.
 **What's next:** ADR-023 (the provider adapter: AsyncOpenAI per ADR-005, retry under the turn's
 deadline, telemetry; needs the `openai` package), then build the turn, with C01, behind the
 scripted model.
+
+
+### Agent: the LLM provider adapter designed (ADR-023, locked) (2026-11-14)
+
+**What shipped:** documents only. ADR-023 locks the adapter: `AsyncOpenAI` against Groq's and
+Gemini's OpenAI-compatible endpoints with the SDK's retries off; every call streams and is
+assembled, with an optional text callback; retries only inside the caller's deadline; errors
+classified by cause; an optional fallback chosen per turn; an append-only `llm_calls` row per
+call with list-price cost. One outside review. Pointer lines in ADR-005/006/022; README row.
+
+**What broke:** nothing ran, but review found two real holes. Retrying a stream after text had
+reached the callback would show the customer the answer twice; now there's no retry after
+delivery, and a callback error is never a provider failure. And every 400 paged, so a customer's
+message rejected by the provider's filter would have woken someone; input-driven 400s are now
+their own errors. Also: 429s are classified per provider (unknown means rate limit), and a cost
+total over a partially billed attempt is labeled a lower bound.
+
+**What I learned:** map errors by cause, not status code, and ask of every page "can a customer
+trigger this?". Two features that are each correct (streaming, retrying) can be wrong together.
+Project 1 had less to reuse than ADR-005 assumed.
+
+**What's next:** build the adapter, the turn and C01 behind the scripted model (the `openai`
+package needs approval), then capture real Groq and Gemini fixtures (keys added by the user).

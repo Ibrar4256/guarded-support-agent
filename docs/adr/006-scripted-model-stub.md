@@ -8,6 +8,10 @@ counts, streaming, and baseline compatibility.
 **Locked 2026-10-06.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Filled in by [ADR-023](023-llm-provider-adapter.md):** the real adapter's interface, error
+types and streaming rules that `ScriptedLLM` must match; 429 and 400 classification pinned by
+fixtures per provider (a spent-quota fixture may be documented rather than captured).
+
 ## Context
 Every test that runs on every PR (crash tests, races, failure modes, policy checks,
 ADR-003 to ADR-005) drives the agent loop. Those tests need a model that:

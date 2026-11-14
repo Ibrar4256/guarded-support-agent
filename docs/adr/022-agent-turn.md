@@ -11,6 +11,10 @@ in the window (S6); the smaller decisions numbered in order.
 **Locked 2026-11-14.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Filled in by [ADR-023](023-llm-provider-adapter.md):** Part 2's provider failures also
+include auth failures and a context that's too long (`try_again`); an input the provider's
+filter rejects gets a `rephrase` reply instead, and the run stays in `AGENT_STEP`.
+
 **Precedence:** fills in ADR-001's `AGENT_STEP` loop, ADR-002's storage, ADR-008's turn lease
 and ADR-009's proposal path for the code that runs one customer message. The provider adapter
 (AsyncOpenAI, retry, telemetry) is ADR-023; streaming to the client goes with the chat API

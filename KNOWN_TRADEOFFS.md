@@ -313,6 +313,26 @@ lives in `WEEKLY_LOG.md`.
 - **The budget and timeout defaults are unmeasured starting values** (6 calls, 2 malformed,
   60 s deadline, 30 s lease); tune them from telemetry.
 
+## LLM provider adapter (ADR-023)
+
+- **A conversation can change models between turns** when the primary's quota is spent and a
+  fallback is configured; a turn never switches mid-loop. The fallback is enabled only after it
+  passes the nightly smoke set and the adversarial suite.
+- **Cooldowns are per process.** Another process learns about a spent quota from its own first
+  failure.
+- **Free-tier calls are recorded at list price**, so cost reports show what the traffic would
+  cost on a paid tier. Prices are a committed, dated table and go stale; an unpriced model shows
+  NULL cost, never zero.
+- **Cost totals can be lower bounds**: a provider may bill a stream that dropped before an
+  attempt was retried, and that row is marked `partial`. A provider that omits usage from
+  streams leaves calls uncounted; estimates from character counts are computed in reports and
+  labeled.
+- **A dropped stream after text reached the callback fails the turn** (`try_again`) instead of
+  retrying, so a customer may have to try again where a retry would have succeeded.
+- **An unclassifiable 429 is treated as a rate limit**: a spent quota the classifier misses is
+  retried on every turn until the deadline, surfaced only by the provider-failure alert. The
+  spent-quota fixture may be documented rather than captured.
+
 ## Refund policy (ADR-009)
 
 - **Single currency in v1.** Other currencies are refused (R15); capacity sums assume one
