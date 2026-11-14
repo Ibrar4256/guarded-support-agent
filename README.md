@@ -5,8 +5,11 @@ within policy, escalates to a human) with safety enforced in code, not in the pr
 It's a scoped-down, architecturally real take on per-resolution support agents like
 Intercom Fin and Ada.
 
-> **Status: design complete; core policy, database schema and CI in place.** Nine architecture decisions are
-> recorded below. No code yet. There are no eval numbers yet, and none will appear here
+> **Status: the money path and the first tool are built; the model loop is next.** Twenty-one
+> architecture decisions are recorded below. Built and tested in CI: the refund service, the
+> agent's policy core, database and refund client, the worker (sending and reconciliation,
+> with end-to-end crash tests), the demo seeds, and the order-lookup tool. Not built yet: the
+> LLM loop, the chat API and UI. There are no eval numbers yet, and none will appear here
 > until they're measured.
 
 ## Core idea: the model proposes, code decides
@@ -56,6 +59,14 @@ tools.
 | [011](docs/adr/011-refund-api-test-build-wiring.md) | refund-api's fault-injection build is a separate entry point in the test package that wraps the production app, so production code never imports test code |
 | [012](docs/adr/012-refund-client-classification-and-contract.md) | The agent's refund client: a pure, strict, property-tested response classifier; a JSON Schema contract test against the committed spec; retry limits that hold across crashes and config changes (a per-send age check with a per-run window snapshot, a persisted attempt count, per-key expiry in refund-api); `GET /config` gating only the worker's send path |
 | [013](docs/adr/013-provider-config-read-before-each-send.md) | The provider's config is read, strictly validated and capped immediately before every send, so a retention decrease can't leave the agent retrying under a stale window |
+| [014](docs/adr/014-worker-execution-loop.md) | The worker: a separate process that claims approved runs with a lease and fencing, spends a persisted attempt budget, and stops claiming while the provider's config can't be read |
+| [015](docs/adr/015-e2e-crash-test-harness.md) | End-to-end crash tests: both services as real processes, a per-test database, crashes on both sides of the refund call, each proving its fault fired |
+| [016](docs/adr/016-reconciler.md) | The reconciler: waits out a quiet period that covers any request still in flight, confirms or rejects by lookup, never re-sends; tells a provider outage from a broken run |
+| [017](docs/adr/017-reconciler-streak-evidence.md) | A failed lookup counts against the run only after a successful lookup in between, not a config read; a stale-unknown page |
+| [018](docs/adr/018-provider-circuit-breaker.md) | Provider breakers, one per path, judged on real request outcomes: an outage pauses sending instead of escalating every refund |
+| [019](docs/adr/019-demo-seed-lifecycle.md) | The agent's demo seed: refuses outside a demo, refuses changed facts, refreshes state, dates relative to today |
+| [020](docs/adr/020-order-lookup-tool.md) | The order-lookup tool: identity from the session, ownership in the query, byte-identical "not found" for missing and foreign orders, a security log fed by a probe that can't change the answer |
+| [021](docs/adr/021-refund-api-floor-and-demo-seed-split.md) | refund-api's key-retention floor set on every deployment by its own command and checked at startup; demo charges only on a demo |
 
 Every ADR records the rejected options and when each would have been the better choice.
 

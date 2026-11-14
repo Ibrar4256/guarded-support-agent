@@ -276,9 +276,12 @@ lives in `WEEKLY_LOG.md`.
   nothing derived. That answer, if wanted, comes from the policy check's reply.
 - **A malformed id never reaches the database** and gets the same not-found. That path is
   faster than a well-formed miss, which reveals only the id format, and the format is public.
-- **The probe has no timeout of its own.** It runs under the connection's settings, so a hung
-  database delays a miss as long as it would delay the answering query. The loop (ADR-006)
-  owns per-turn timeouts.
+- **The tool's transactions set no statement or lock timeout yet**: the answering query, the
+  lease fence's lock wait and the probe all run under whatever the caller's connection has,
+  unlike the worker, whose every transaction sets both (`worker_transaction`). The tool already
+  turns a timeout into "temporarily unavailable", or an unchanged not-found for the probe (both
+  tested). Where the bounds come from is the loop's decision (ADR-001/006, ADR-020 Revisit):
+  every turn transaction must set them, sized against the turn's step budget.
 - **The R02 fence holds a `FOR SHARE` lock on the conversation row for the recording
   transaction** (milliseconds), so a takeover waits for it instead of committing under a stale
   write. The lease itself stays a lease, never a lock held across model calls (ADR-008).
