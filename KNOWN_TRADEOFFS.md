@@ -261,6 +261,31 @@ lives in `WEEKLY_LOG.md`.
   `dedup_disabled` control.
 - **Linux only.** The stall check reads `/proc`, like CI and the development machine.
 
+## Order-lookup tool (ADR-020)
+
+- **One extra query per not-found.** The existence probe that feeds the security log runs for
+  every well-formed miss, missing and foreign alike, so both take the same queries.
+- **The security log write is a small timing difference** between a missing and a foreign
+  order (server-side, far below a model round trip). Handing the line to an in-process queue
+  would remove it; not done, by choice.
+- **The log detects enumeration, it doesn't prevent it.** Nothing limits lookups per user yet:
+  the step budget bounds one turn, not turns per hour. A per-user rate limit belongs with the
+  chat API (ADR-003). Real order IDs should be unguessable; the demo's (`ord_demo_1001`) are
+  readable on purpose, because demo users type them.
+- **The model can't quote a refundable amount** from the lookup: it sees the order's own facts,
+  nothing derived. That answer, if wanted, comes from the policy check's reply.
+- **A malformed id never reaches the database** and gets the same not-found. That path is
+  faster than a well-formed miss, which reveals only the id format, and the format is public.
+- **The probe has no timeout of its own.** It runs under the connection's settings, so a hung
+  database delays a miss as long as it would delay the answering query. The loop (ADR-006)
+  owns per-turn timeouts.
+- **The R02 fence holds a `FOR SHARE` lock on the conversation row for the recording
+  transaction** (milliseconds), so a takeover waits for it instead of committing under a stale
+  write. The lease itself stays a lease, never a lock held across model calls (ADR-008).
+- **The currency exponent table holds only USD and JPY** (JPY covers exponent 0). An order in
+  any other currency gets the generic "temporarily unavailable" error until its line is added;
+  the display is never guessed.
+
 ## Refund policy (ADR-009)
 
 - **Single currency in v1.** Other currencies are refused (R15); capacity sums assume one

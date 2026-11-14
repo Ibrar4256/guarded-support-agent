@@ -99,8 +99,10 @@ class World:
         charged_minor: int = 8_000,
         status: FulfillmentStatus = FulfillmentStatus.DELIVERED,
         chargeback_open: bool = False,
+        currency: str = "USD",
+        delivered_at: datetime | None = None,
     ) -> str:
-        """A delivered order of this customer, delivered three days ago (inside the window)."""
+        """An order of this customer, by default delivered three days ago (inside the window)."""
         order = f"ord_{uuid.uuid4().hex[:12]}"
         with self.transaction() as connection:
             connection.execute(
@@ -108,13 +110,36 @@ class World:
                     id=order,
                     owner_user_id=self.user,
                     charged_minor=charged_minor,
-                    currency="USD",
+                    currency=currency,
                     status=status,
-                    delivered_at=datetime.now(UTC) - timedelta(days=3),
+                    delivered_at=delivered_at or datetime.now(UTC) - timedelta(days=3),
                     chargeback_open=chargeback_open,
                 )
             )
         return order
+
+    def hold_turn(self, run: uuid.UUID) -> uuid.UUID:
+        """A new turn takes the lease on the run's conversation (ADR-008), as a takeover would."""
+        turn = uuid.uuid4()
+        conversation = select(runs.c.conversation_id).where(runs.c.id == run).scalar_subquery()
+        with self.transaction() as connection:
+            connection.execute(
+                update(conversations)
+                .where(conversations.c.id == conversation)
+                .values(active_turn_id=turn, turn_expires_at=func.now() + timedelta(minutes=5))
+            )
+        return turn
+
+    def lookups(self, run: uuid.UUID) -> list[str]:
+        """The run's R02 lookup log: order ids, sorted."""
+        with self.transaction() as connection:
+            return list(
+                connection.scalars(
+                    select(run_order_lookups.c.order_id)
+                    .where(run_order_lookups.c.run_id == run)
+                    .order_by(run_order_lookups.c.order_id)
+                )
+            )
 
     def add_refund_run(
         self,

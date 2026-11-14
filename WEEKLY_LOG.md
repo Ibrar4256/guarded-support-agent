@@ -874,3 +874,33 @@ and refuses to start with a message naming the command; an unreachable database 
 too, with its own message (user's choice). Both builds, tested against real uvicorn because
 in-process clients don't run the lifespan; 8 tests, 5 plants caught. I'd first written that a
 down database gives 503; checking the code showed it's a 500 (only pool timeouts map to 503).
+
+
+### Agent: the order-lookup tool (ADR-020) (2026-11-14)
+
+**What shipped:**
+- `agent/tools/`: the minimal tool contract (a strict arguments model that is the schema, a
+  code-built `ToolContext`, canonical JSON results, `LostTurn`) and `lookup_order`. Ownership is
+  in the answering query's `WHERE`; a miss returns the constant not-found, then a best-effort
+  existence probe in its own transaction writes `cross_user_order_lookup` to `agent.security`
+  only for a foreign order; a database error is one generic "temporarily unavailable"; a found
+  order is recorded in `run_order_lookups` (R02), fenced by the turn lease.
+- `agent/core/currency.py`: `charged_display` from an ISO 4217 exponent table (USD, JPY); an
+  unknown currency is the generic error, never a guess. `agent/db/order_lookup.py`: the queries.
+- The strict-xfail placeholder is replaced by the real byte-for-byte test. 44 new test cases (22
+  integration as the runtime role, 22 unit); 14 plants caught: every negative control in
+  ADR-020's table (the exponent one at unit and integration level) plus three of my own (the
+  fence's `FOR SHARE`, the id-format check, the UTC date).
+- Agent: 791 tests, no xfail. refund_api 255, e2e 16.
+
+**What broke:** one negative control was invalid at first: the planted leak left a transaction
+open, so the test failed on that instead of on the leak. The plant script checks the failure
+reason, not just the exit code, and flagged it; fixed, the plant failed on the planted message.
+mypy (strict re-exports) caught a test reaching a function through the tool module.
+
+**What I learned:** a lease check followed by a write is still a race; the check has to lock the
+row it reads (`FOR SHARE`, which a takeover's `UPDATE` must wait for) for the length of that one
+transaction. And input that can't be valid shouldn't reach the database at all: a null byte would
+have turned "not found" into "temporarily unavailable", a different answer.
+
+**What's next:** the LLM loop (ADR-001/002/006), which consumes this contract.
