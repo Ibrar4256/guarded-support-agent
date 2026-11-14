@@ -10,6 +10,9 @@ per turn. Revised 2026-10-08: the canonical run statuses and transitions are def
 and tests, or recorded in a new ADR that supersedes this one. Where this ADR and ADR-008
 disagree, ADR-008 wins.
 
+**Filled in by [ADR-022](022-agent-turn.md):** the `AGENT_STEP` turn step by step, its call,
+malformed and time budgets, and how untrusted tool output is fenced in the prompt.
+
 ## Context
 The agent takes real actions on a customer's behalf: order lookup, refunds within policy
 limits, KB search and escalation to a human. Two constraints drive the decision:

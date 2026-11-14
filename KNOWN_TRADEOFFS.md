@@ -289,6 +289,30 @@ lives in `WEEKLY_LOG.md`.
   any other currency gets the generic "temporarily unavailable" error until its line is added;
   the display is never guessed.
 
+## The agent turn (ADR-022)
+
+- **The model looks orders up again in every run.** Tool results are never replayed into a
+  later prompt, and a text reply completes the run, so "yes, refund it" needs a fresh lookup;
+  the turn sends a proposal on an order this run hasn't looked up back to the model (one extra
+  model call) rather than letting R02 escalate it.
+- **Text the model repeated in a reply persists** in the window for N messages, and longer
+  through the summary. Tool output can't persist; the model's own words can. Measured as an
+  EVAL_PLAN category 3 case, not claimed away.
+- **A provider failure means the customer tries again.** The run waits in `AGENT_STEP`; a
+  conversation whose provider keeps failing never reaches a human on its own, only an alert.
+- **The nonce fence is a mitigation**, measured by the injection evals; the safety claim rests
+  on the write gate (ADR-001).
+- **Summaries are best-effort and lag by design**: one call per `SUMMARY_TRIGGER_MESSAGES`
+  messages, unsummarized messages kept in the window meanwhile. If summaries keep failing, the
+  window budget eventually drops the oldest messages (`summary_gap`). Two overlapping turns can
+  both summarize: a wasted call, never a wrong summary.
+- **Characters stand in for tokens** in the message cap and the window budget until the
+  provider adapter (ADR-023) knows the model's tokenizer.
+- **No retention rule for conversation data** yet: customer messages, reply text and summaries
+  are kept indefinitely until that decision is made, for all three together.
+- **The budget and timeout defaults are unmeasured starting values** (6 calls, 2 malformed,
+  60 s deadline, 30 s lease); tune them from telemetry.
+
 ## Refund policy (ADR-009)
 
 - **Single currency in v1.** Other currencies are refused (R15); capacity sums assume one

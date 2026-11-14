@@ -3,6 +3,10 @@
 **Status:** Accepted (2026-10-01). **Locked 2026-10-06.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Filled in by [ADR-022](022-agent-turn.md):** the conversation lives in the `events` table;
+summaries in an append-only `conversation_summaries` table, triggered by a message threshold and
+written outside the turn; messages not yet summarized stay in the window.
+
 ## Context
 CLAUDE.md §3 requires short-term conversation memory plus long-term user context (past
 tickets), "not just stuffing the whole history into the prompt." Constraints:

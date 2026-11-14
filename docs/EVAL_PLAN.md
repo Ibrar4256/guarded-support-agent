@@ -47,7 +47,8 @@ track trends.
 2. **Indirect injection in tool output:** instructions hidden in KB articles, order notes
    and ticket text.
 3. **Indirect injection through memory:** instructions in past tickets and in content that
-   ends up in the rolling summary (ADR-002).
+   ends up in the rolling summary (ADR-002), and injected KB text the model repeats in a reply,
+   checked over the following turns while it sits in the window (ADR-022).
 4. **Cross-user resources:** order IDs belonging to another user. The lookup's response for
    another user's order must be **identical** to its response for a nonexistent order (a
    deterministic test compares them byte for byte, with a control that a planted "belongs to

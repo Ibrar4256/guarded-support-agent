@@ -904,3 +904,29 @@ transaction. And input that can't be valid shouldn't reach the database at all: 
 have turned "not found" into "temporarily unavailable", a different answer.
 
 **What's next:** the LLM loop (ADR-001/002/006), which consumes this contract.
+
+
+### Agent: the turn designed (ADR-022, locked) (2026-11-14)
+
+**What shipped:** documents only. The loop's open decisions were split (the user's choice): the
+turn first, then the provider adapter (ADR-023), streaming with the chat API, KB search on its
+own. ADR-022 locks the turn: the `events` table as the conversation log, tool results never
+replayed; a provider failure gives "try again" and leaves the run waiting; untrusted text in a
+per-turn nonce fence; the turn's steps, budgets and timeouts, every turn transaction with
+statement and lock timeouts. Two outside reviews. Pointer lines in ADR-001/002/008/009; README
+row; EVAL_PLAN category 3 gains the reply-laundering case.
+
+**What broke:** nothing ran, but review found a demo-visible trap: after a reply naming an order,
+"yes, refund it" starts a new run, the model proposes without a fresh lookup, and R02 (a hard
+rule) escalates an innocent customer. The turn now bounces that proposal back to the model first.
+Review also caught a summary written under the lease (a 409 for a quick follow-up) and a trigger
+that fired on every turn of a long conversation. One review premise was wrong: no retention rule
+exists for conversation data, so that gap is recorded as such.
+
+**What I learned:** a hard rule plus a model shortcut becomes a customer-facing failure unless
+the loop steers the model back before policy sees it. And "on overflow" isn't a trigger: once a
+conversation is long, it's every turn.
+
+**What's next:** ADR-023 (the provider adapter: AsyncOpenAI per ADR-005, retry under the turn's
+deadline, telemetry; needs the `openai` package), then build the turn, with C01, behind the
+scripted model.

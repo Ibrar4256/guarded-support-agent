@@ -13,6 +13,10 @@ and tests, or recorded in a new ADR that supersedes this one.
 `NEEDS_RECONCILIATION`; reconciler lookup errors never mean "not found"; two or more
 refunds for one action → `confirmed` plus an alert.
 
+**Filled in by [ADR-022](022-agent-turn.md):** the turn lease's TTL, heartbeat and deadline;
+every turn transaction sets statement and lock timeouts; a provider failure leaves the run in
+`AGENT_STEP` with a "try again" reply instead of escalating.
+
 **Amended by [ADR-016](016-reconciler.md):** the reconciler runs as a second loop in the worker process; its quiet
 period is the larger of a per-run bound recorded with each send and the client timeout plus
 refund-api's budget read fresh at reconcile time; provider failures close the gate, only

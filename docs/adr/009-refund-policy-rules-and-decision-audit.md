@@ -11,6 +11,10 @@ switch vs. breaker scope, fenced failure transactions, `AGENT_STEP` resumption).
 **Locked 2026-10-08.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Filled in by [ADR-022](022-agent-turn.md):** the turn bounces a `propose_refund` on an order
+this run hasn't looked up back to the model before evaluation (R02 itself unchanged); the
+proposal-time "please try again" reply records its cause.
+
 **Precedence:** later amending ADRs win: **ADR-009 > ADR-008 > ADR-001–007**.
 For refund-api behavior and the agent's handling of its responses, **[ADR-010](010-refund-api-implementation-decisions.md) > ADR-009 > ADR-008 > ADR-001–007**; ADR-010 doesn't change these policy rules.
 

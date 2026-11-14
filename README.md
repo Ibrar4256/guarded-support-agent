@@ -5,7 +5,7 @@ within policy, escalates to a human) with safety enforced in code, not in the pr
 It's a scoped-down, architecturally real take on per-resolution support agents like
 Intercom Fin and Ada.
 
-> **Status: the money path and the first tool are built; the model loop is next.** Twenty-one
+> **Status: the money path and the first tool are built; the model loop is next.** Twenty-two
 > architecture decisions are recorded below. Built and tested in CI: the refund service, the
 > agent's policy core, database and refund client, the worker (sending and reconciliation,
 > with end-to-end crash tests), the demo seeds, and the order-lookup tool. Not built yet: the
@@ -67,6 +67,7 @@ tools.
 | [019](docs/adr/019-demo-seed-lifecycle.md) | The agent's demo seed: refuses outside a demo, refuses changed facts, refreshes state, dates relative to today |
 | [020](docs/adr/020-order-lookup-tool.md) | The order-lookup tool: identity from the session, ownership in the query, byte-identical "not found" for missing and foreign orders, a security log fed by a probe that can't change the answer |
 | [021](docs/adr/021-refund-api-floor-and-demo-seed-split.md) | refund-api's key-retention floor set on every deployment by its own command and checked at startup; demo charges only on a demo |
+| [022](docs/adr/022-agent-turn.md) | The agent turn: the conversation lives in the event log and tool results are never replayed; call, malformed and time budgets; a provider failure means "try again", not escalation; untrusted text in a per-turn nonce fence; a proposal on an order not looked up in this run is sent back before policy |
 
 Every ADR records the rejected options and when each would have been the better choice.
 
