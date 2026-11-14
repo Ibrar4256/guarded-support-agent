@@ -329,6 +329,13 @@ lives in `WEEKLY_LOG.md`.
   labeled.
 - **A dropped stream after text reached the callback fails the turn** (`try_again`) instead of
   retrying, so a customer may have to try again where a retry would have succeeded.
+- **Two HTTP libraries in the agent:** `httpx` for the refund client and `httpx2`, which
+  `openai` 3.x brings in. The adapter's wire-level tests mock with `httpx2.MockTransport`, not
+  `respx` (ADR-006 pointer). A future `openai` release could change transports again; the
+  contract tests fail first if it does.
+- **Groq's and Gemini's error markers aren't captured yet**: until their fixtures exist, only
+  OpenAI's documented codes classify a 429 or 400, so a provider's context-too-long or
+  input-rejected 400 is `InvalidRequest` (a page) and a spent quota is retried as a rate limit.
 - **An unclassifiable 429 is treated as a rate limit**: a spent quota the classifier misses is
   retried on every turn until the deadline, surfaced only by the provider-failure alert. The
   spent-quota fixture may be documented rather than captured.
@@ -358,12 +365,11 @@ lives in `WEEKLY_LOG.md`.
 
 ## Code reuse
 
-- **Project 1's LLM layer is extracted and ported, not shared (corrected by ADR-005).**
-  Project 1's layer is sync (`openai.OpenAI`) and mixed in with research-specific code.
-  Only the provider, retry and telemetry pieces are extracted and ported to `AsyncOpenAI`;
-  they aren't shared as a package. The cost: the two versions now differ (sync vs.
-  async), fixes must be ported by hand, and they will drift. Revisit at Project 5, where a shared tracing SDK is the natural
-  place to consolidate.
+- **Project 1's LLM layer was mostly rewritten, not ported (ADR-023; ADR-005 expected a
+  port).** Only its provider base-URL table carried over: its retry handled Gemini's own
+  exceptions only and nothing streamed. The two projects' model layers are separate code with
+  no shared package, so a fix in one is ported by hand. Revisit at Project 5, where a shared
+  tracing SDK is the natural place to consolidate.
 
 ## Evaluation
 

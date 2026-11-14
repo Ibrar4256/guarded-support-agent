@@ -953,3 +953,30 @@ Project 1 had less to reuse than ADR-005 assumed.
 
 **What's next:** build the adapter, the turn and C01 behind the scripted model (the `openai`
 package needs approval), then capture real Groq and Gemini fixtures (keys added by the user).
+
+
+### Agent: the model adapter and the scripted model (ADR-023, slice 1) (2026-11-14)
+
+**What shipped:**
+- `agent/llm/`: the normalized types and the closed error set; the OpenAI-compatible adapter
+  (always streams and assembles, SDK retries off, retries only inside the deadline, no retry
+  once text reached the callback, the callback isolated, usage completeness `full`/`partial`/
+  `none`, an output character cap); error classification by cause (unknown 429 → rate limit,
+  unknown 400 → request bug); settings from the environment with the scripted-model gate.
+- `ScriptedLLM` in `testing/`: strict playback, structural matchers, recorded prompts, chunked
+  text, uncounted usage never zero.
+- ADR-006's contract test: the minimum scenario set through both, identical responses and
+  error types. 57 new tests; 15 plants caught. Agent 848, refund_api 255, e2e 16.
+- `openai` 3.51 added (approved). `.env.example` gains the `LLM_*` settings.
+
+**What broke:** `openai` 3.x moved to `httpx2`, which `respx` (ADR-006's named mock) can't
+intercept. Found by checking the SDK before writing tests; the user chose `httpx2.MockTransport`
+over pinning `openai<3`; ADR-006 got a pointer line. Two plants failed earlier than predicted (the
+fake clock ran past the deadline; the strict mock refused the SDK's retry); both were the planted
+bug, and I recorded the real reason instead of loosening the checks.
+
+**What I learned:** check what a dependency actually does before testing against it; make mocks
+strict enough that "the mock wasn't hit" can't pass.
+
+**What's next:** slice 2: `llm_calls` and the price table, the fallback cooldown; then the turn
+and C01. Real Groq and Gemini fixtures need the user's keys.
