@@ -329,6 +329,14 @@ lives in `WEEKLY_LOG.md`.
   to start (the customer retries); the message isn't saved in that case.
 - **The policy core's import allowlist grew by `re` and `unicodedata`** for C01's patterns: pure
   standard-library modules with no I/O and no clock.
+- **Read tools run one after another**, never in parallel: simpler fencing and timeouts, at
+  the cost of latency when the model asks for several lookups at once.
+- **An empty reply is corrected with a mid-conversation system message**; whether every
+  provider accepts system messages after the first one is for the captured fixtures to confirm.
+- **Earlier template replies reach the model only as `[notice: <template>]`**, not their
+  customer wording, which stays the chat API's to render.
+- **The system prompt is a versioned constant in English**; changing it needs the eval suites
+  re-run, and its version should be recorded with each eval result.
 - **The budget and timeout defaults are unmeasured starting values** (6 calls, 2 malformed,
   60 s deadline, 30 s lease); tune them from telemetry.
 

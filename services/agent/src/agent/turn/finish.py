@@ -2,12 +2,15 @@
 
 - ``reply_and_complete``: the model's text is the reply; ``AGENT_STEP → COMPLETED``, the reply
   event and the lease release in one transaction.
+- ``escalate_and_reply``: a budget ran out; ``AGENT_STEP → ESCALATED`` with ``needs_person``.
+  The reason goes to the server log only, never the customer's stream (ADR-009 non-disclosure).
 - ``reply_and_wait``: a template (``try_again`` with its cause, ``rephrase``); the run stays in
   ``AGENT_STEP`` and the next message resumes it.
 
 A turn that no longer holds the conversation writes nothing and raises ``LostTurn``.
 """
 
+import logging
 from enum import StrEnum
 
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -18,6 +21,8 @@ from agent.db.claims import worker_transaction
 from agent.tools.contract import LostTurn
 from agent.turn.settings import TurnSettings
 from agent.turn.start import TurnIds
+
+logger = logging.getLogger(__name__)
 
 
 class TryAgainCause(StrEnum):
@@ -57,3 +62,23 @@ async def reply_and_wait(
             raise LostTurn(f"turn {ids.turn_id} lost conversation {ids.conversation_id}")
         await turns.append_event(conn, ids.conversation_id, ids.run_id, turns.REPLY, payload)
         await turns.release_lease(conn, ids.conversation_id, ids.turn_id)
+
+
+async def escalate_and_reply(
+    engine: AsyncEngine, settings: TurnSettings, ids: TurnIds, reason: str
+) -> None:
+    async with worker_transaction(
+        engine, statement_timeout=settings.statement_timeout, lock_timeout=settings.lock_timeout
+    ) as conn:
+        if not await turns.hold_turn(conn, ids.conversation_id, ids.turn_id):
+            raise LostTurn(f"turn {ids.turn_id} lost conversation {ids.conversation_id}")
+        await turns.escalate_run(conn, ids.run_id)
+        await turns.append_event(
+            conn,
+            ids.conversation_id,
+            ids.run_id,
+            turns.REPLY,
+            {"template": ReplyTemplate.NEEDS_PERSON.value},
+        )
+        await turns.release_lease(conn, ids.conversation_id, ids.turn_id)
+    logger.info("run %s escalated: %s", ids.run_id, reason)

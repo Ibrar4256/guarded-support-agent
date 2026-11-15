@@ -198,3 +198,52 @@ async def record_c01_decision(
             decided_by=DECIDED_BY_POLICY,
         )
     )
+
+
+async def window_events(
+    conn: AsyncConnection, conversation_id: uuid.UUID, limit: int
+) -> list[tuple[str, dict[str, Any]]]:
+    """The last ``limit`` message events of the conversation, across runs, oldest first.
+    Tool calls and results are never stored here, so they can't reach a later prompt."""
+    result = await conn.execute(
+        select(events.c.kind, events.c.payload)
+        .where(
+            events.c.conversation_id == conversation_id,
+            events.c.kind.in_((CUSTOMER_MESSAGE, REPLY)),
+        )
+        .order_by(events.c.id.desc())
+        .limit(limit)
+    )
+    return [(row.kind, row.payload) for row in reversed(result.all())]
+
+
+async def trailing_provider_failures(
+    conn: AsyncConnection, conversation_id: uuid.UUID, limit: int
+) -> int:
+    """How many of the conversation's most recent replies, in an unbroken run, were
+    ``try_again`` caused by the provider (ADR-022 Part 2). Lock-timeout ones break the run."""
+    result = await conn.execute(
+        select(events.c.payload)
+        .where(events.c.conversation_id == conversation_id, events.c.kind == REPLY)
+        .order_by(events.c.id.desc())
+        .limit(limit)
+    )
+    count = 0
+    for payload in result.scalars():
+        if payload.get("template") != "try_again" or payload.get("cause") != "provider":
+            break
+        count += 1
+    return count
+
+
+async def escalate_run(conn: AsyncConnection, run_id: uuid.UUID) -> None:
+    """``AGENT_STEP → ESCALATED`` when the turn's step or malformed budget runs out (ADR-008)."""
+    require_transition(RunStatus.AGENT_STEP, RunStatus.ESCALATED)
+    result = await conn.execute(
+        update(runs)
+        .where(runs.c.id == run_id, runs.c.status == RunStatus.AGENT_STEP)
+        .values(status=RunStatus.ESCALATED, escalated_at=func.now())
+        .returning(runs.c.id)
+    )
+    if result.one_or_none() is None:
+        raise RuntimeError(f"run {run_id} left AGENT_STEP while this turn held its conversation")

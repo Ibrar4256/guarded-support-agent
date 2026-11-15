@@ -1051,3 +1051,25 @@ tests. The shared turn settings moved to a helper module instead of one test imp
 obfuscation slips through), so a later "improvement" that changes them is visible.
 
 **What's next:** T3, the read-only loop.
+
+
+### Agent: the read-only loop (ADR-022, turn slice T3) (2026-11-15)
+
+**What shipped:** the first complete turn, message in and answer out, on the scripted model.
+`turn/prompt.py` (a versioned system prompt; the window from message events only, trimmed
+oldest-first to its character budget with `window_trimmed`; the per-turn nonce fence that
+escapes planted markers; earlier template replies as notices); `turn/tools.py` (read tools with
+schemas from their argument models); `turn/loop.py` (read calls in order on connections with the
+turn's timeouts, results only as tool messages; malformed responses answered with error results
+and nothing run; the call and malformed budgets; model errors mapped per ADR-023 S1a);
+`turn/run.py` (`run_turn`: start, loop under the lease with the provider pool and call
+recording, fenced finish, the alert after repeated provider failures). 27 tests, 9 plants
+caught. Agent 974, refund_api 255, e2e 16.
+
+**What broke:** nothing in the code. One plant failed one assertion earlier than I'd named (the
+window's character budget before the dropped-message check); recorded as the real reason.
+
+**What I learned:** "all or nothing" for a malformed response is easy to state and easy to get
+wrong: the valid calls in a broken response must not run either.
+
+**What's next:** T4, the write tools and ADR-009's proposal path.

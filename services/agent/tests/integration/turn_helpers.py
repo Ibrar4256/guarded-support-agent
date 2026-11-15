@@ -1,8 +1,18 @@
 """Turn settings shared by the turn's integration tests."""
 
+from collections.abc import Callable
 from datetime import timedelta
+from typing import TYPE_CHECKING
 
 from agent.turn.settings import TurnSettings
+
+if TYPE_CHECKING:
+    from agent_testing.fakes import RecordingAlerter
+    from sqlalchemy.ext.asyncio import AsyncEngine
+
+    from agent.llm.recording import CallRecord
+    from agent.llm.types import ChatModel
+    from agent.turn.run import TurnDeps
 
 SETTINGS = TurnSettings(
     max_model_calls=6,
@@ -30,3 +40,34 @@ FAST = TurnSettings(
         "deadline": timedelta(seconds=1),
     }
 )
+
+
+def turn_deps(
+    engine: "AsyncEngine",
+    model: "ChatModel",
+    *,
+    alerter: "RecordingAlerter",
+    records: "list[CallRecord]",
+    settings: TurnSettings = SETTINGS,
+    monotonic: "Callable[[], float] | None" = None,
+) -> "TurnDeps":
+    """A turn wired to one scripted model, recording calls into ``records``."""
+    import time
+
+    from agent.llm.pool import PoolMember, ProviderPool
+    from agent.llm.prices import PriceTable
+    from agent.turn.run import TurnDeps
+
+    async def record(call: "CallRecord") -> None:
+        records.append(call)
+
+    clock = monotonic or time.monotonic
+    pool = ProviderPool(
+        PoolMember("scripted", "scripted-model", model),
+        None,
+        cooldown=timedelta(seconds=900),
+        alerter=alerter,
+        monotonic=clock,
+    )
+    prices = PriceTable.parse({"version": "test", "currency": "USD", "models": {}})
+    return TurnDeps(engine, settings, pool, record, prices, alerter, clock)
