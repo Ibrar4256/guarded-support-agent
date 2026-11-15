@@ -21,6 +21,9 @@ ALLOWED_MODULES = frozenset(
         "json",
         "collections.abc",
         "pydantic",
+        # C01's deterministic patterns (ADR-009): pure, no I/O, no clock.
+        "re",
+        "unicodedata",
     }
 )
 BANNED_CALL_NAMES = frozenset({"__import__", "eval", "exec", "compile"})

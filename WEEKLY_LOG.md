@@ -1030,3 +1030,24 @@ stuck work outlive its outer bound so a broken backstop fails cleanly instead of
 on a pooled connection are a leak unless reset (or the connection discarded).
 
 **What's next:** T2, C01 on customer messages at the turn's start.
+
+
+### Agent: C01 on customer messages (ADR-009, turn slice T2) (2026-11-15)
+
+**What shipped:** `agent/core/c01.py`, deterministic legal-and-abuse patterns with stable ids
+over NFKC-normalized, case-folded text (straight apostrophes, collapsed spaces), returning ids
+only. Wired into the turn's start transaction: in `AGENT_STEP` (new or resumed) the run escalates
+with `c01_flagged_at`, a `conversation_escalation` decision row (pattern ids, never text) and a
+`needs_person` reply, with no model call; after a proposal the run is flagged, its
+`review_revision` bumped (A03) and the refund left alone, and the customer still gets the status
+template. The core import allowlist grew by `re` and `unicodedata`. 30 tests, 6 plants caught.
+Agent 947, refund_api 255, e2e 16.
+
+**What broke:** ruff caught literal look-alike characters (curly apostrophes, full-width letters)
+where I meant `\u` escapes, in the code and the tests; now escapes, so the file says what it
+tests. The shared turn settings moved to a helper module instead of one test importing another.
+
+**What I learned:** document a classifier's blind spots as tests (negation over-escalates,
+obfuscation slips through), so a later "improvement" that changes them is visible.
+
+**What's next:** T3, the read-only loop.

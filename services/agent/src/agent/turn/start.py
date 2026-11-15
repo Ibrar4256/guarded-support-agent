@@ -1,22 +1,33 @@
 """The turn's start transaction (ADR-022 S1 step 1, S9; ADR-008 turn lease; ADR-009).
 
-One short transaction: take the lease, find or create the run, save the customer's message.
+One short transaction: take the lease, find or create the run, save the customer's message,
+and run C01 on it. C01 is deterministic, which is the only reason it may run inside this
+transaction (ADR-022 S1). A hit in ``AGENT_STEP`` escalates the run with ``needs_person`` and
+no model call; a hit after a proposal flags the run for reviewers and bumps its
+``review_revision`` (A03), without touching the refund.
 A message while a proposal is pending gets a status template and the lease back at once: it
 never reaches the model (ADR-009). An oversized or empty message is refused before anything is
 written. A missing conversation and another customer's get the same ``ConversationNotFound``,
 so the start can't be used to learn which conversation ids exist.
 """
 
+import logging
 import uuid
 from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from agent.core.c01 import classify_customer_message
 from agent.core.lifecycle import RunStatus
 from agent.core.replies import ReplyTemplate
 from agent.db import turns
 from agent.db.claims import worker_transaction
 from agent.turn.settings import TurnSettings
+
+logger = logging.getLogger(__name__)
+
+C01_ESCALATED = "ESCALATED"
+C01_FLAGGED = "FLAGGED"
 
 
 class MessageRejected(Exception):
@@ -73,6 +84,7 @@ async def start_turn(
     message: str,
 ) -> TurnStart:
     check_message(message, settings)
+    c01 = classify_customer_message(message)
     turn_id = uuid.uuid4()
     async with worker_transaction(
         engine, statement_timeout=settings.statement_timeout, lock_timeout=settings.lock_timeout
@@ -91,6 +103,22 @@ async def start_turn(
             conn, conversation_id, run_id, turns.CUSTOMER_MESSAGE, {"text": message}
         )
         ids = TurnIds(conversation_id, run_id, turn_id)
+        if c01.flagged:
+            logger.info("C01 on run %s: %s", run_id, ", ".join(c01.patterns))
+            if status is RunStatus.AGENT_STEP:
+                await turns.escalate_for_c01(conn, run_id)
+                await turns.record_c01_decision(conn, run_id, None, C01_ESCALATED, c01.patterns)
+                await turns.append_event(
+                    conn,
+                    conversation_id,
+                    run_id,
+                    turns.REPLY,
+                    {"template": ReplyTemplate.NEEDS_PERSON.value},
+                )
+                await turns.release_lease(conn, conversation_id, turn_id)
+                return TurnStart(ids, user, RunStatus.ESCALATED, ReplyTemplate.NEEDS_PERSON)
+            action_id = await turns.flag_pending_for_c01(conn, run_id)
+            await turns.record_c01_decision(conn, run_id, action_id, C01_FLAGGED, c01.patterns)
         template = PENDING_TEMPLATES.get(status)
         if template is not None:
             await turns.append_event(

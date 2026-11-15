@@ -320,6 +320,15 @@ lives in `WEEKLY_LOG.md`.
   it can be a moment stale (say "awaiting review" just as a reviewer approves); it never waits
   behind a worker mid-send.
 - **An oversized message is refused with nothing saved**: the customer has to shorten it.
+- **C01 is keyword patterns** (ADR-009): it over-escalates on negation ("I'm not going to
+  sue") and on innocent mentions ("I'm a lawyer"), and misses other languages and deliberate
+  obfuscation ("f*ck"). An over-escalation costs a person's time; a miss is a customer-care miss,
+  never a money risk.
+- **Flagging a pending run takes its row lock inside the turn's start transaction**, so a
+  threatening message that arrives while a worker holds that run beyond the lock timeout fails
+  to start (the customer retries); the message isn't saved in that case.
+- **The policy core's import allowlist grew by `re` and `unicodedata`** for C01's patterns: pure
+  standard-library modules with no I/O and no clock.
 - **The budget and timeout defaults are unmeasured starting values** (6 calls, 2 malformed,
   60 s deadline, 30 s lease); tune them from telemetry.
 

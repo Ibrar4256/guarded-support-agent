@@ -14,8 +14,12 @@ from typing import Any
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from agent.core.c01 import C01_VERSION
+from agent.core.c01 import RULE_ID as C01_RULE_ID
 from agent.core.lifecycle import TERMINAL_STATUSES, RunStatus, require_transition
-from agent.db.schema import conversations, events, runs
+from agent.core.policy import POLICY_VERSION
+from agent.db.presend import DECIDED_BY_POLICY
+from agent.db.schema import conversations, decisions, events, runs
 
 CUSTOMER_MESSAGE = "customer_message"
 REPLY = "reply"
@@ -140,3 +144,57 @@ async def complete_run(conn: AsyncConnection, run_id: uuid.UUID) -> None:
     )
     if result.one_or_none() is None:
         raise RuntimeError(f"run {run_id} left AGENT_STEP while this turn held its conversation")
+
+
+async def escalate_for_c01(conn: AsyncConnection, run_id: uuid.UUID) -> None:
+    """C01 during ``AGENT_STEP``: ``→ ESCALATED`` with ``c01_flagged_at`` (ADR-009)."""
+    require_transition(RunStatus.AGENT_STEP, RunStatus.ESCALATED)
+    result = await conn.execute(
+        update(runs)
+        .where(runs.c.id == run_id, runs.c.status == RunStatus.AGENT_STEP)
+        .values(status=RunStatus.ESCALATED, escalated_at=func.now(), c01_flagged_at=func.now())
+        .returning(runs.c.id)
+    )
+    if result.one_or_none() is None:
+        raise RuntimeError(f"run {run_id} left AGENT_STEP while this turn held its conversation")
+
+
+async def flag_pending_for_c01(conn: AsyncConnection, run_id: uuid.UUID) -> str | None:
+    """C01 after a proposal: flag the run for reviewers and bump ``review_revision`` (A03), so
+    an approval from a page that predates the message fails. The status is untouched: an
+    in-flight or queued refund isn't cancelled (ADR-009). Returns the run's action id."""
+    result = await conn.execute(
+        update(runs)
+        .where(runs.c.id == run_id)
+        .values(
+            c01_flagged_at=func.coalesce(runs.c.c01_flagged_at, func.now()),
+            escalated_at=func.coalesce(runs.c.escalated_at, func.now()),
+            review_revision=runs.c.review_revision + 1,
+        )
+        .returning(runs.c.action_id)
+    )
+    action_id: str | None = result.scalar_one()
+    return action_id
+
+
+async def record_c01_decision(
+    conn: AsyncConnection,
+    run_id: uuid.UUID,
+    action_id: str | None,
+    outcome: str,
+    patterns: tuple[str, ...],
+) -> None:
+    """The decision log keeps the matched pattern IDs only, never the message (ADR-009)."""
+    await conn.execute(
+        insert(decisions).values(
+            run_id=run_id,
+            action_id=action_id,
+            stage="conversation_escalation",
+            outcome=outcome,
+            rule_ids=[C01_RULE_ID],
+            policy_version=POLICY_VERSION,
+            config_snapshot={"c01_version": C01_VERSION},
+            input_snapshot={"patterns": list(patterns)},
+            decided_by=DECIDED_BY_POLICY,
+        )
+    )
