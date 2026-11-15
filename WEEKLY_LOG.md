@@ -1073,3 +1073,38 @@ window's character budget before the dropped-message check); recorded as the rea
 wrong: the valid calls in a broken response must not run either.
 
 **What's next:** T4, the write tools and ADR-009's proposal path.
+
+
+### Agent: the write tools and ADR-009's proposal path (turn slice T4) (2026-11-15)
+
+**What shipped:** the model can now propose. `turn/tools.py` gains `propose_refund(order_id,
+amount_minor, currency)` and `escalate(reason_code)` (a closed set; neither has an identity
+field). `turn/loop.py` accepts a write call only alone in its response (mixed, nothing runs) and
+bounces a proposal on an order this run never looked up back to the model as a malformed
+response ("yes, refund it" now looks the order up, then proposes). `turn/propose.py` +
+`db/proposal.py` are ADR-009's proposal path: one transaction locks the customer, fences on the
+turn, reads every per-customer count under the lock, evaluates, writes the decision row, and
+moves the run: `APPROVED` with idempotency key, canonical payload and review hash (ADR-004
+step 1), `AWAIT_APPROVAL` with a review deadline and a `pending_review` event, or `ESCALATED`;
+the breaker trips with its own decision row and an alert; template replies only, no model call
+after a proposal. Lock timeouts are retried, then "try again" with cause `lock`; anything that
+can't be evaluated fails closed in a separate turn-fenced transaction. `core/review_hash.py`
+(A01, with hand-computed vectors). New settings: `POLICY_BREAKER_WINDOW_SECONDS`,
+`TURN_PROPOSAL_LOCK_ATTEMPTS`, `REVIEW_DEADLINE_SECONDS`. `make_approved_run` now builds its run
+with the production `approval_values`. 35 tests, 21 plants caught. Agent 1009, refund_api 255,
+e2e 16.
+
+**What broke:** a lock-timeout test failed before the model was called: inserting a run checks
+its customer foreign key with `FOR KEY SHARE`, which our `FOR UPDATE` customer lock blocks. A
+real behavior (a proposal or pre-send briefly blocks new runs for that customer), recorded in
+KNOWN_TRADEOFFS with `FOR NO KEY UPDATE` as the pending fix. The R13 total's test was vacuous:
+its planted bug passed, because the fixture helper never set `approved_at` on the refused row.
+Two other "uncaught" plants were caught for the right reason; my expected text didn't match
+pytest's truncated output.
+
+**What I learned:** a design sentence ("gather inputs before the lock") can be read two ways, and
+the literal reading reintroduces the race the lock exists for; and a fixture helper that quietly
+skips a field can make a test unable to fail.
+
+**What's next:** a decision on the customer lock's mode, then T5, memory (past-ticket digest and
+rolling summary).

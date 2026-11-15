@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from agent_testing.fakes import RecordingAlerter
     from sqlalchemy.ext.asyncio import AsyncEngine
 
+    from agent.core.policy import PolicyConfig
     from agent.llm.recording import CallRecord
     from agent.llm.types import ChatModel
     from agent.turn.run import TurnDeps
@@ -29,6 +30,8 @@ SETTINGS = TurnSettings(
     provider_failure_alert_after=3,
     summary_trigger_messages=8,
     summary_deadline=timedelta(seconds=30),
+    proposal_lock_attempts=3,
+    review_deadline=timedelta(days=1),
 )
 FAST = TurnSettings(
     **{
@@ -38,6 +41,7 @@ FAST = TurnSettings(
         "statement_timeout": timedelta(seconds=0.5),
         "lock_timeout": timedelta(seconds=0.3),
         "deadline": timedelta(seconds=1),
+        "proposal_lock_attempts": 1,
     }
 )
 
@@ -50,9 +54,12 @@ def turn_deps(
     records: "list[CallRecord]",
     settings: TurnSettings = SETTINGS,
     monotonic: "Callable[[], float] | None" = None,
+    policy: "PolicyConfig | None" = None,
 ) -> "TurnDeps":
     """A turn wired to one scripted model, recording calls into ``records``."""
     import time
+
+    from worker_harness import POLICY
 
     from agent.llm.pool import PoolMember, ProviderPool
     from agent.llm.prices import PriceTable
@@ -70,4 +77,13 @@ def turn_deps(
         monotonic=clock,
     )
     prices = PriceTable.parse({"version": "test", "currency": "USD", "models": {}})
-    return TurnDeps(engine, settings, pool, record, prices, alerter, clock)
+    return TurnDeps(
+        engine=engine,
+        settings=settings,
+        pool=pool,
+        record=record,
+        prices=prices,
+        alerter=alerter,
+        policy=policy or POLICY,
+        monotonic=clock,
+    )

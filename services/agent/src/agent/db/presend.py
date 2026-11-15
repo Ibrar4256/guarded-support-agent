@@ -122,61 +122,76 @@ async def load_inputs(conn: AsyncConnection, run: PresendRun, now: datetime) -> 
     """Database reads only (ADR-009 Concurrency): the order, the run's lookups, the refund
     history the capacity rules count, and the controls."""
     proposal = run.proposal
-    order_row = (
-        await conn.execute(select(orders).where(orders.c.id == proposal.order_id))
-    ).one_or_none()
-    if order_row is None:
-        raise MissingInputError(f"order {proposal.order_id} not found")
-    looked_up = (
-        await conn.execute(
-            select(run_order_lookups.c.order_id).where(run_order_lookups.c.run_id == run.run_id)
-        )
-    ).scalars()
-    history_rows = await conn.execute(
+    return PresendInputs(
+        proposal=proposal,
+        session_user_id=run.user_id,
+        order=await load_order(conn, proposal.order_id),
+        looked_up_order_ids=await load_lookups(conn, run.run_id),
+        history=await load_history(conn, run.user_id, proposal.order_id),
+        approved_by_policy=run.approval_source is ApprovalSource.POLICY,
+        controls=await load_controls(conn),
+        now=now,
+    )
+
+
+async def load_order(conn: AsyncConnection, order_id: str) -> OrderFacts:
+    """Any customer's order: R03 decides ownership, so the row is read whoever owns it."""
+    row = (await conn.execute(select(orders).where(orders.c.id == order_id))).one_or_none()
+    if row is None:
+        raise MissingInputError(f"order {order_id} not found")
+    return OrderFacts(
+        order_id=row.id,
+        owner_user_id=row.owner_user_id,
+        charged_minor=row.charged_minor,
+        currency=row.currency,
+        status=row.status,
+        delivered_at=row.delivered_at,
+        chargeback_open=row.chargeback_open,
+    )
+
+
+async def load_lookups(conn: AsyncConnection, run_id: uuid.UUID) -> frozenset[str]:
+    """R02's lookup log: the orders this run's order-lookup tool returned."""
+    rows = await conn.execute(
+        select(run_order_lookups.c.order_id).where(run_order_lookups.c.run_id == run_id)
+    )
+    return frozenset(rows.scalars())
+
+
+async def load_history(conn: AsyncConnection, user_id: str, order_id: str) -> list[RefundRecord]:
+    """Every refund action of the customer or on the order (R05, R06, R11, R12)."""
+    rows = await conn.execute(
         select(runs).where(
-            or_(runs.c.user_id == run.user_id, runs.c.order_id == proposal.order_id),
+            or_(runs.c.user_id == user_id, runs.c.order_id == order_id),
             runs.c.action_id.is_not(None),
             runs.c.amount_minor.is_not(None),
         )
     )
-    controls_row = (
+    return [record_of(r) for r in rows]
+
+
+def record_of(row: Any) -> RefundRecord:
+    return RefundRecord(
+        action_id=row.action_id,
+        order_id=row.order_id,
+        amount_minor=row.amount_minor,
+        currency=row.currency,
+        status=row.status,
+        outcome=row.refund_outcome,
+        first_send_started_at=row.first_send_started_at,
+        approval_source=row.approval_source,
+        approved_at=row.approved_at,
+    )
+
+
+async def load_controls(conn: AsyncConnection) -> PolicyControls:
+    row = (
         await conn.execute(select(policy_controls).where(policy_controls.c.id == CONTROLS_ROW_ID))
     ).one_or_none()
-    if controls_row is None:
+    if row is None:
         raise MissingInputError("policy_controls row is missing")
-    return PresendInputs(
-        proposal=proposal,
-        session_user_id=run.user_id,
-        order=OrderFacts(
-            order_id=order_row.id,
-            owner_user_id=order_row.owner_user_id,
-            charged_minor=order_row.charged_minor,
-            currency=order_row.currency,
-            status=order_row.status,
-            delivered_at=order_row.delivered_at,
-            chargeback_open=order_row.chargeback_open,
-        ),
-        looked_up_order_ids=frozenset(looked_up),
-        history=[
-            RefundRecord(
-                action_id=r.action_id,
-                order_id=r.order_id,
-                amount_minor=r.amount_minor,
-                currency=r.currency,
-                status=r.status,
-                outcome=r.refund_outcome,
-                first_send_started_at=r.first_send_started_at,
-                approval_source=r.approval_source,
-                approved_at=r.approved_at,
-            )
-            for r in history_rows
-        ],
-        approved_by_policy=run.approval_source is ApprovalSource.POLICY,
-        controls=PolicyControls(
-            breaker_tripped=controls_row.breaker_tripped_at is not None,
-            sends_enabled=controls_row.sends_enabled,
-        ),
-        now=now,
+    return PolicyControls(
+        breaker_tripped=row.breaker_tripped_at is not None, sends_enabled=row.sends_enabled
     )
 
 
@@ -222,12 +237,13 @@ async def insert_decision(
     policy_version: str,
     config_snapshot: dict[str, Any],
     input_snapshot: dict[str, Any],
+    stage: str = "presend",
 ) -> None:
     await conn.execute(
         insert(decisions).values(
             run_id=subject.run_id,
             action_id=subject.action_id,
-            stage="presend",
+            stage=stage,
             outcome=outcome,
             rule_ids=list(rule_ids),
             policy_version=policy_version,

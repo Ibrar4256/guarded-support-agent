@@ -1,5 +1,8 @@
 """One customer message, start to finish (ADR-022 S1): start, loop under the lease, finish.
 
+A proposal finishes through ADR-009's proposal path (``turn.propose``) after the loop, with no
+further model call.
+
 The turn never holds a database connection while waiting on the model (S4): the window is read
 in its own short transaction, each tool call checks out its own connection, and the finish is
 one fenced transaction. A turn that loses its lease or runs past its deadline writes nothing
@@ -16,6 +19,7 @@ from enum import StrEnum
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from agent.alerts import Alerter
+from agent.core.policy import PolicyConfig
 from agent.db import turns
 from agent.db.claims import worker_transaction
 from agent.llm.pool import ProviderPool
@@ -24,8 +28,9 @@ from agent.llm.recording import CallContext, Recorder, RecordingModel
 from agent.tools.contract import LostTurn
 from agent.turn.finish import TryAgainCause, escalate_and_reply, reply_and_complete, reply_and_wait
 from agent.turn.lease import TurnOverrun, hold_lease
-from agent.turn.loop import Escalate, LoopContext, LoopOutcome, Reply, Wait, run_loop
+from agent.turn.loop import Escalate, LoopContext, LoopOutcome, Propose, Reply, Wait, run_loop
 from agent.turn.prompt import MessageEvent, build_messages, new_nonce, window
+from agent.turn.propose import ProposalContext, ProposalStep, run_proposal
 from agent.turn.settings import TurnSettings
 from agent.turn.start import TurnIds, start_turn
 
@@ -37,7 +42,9 @@ PROVIDER_FAILURES_ALERT = "conversation_provider_failures"
 class TurnOutcome(StrEnum):
     ANSWERED_AT_START = "answered_at_start"  # a pending proposal or C01: no model call
     REPLIED = "replied"
-    WAITING = "waiting"  # try_again or rephrase; the run stays in AGENT_STEP
+    APPROVED = "approved"  # a proposal policy approved; the worker takes it from here
+    AWAITING_REVIEW = "awaiting_review"  # a proposal waiting for a reviewer
+    WAITING = "waiting"  # try_again (provider, deadline, proposal lock) or rephrase; AGENT_STEP
     ESCALATED = "escalated"
     LOST = "lost"  # the lease was lost or the turn overran; nothing more was written
 
@@ -50,6 +57,7 @@ class TurnDeps:
     record: Recorder
     prices: PriceTable
     alerter: Alerter
+    policy: PolicyConfig
     monotonic: Callable[[], float] = field(default=time.monotonic)
 
 
@@ -78,7 +86,7 @@ async def run_turn(
             lambda: _work(deps, ids, user, deadline),
             monotonic=deps.monotonic,
         )
-        return TurnResult(ids, await _finish(deps, ids, outcome))
+        return TurnResult(ids, await _finish(deps, ids, user, outcome))
     except (LostTurn, TurnOverrun) as lost:
         logger.warning("turn %s gave up its conversation: %s", ids.turn_id, lost)
         return TurnResult(ids, TurnOutcome.LOST)
@@ -110,7 +118,18 @@ async def _work(deps: TurnDeps, ids: TurnIds, user: str, deadline: float) -> Loo
     return await run_loop(context, build_messages(history, nonce=new_nonce()))
 
 
-async def _finish(deps: TurnDeps, ids: TurnIds, outcome: LoopOutcome) -> TurnOutcome:
+PROPOSAL_OUTCOMES = {
+    ProposalStep.APPROVED: TurnOutcome.APPROVED,
+    ProposalStep.AWAITING_REVIEW: TurnOutcome.AWAITING_REVIEW,
+    ProposalStep.ESCALATED: TurnOutcome.ESCALATED,
+    ProposalStep.TRY_AGAIN: TurnOutcome.WAITING,
+}
+
+
+async def _finish(deps: TurnDeps, ids: TurnIds, user: str, outcome: LoopOutcome) -> TurnOutcome:
+    if isinstance(outcome, Propose):
+        context = ProposalContext(deps.engine, deps.settings, deps.policy, deps.alerter, ids, user)
+        return PROPOSAL_OUTCOMES[await run_proposal(context, outcome.args)]
     if isinstance(outcome, Reply):
         await reply_and_complete(deps.engine, deps.settings, ids, outcome.text)
         return TurnOutcome.REPLIED

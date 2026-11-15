@@ -340,6 +340,34 @@ lives in `WEEKLY_LOG.md`.
 - **The budget and timeout defaults are unmeasured starting values** (6 calls, 2 malformed,
   60 s deadline, 30 s lease); tune them from telemetry.
 
+### The proposal path (ADR-009, turn slice T4)
+
+- **The customer lock is `FOR UPDATE`, which also blocks foreign-key checks** (`FOR KEY SHARE`)
+  on that customer row. While a proposal or a pre-send check holds it (milliseconds), starting a
+  new run for the same customer in another conversation waits; past the turn's lock timeout
+  that turn fails to start with a database error rather than a clean reply. Found by a test.
+  `FOR NO KEY UPDATE` would still serialize the policy checks without blocking FK checks; it's a
+  pending decision because ADR-005 names `FOR UPDATE` and the worker shares the lock.
+- **R17 ("proposals in the last 24 h") counts the customer's `proposal` decision rows**, so it
+  needs no new column; a proposal that timed out on the lock writes no row and isn't counted.
+- **An escalated proposal stores only its `action_id` on the run**; order, amount and currency
+  are in the decision's input snapshot. A reviewer view has to read them from there.
+- **R13's system-wide total loads every policy-approved run in the breaker window** and filters
+  them with the core's own "live" definition, so SQL and policy can't disagree; the cost grows
+  with approvals per window (fine at v1 volume).
+- **Proposal-time lock retries run after the heartbeat has stopped.** A startup check keeps
+  `heartbeat + lock timeout × TURN_PROPOSAL_LOCK_ATTEMPTS` below the lease; an overrun would
+  lose the turn (every write is fenced), never write under a lost lease.
+- **The `escalate` tool's reason code goes to the server log only**: it isn't a policy decision,
+  so no decision row, and there's no reviewer-facing record of it yet.
+- **A database error during the "was this order looked up?" check fails the turn** with nothing
+  written (the next message resumes the run), rather than answering the model with a tool error.
+- **`turn.propose` reuses `is_lock_timeout` from the worker's pre-send module**: a small coupling
+  between the turn and worker packages, kept rather than duplicating the 55P03 check.
+- **Three new settings**: `POLICY_BREAKER_WINDOW_SECONDS` (named in ADR-009's config but missing
+  until now), `TURN_PROPOSAL_LOCK_ATTEMPTS` and `REVIEW_DEADLINE_SECONDS`. Starting values, not
+  measurements.
+
 ## LLM provider adapter (ADR-023)
 
 - **A conversation can change models between turns** when the primary's quota is spent and a

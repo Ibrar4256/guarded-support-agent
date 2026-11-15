@@ -1,6 +1,7 @@
 """``python -m agent_testing.make_approved_run``: an APPROVED refund run, created the way
 approval saves it (ADR-004 step 1: the idempotency key and canonical payload written with the
-approval), for the end-to-end crash tests (ADR-015 Part 3). The agent-side counterpart of
+approval, by the proposal path's own ``approval_values``), for the end-to-end crash tests
+(ADR-015 Part 3). The agent-side counterpart of
 refund-api's ``/_test/charges``: the e2e suite never writes agent rows itself.
 
     python -m agent_testing.make_approved_run --amount 2000 [--charged 8000] [--order ord_x]
@@ -13,7 +14,6 @@ prints them as one JSON object.
 import argparse
 import json
 import os
-import secrets
 import sys
 import uuid
 from collections.abc import Mapping, Sequence
@@ -24,9 +24,9 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from agent.core.capacity import ApprovalSource
 from agent.core.lifecycle import RefundOutcome, RunStatus
-from agent.core.policy import FulfillmentStatus
+from agent.core.policy import FulfillmentStatus, RefundProposal
+from agent.db.proposal import approval_values
 from agent.db.schema import conversations, customers, orders, run_order_lookups, runs
-from agent.refund_client.payload import canonical_payload
 
 CURRENCY = "USD"
 DELIVERED_DAYS_AGO = 3
@@ -43,7 +43,7 @@ def make_approved_run(
     user = user_id or f"e2e_user_{uuid.uuid4().hex[:10]}"
     order = order_id or f"e2e_ord_{uuid.uuid4().hex[:12]}"
     action = f"e2e_act_{uuid.uuid4().hex[:12]}"
-    key = secrets.token_urlsafe(32)
+    approval = approval_values(RefundProposal(action, order, amount_minor, CURRENCY))
     run, conversation = uuid.uuid4(), uuid.uuid4()
     engine = create_engine(db_url)
     try:
@@ -76,19 +76,9 @@ def make_approved_run(
                     user_id=user,
                     status=RunStatus.APPROVED,
                     refund_outcome=RefundOutcome.NONE,
-                    action_id=action,
-                    order_id=order,
-                    amount_minor=amount_minor,
-                    currency=CURRENCY,
                     approval_source=ApprovalSource.POLICY,
                     approved_at=datetime.now(UTC),
-                    idempotency_key=key,
-                    canonical_payload=canonical_payload(
-                        order_id=order,
-                        amount_minor=amount_minor,
-                        currency=CURRENCY,
-                        action_id=action,
-                    ),
+                    **approval,
                 )
             )
             connection.execute(insert(run_order_lookups).values(run_id=run, order_id=order))
@@ -101,7 +91,7 @@ def make_approved_run(
         "user_id": user,
         "amount_minor": amount_minor,
         "currency": CURRENCY,
-        "idempotency_key": key,
+        "idempotency_key": approval["idempotency_key"],
     }
 
 

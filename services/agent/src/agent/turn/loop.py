@@ -4,9 +4,14 @@ Each model response is one of:
 - **no tool calls** with text: the reply;
 - **read calls only**, all valid: each runs in order on a connection with the turn's timeouts
   (S3), and its result goes back only as a tool message, never as user or system text;
-- **malformed** (an unknown tool, arguments that aren't a JSON object or fail validation, tool
-  calls cut off by the output limit, an empty reply): every call gets an error result and
-  nothing in the response runs. Past ``TURN_MAX_MALFORMED`` the run escalates.
+- **one valid write call, alone**: it leaves the loop, never runs here. ``escalate`` escalates;
+  ``propose_refund`` goes to ADR-009's proposal path, unless its order isn't in this run's lookup
+  log: then it's bounced back as malformed, so a model proposing from its own earlier reply looks
+  the order up instead of escalating on R02 (R02 itself still runs on whatever gets past);
+- **malformed** (an unknown tool, arguments that aren't a JSON object or fail validation, a
+  write call mixed with other calls, tool calls cut off by the output limit, an empty reply):
+  every call gets an error result and nothing in the response runs. Past ``TURN_MAX_MALFORMED``
+  the run escalates.
 
 Every provider call counts toward ``TURN_MAX_MODEL_CALLS`` (S2); past it the run escalates. A
 model error ends the loop with the reply ADR-023 S1a gives it. Text that comes with tool calls is
@@ -23,6 +28,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from agent.core.replies import ReplyTemplate
+from agent.db.order_lookup import was_looked_up
 from agent.llm.errors import ContextTooLong, InputRejected, ModelError
 from agent.llm.types import ChatModel, FinishReason, ModelResponse, Purpose, ToolCall
 from agent.tools.contract import ToolArgs, ToolContext, canonical
@@ -30,7 +36,14 @@ from agent.turn.finish import TryAgainCause
 from agent.turn.settings import TurnSettings
 from agent.turn.start import TurnIds
 from agent.turn.toolconn import tool_connection
-from agent.turn.tools import READ_TOOLS, ReadTool
+from agent.turn.tools import (
+    READ_TOOLS,
+    WRITE_TOOLS,
+    EscalateArgs,
+    ProposeRefundArgs,
+    ReadTool,
+    WriteTool,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +52,8 @@ INPUT_REJECTED_ALERT = "turn_input_rejected"
 EMPTY_REPLY_NOTE = (
     "[automated] Your last response was empty. Reply to the customer, or call a tool."
 )
+NOT_ALONE = "propose_refund and escalate must be the only tool call in their response"
+NOT_LOOKED_UP = "look up the order in this conversation before proposing a refund"
 
 
 @dataclass(frozen=True)
@@ -58,7 +73,14 @@ class Escalate:
     reason: str
 
 
-LoopOutcome = Reply | Wait | Escalate
+@dataclass(frozen=True)
+class Propose:
+    """One valid ``propose_refund`` on an order this run looked up: ADR-009 takes it from here."""
+
+    args: ProposeRefundArgs
+
+
+LoopOutcome = Reply | Wait | Escalate | Propose
 
 PROVIDER_FAILURE = Wait(ReplyTemplate.TRY_AGAIN, TryAgainCause.PROVIDER)
 
@@ -87,28 +109,47 @@ def outcome_for(error: ModelError) -> Wait:
     return PROVIDER_FAILURE
 
 
-def parse_calls(response: ModelResponse) -> list[tuple[ToolCall, ReadTool, ToolArgs]]:
-    """The response's read calls, validated; ``Malformed`` names the first problem."""
+@dataclass(frozen=True)
+class WriteCall:
+    call: ToolCall
+    tool: WriteTool
+    args: ToolArgs
+
+
+ReadCalls = list[tuple[ToolCall, ReadTool, ToolArgs]]
+
+
+def parse_calls(response: ModelResponse) -> ReadCalls | WriteCall:
+    """The response's calls, validated: read calls, or one write call alone. ``Malformed``
+    names the first problem."""
     if response.finish_reason is FinishReason.LENGTH:
         raise Malformed("the response was cut off by the output limit")
+    if len(response.tool_calls) > 1 and any(c.name in WRITE_TOOLS for c in response.tool_calls):
+        raise Malformed(NOT_ALONE)
     parsed = []
     for call in response.tool_calls:
-        tool = READ_TOOLS.get(call.name)
+        tool = READ_TOOLS.get(call.name) or WRITE_TOOLS.get(call.name)
         if tool is None:
             raise Malformed(f"unknown tool {call.name!r}")
-        try:
-            raw = json.loads(call.arguments)
-        except json.JSONDecodeError as exc:
-            raise Malformed(f"{call.name}: arguments are not valid JSON") from exc
-        if not isinstance(raw, dict):
-            raise Malformed(f"{call.name}: arguments must be a JSON object")
-        try:
-            args = tool.args.model_validate(raw)
-        except ValidationError as exc:
-            fields = ", ".join(".".join(map(str, e["loc"])) or "arguments" for e in exc.errors())
-            raise Malformed(f"{call.name}: invalid arguments ({fields})") from exc
+        args = validate_arguments(call, tool.args)
+        if isinstance(tool, WriteTool):
+            return WriteCall(call, tool, args)
         parsed.append((call, tool, args))
     return parsed
+
+
+def validate_arguments(call: ToolCall, model: type[ToolArgs]) -> ToolArgs:
+    try:
+        raw = json.loads(call.arguments)
+    except json.JSONDecodeError as exc:
+        raise Malformed(f"{call.name}: arguments are not valid JSON") from exc
+    if not isinstance(raw, dict):
+        raise Malformed(f"{call.name}: arguments must be a JSON object")
+    try:
+        return model.model_validate(raw)
+    except ValidationError as exc:
+        fields = ", ".join(".".join(map(str, e["loc"])) or "arguments" for e in exc.errors())
+        raise Malformed(f"{call.name}: invalid arguments ({fields})") from exc
 
 
 def assistant_message(response: ModelResponse) -> dict[str, Any]:
@@ -142,8 +183,25 @@ async def run_read_tool(ctx: LoopContext, tool: ReadTool, args: ToolArgs) -> str
         return await tool.run(tool_ctx, args)
 
 
+async def order_looked_up(ctx: LoopContext, order_id: str) -> bool:
+    async with tool_connection(ctx.engine, ctx.settings) as conn, conn.begin():
+        return await was_looked_up(conn, ctx.ids.run_id, order_id)
+
+
+async def leave_with(ctx: LoopContext, write: WriteCall) -> LoopOutcome:
+    """A valid write call alone ends the loop; the model is never called again."""
+    if isinstance(write.args, ProposeRefundArgs):
+        if not await order_looked_up(ctx, write.args.order_id):
+            raise Malformed(NOT_LOOKED_UP)
+        return Propose(write.args)
+    if isinstance(write.args, EscalateArgs):
+        return Escalate(f"escalate_tool:{write.args.reason_code}")
+    raise TypeError(f"no handler for write tool {write.tool.name}")
+
+
 async def run_loop(ctx: LoopContext, messages: list[dict[str, Any]]) -> LoopOutcome:
     tools = [tool.schema() for tool in READ_TOOLS.values()]
+    tools += [tool.schema() for tool in WRITE_TOOLS.values()]
     malformed = 0
     for _ in range(ctx.settings.max_model_calls):
         if ctx.deadline - ctx.monotonic() <= 0:
@@ -163,6 +221,8 @@ async def run_loop(ctx: LoopContext, messages: list[dict[str, Any]]) -> LoopOutc
                     logger.info("turn %s: reply truncated by the output limit", ctx.ids.turn_id)
                 return Reply(response.text)
             calls = parse_calls(response)
+            if isinstance(calls, WriteCall):
+                return await leave_with(ctx, calls)
         except Malformed as problem:
             malformed += 1
             logger.info("turn %s: malformed response %d: %s", ctx.ids.turn_id, malformed, problem)

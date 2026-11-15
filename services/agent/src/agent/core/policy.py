@@ -87,6 +87,7 @@ class PolicyConfig:
     per_customer_limit_minor: int
     per_customer_window: timedelta
     refund_window: timedelta
+    breaker_window: timedelta
     breaker_threshold_minor: int
     pending_review_cap: int
     daily_proposal_cap: int
@@ -113,6 +114,7 @@ class PolicyConfig:
         windows = {
             "per_customer_window": self.per_customer_window,
             "refund_window": self.refund_window,
+            "breaker_window": self.breaker_window,
             "decline_cooldown": self.decline_cooldown,
         }
         problems.extend(f"{name} must be > 0" for name, v in windows.items() if v <= timedelta(0))

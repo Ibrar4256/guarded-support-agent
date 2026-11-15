@@ -31,6 +31,10 @@ class TurnSettings:
     provider_failure_alert_after: int
     summary_trigger_messages: int
     summary_deadline: timedelta
+    # ADR-009's proposal path: lock waits tried before "please try again", and how long a
+    # proposal waits for a reviewer (ADR-003 expiry).
+    proposal_lock_attempts: int
+    review_deadline: timedelta
 
     def __post_init__(self) -> None:
         error = TurnSettingsError
@@ -48,6 +52,13 @@ class TurnSettings:
             raise error("TURN_STATEMENT_TIMEOUT_SECONDS must be below TURN_DEADLINE_SECONDS")
         if self.message_max_chars >= self.window_max_chars:
             raise error("CUSTOMER_MESSAGE_MAX_CHARS must be below PROMPT_WINDOW_MAX_CHARS")
+        # The proposal path runs after the heartbeat stops, so its lock waits must fit in what's
+        # left of the lease. Overrunning is safe (every write is fenced), but would lose the turn.
+        if self.heartbeat + self.lock_timeout * self.proposal_lock_attempts >= self.lease:
+            raise error(
+                "TURN_HEARTBEAT_SECONDS + TURN_LOCK_TIMEOUT_SECONDS x TURN_PROPOSAL_LOCK_ATTEMPTS "
+                "must be below TURN_LEASE_SECONDS"
+            )
 
     def check_against(self, llm: LLMSettings) -> None:
         """Cross-checks with the model settings (ADR-023 S3)."""
@@ -87,4 +98,6 @@ class TurnSettings:
             provider_failure_alert_after=count("TURN_PROVIDER_FAILURE_ALERT_AFTER"),
             summary_trigger_messages=count("SUMMARY_TRIGGER_MESSAGES"),
             summary_deadline=seconds("SUMMARY_DEADLINE_SECONDS"),
+            proposal_lock_attempts=count("TURN_PROPOSAL_LOCK_ATTEMPTS"),
+            review_deadline=seconds("REVIEW_DEADLINE_SECONDS"),
         )

@@ -23,6 +23,8 @@ ENV = {
     "TURN_PROVIDER_FAILURE_ALERT_AFTER": "3",
     "SUMMARY_TRIGGER_MESSAGES": "8",
     "SUMMARY_DEADLINE_SECONDS": "30",
+    "TURN_PROPOSAL_LOCK_ATTEMPTS": "3",
+    "REVIEW_DEADLINE_SECONDS": "86400",
 }
 
 
@@ -42,6 +44,8 @@ def test_the_defaults_load() -> None:
         ({"TURN_MAX_MALFORMED": "0"}, "max_malformed must be positive"),
         ({"SUMMARY_DEADLINE_SECONDS": "-1"}, "summary_deadline must be positive"),
         ({"TURN_DEADLINE_SECONDS": "soon"}, "number of seconds"),
+        ({"TURN_PROPOSAL_LOCK_ATTEMPTS": "10"}, "must be below TURN_LEASE_SECONDS"),
+        ({"REVIEW_DEADLINE_SECONDS": "0"}, "review_deadline must be positive"),
     ],
 )
 def test_bad_settings_are_refused(changes: dict[str, Any], message: str) -> None:

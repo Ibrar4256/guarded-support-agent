@@ -397,6 +397,7 @@ def test_valid_config_passes() -> None:
         {"auto_approve_budget_minor": 4_000},
         {"per_customer_limit_minor": 9_000},
         {"refund_window": timedelta(0)},
+        {"breaker_window": timedelta(0)},
         {"pending_review_cap": 0},
     ],
 )

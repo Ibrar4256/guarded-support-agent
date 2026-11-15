@@ -13,6 +13,7 @@ AUTO_APPROVE_BUDGET = "POLICY_AUTO_APPROVE_BUDGET_MINOR"
 PER_CUSTOMER_LIMIT = "POLICY_PER_CUSTOMER_LIMIT_MINOR"
 PER_CUSTOMER_WINDOW = "POLICY_PER_CUSTOMER_WINDOW_SECONDS"
 REFUND_WINDOW = "POLICY_REFUND_WINDOW_SECONDS"
+BREAKER_WINDOW = "POLICY_BREAKER_WINDOW_SECONDS"
 BREAKER_THRESHOLD = "POLICY_BREAKER_THRESHOLD_MINOR"
 PENDING_REVIEW_CAP = "POLICY_PENDING_REVIEW_CAP"
 DAILY_PROPOSAL_CAP = "POLICY_DAILY_PROPOSAL_CAP"
@@ -34,6 +35,7 @@ def policy_config_from_env(environ: Mapping[str, str]) -> PolicyConfig:
         per_customer_limit_minor=envvars.count(environ, PER_CUSTOMER_LIMIT, error),
         per_customer_window=envvars.seconds(environ, PER_CUSTOMER_WINDOW, error),
         refund_window=envvars.seconds(environ, REFUND_WINDOW, error),
+        breaker_window=envvars.seconds(environ, BREAKER_WINDOW, error),
         breaker_threshold_minor=envvars.count(environ, BREAKER_THRESHOLD, error),
         pending_review_cap=envvars.count(environ, PENDING_REVIEW_CAP, error),
         daily_proposal_cap=envvars.count(environ, DAILY_PROPOSAL_CAP, error),

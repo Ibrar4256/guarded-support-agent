@@ -26,6 +26,7 @@ CONFIG = PolicyConfig(
     per_customer_limit_minor=20_000,
     per_customer_window=timedelta(days=30),
     refund_window=timedelta(days=30),
+    breaker_window=timedelta(hours=1),
     breaker_threshold_minor=100_000,
     pending_review_cap=3,
     daily_proposal_cap=5,

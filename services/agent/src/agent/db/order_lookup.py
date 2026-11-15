@@ -65,6 +65,18 @@ async def record_lookup(conn: AsyncConnection, run_id: uuid.UUID, order_id: str)
     )
 
 
+async def was_looked_up(conn: AsyncConnection, run_id: uuid.UUID, order_id: str) -> bool:
+    """ADR-022 S1: whether this run's lookup log holds the order a proposal names."""
+    result = await conn.execute(
+        select(
+            exists().where(
+                run_order_lookups.c.run_id == run_id, run_order_lookups.c.order_id == order_id
+            )
+        )
+    )
+    return bool(result.scalar_one())
+
+
 async def order_exists(conn: AsyncConnection, order_id: str) -> bool:
     """The security-log probe: whether the id exists for anyone. Never feeds the answer."""
     result = await conn.execute(select(exists().where(orders.c.id == order_id)))
