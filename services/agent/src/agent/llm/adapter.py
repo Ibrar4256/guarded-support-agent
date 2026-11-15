@@ -96,6 +96,7 @@ class OpenAICompatibleModel:
                 billed_before = billed_before or assembler.started
                 delay = self._retry_delay(error, attempts, delivery, deadline)
                 if delay is None:
+                    error.attempts = attempts
                     raise error from exc
                 await self._sleep(delay)
                 continue
@@ -105,6 +106,7 @@ class OpenAICompatibleModel:
                 error = ProviderUnavailable("the stream ended without a finish reason")
                 delay = self._retry_delay(error, attempts, delivery, deadline)
                 if delay is None:
+                    error.attempts = attempts
                     raise error
                 await self._sleep(delay)
                 continue

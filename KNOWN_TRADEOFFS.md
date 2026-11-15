@@ -329,6 +329,13 @@ lives in `WEEKLY_LOG.md`.
   labeled.
 - **A dropped stream after text reached the callback fails the turn** (`try_again`) instead of
   retrying, so a customer may have to try again where a retry would have succeeded.
+- **`llm_calls` has no foreign keys**, on purpose: a key check locks the referenced run or
+  conversation row, and a telemetry insert must never wait behind a worker's `FOR UPDATE` or a
+  turn. A row can name a run id that doesn't exist (a bug elsewhere), and nothing cascades.
+- **The price table is empty until the models are chosen**, so every call is unpriced (NULL
+  cost) for now; each entry added later carries its source page and the date it was checked.
+- **A call cancelled mid-flight records nothing** (the turn itself was cancelled); a call that
+  fails is recorded with its attempts and no tokens.
 - **Two HTTP libraries in the agent:** `httpx` for the refund client and `httpx2`, which
   `openai` 3.x brings in. The adapter's wire-level tests mock with `httpx2.MockTransport`, not
   `respx` (ADR-006 pointer). A future `openai` release could change transports again; the

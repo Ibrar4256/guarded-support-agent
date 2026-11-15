@@ -19,6 +19,7 @@ from sqlalchemy import (
     Index,
     Integer,
     MetaData,
+    Numeric,
     PrimaryKeyConstraint,
     SmallInteger,
     String,
@@ -34,6 +35,8 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from agent.core.capacity import ApprovalSource
 from agent.core.lifecycle import RefundOutcome, RunStatus
 from agent.core.policy import FulfillmentStatus
+from agent.llm.errors import CALL_OUTCOMES
+from agent.llm.types import Purpose, UsageCompleteness
 
 NAMING_CONVENTION = {
     "ix": "ix_%(table_name)s_%(column_0_N_name)s",
@@ -310,6 +313,61 @@ decisions = Table(
 )
 Index("ix_decisions_run_id", decisions.c.run_id)
 Index("ix_decisions_decided_at", decisions.c.decided_at)
+
+llm_calls = Table(
+    "llm_calls",
+    metadata,
+    # One row per model call, success or failure (ADR-023 Part 4). Append-only: the runtime role
+    # gets INSERT and SELECT only. No foreign keys on purpose: a key check would lock the run or
+    # conversation row, and telemetry must never wait on (or block) a turn or a worker.
+    Column("id", BigInteger, primary_key=True, autoincrement=True),
+    Column("conversation_id", UUID(as_uuid=True)),
+    Column("run_id", UUID(as_uuid=True)),
+    Column("turn_id", UUID(as_uuid=True)),
+    Column("step", Integer),
+    Column("purpose", Text, nullable=False),
+    Column("provider", Text, nullable=False),
+    Column("model", Text, nullable=False),
+    Column("attempts", Integer, nullable=False),
+    Column("outcome", Text, nullable=False),
+    Column("input_tokens", Integer),
+    Column("output_tokens", Integer),
+    Column("usage_completeness", Text, nullable=False),
+    Column("prompt_chars", Integer, nullable=False),
+    Column("output_chars", Integer, nullable=False),
+    Column("first_token_ms", Integer),
+    Column("latency_ms", Integer, nullable=False),
+    # List price in USD; NULL when the model is unpriced or the call uncounted, never zero.
+    Column("cost_usd", Numeric(14, 8)),
+    Column("price_version", Text),
+    created_at(),
+    CheckConstraint(
+        "purpose IN (" + ", ".join(f"'{p}'" for p in Purpose) + ")", name="known_purpose"
+    ),
+    CheckConstraint(
+        "outcome IN (" + ", ".join(f"'{o}'" for o in CALL_OUTCOMES) + ")", name="known_outcome"
+    ),
+    CheckConstraint(
+        "usage_completeness IN (" + ", ".join(f"'{c}'" for c in UsageCompleteness) + ")",
+        name="known_completeness",
+    ),
+    CheckConstraint(
+        "(input_tokens IS NULL) = (usage_completeness = 'none') "
+        "AND (output_tokens IS NULL) = (usage_completeness = 'none')",
+        name="tokens_iff_counted",
+    ),
+    CheckConstraint("cost_usd IS NULL OR input_tokens IS NOT NULL", name="cost_needs_tokens"),
+    CheckConstraint("(cost_usd IS NULL) = (price_version IS NULL)", name="cost_has_version"),
+    CheckConstraint("attempts >= 1", name="attempts_positive"),
+    CheckConstraint(
+        "input_tokens >= 0 AND output_tokens >= 0 AND prompt_chars >= 0 AND output_chars >= 0 "
+        "AND latency_ms >= 0 AND (first_token_ms IS NULL OR first_token_ms >= 0) "
+        "AND (cost_usd IS NULL OR cost_usd >= 0)",
+        name="non_negative",
+    ),
+)
+Index("ix_llm_calls_created_at", llm_calls.c.created_at)
+Index("ix_llm_calls_run_id", llm_calls.c.run_id)
 
 policy_controls = Table(
     "policy_controls",

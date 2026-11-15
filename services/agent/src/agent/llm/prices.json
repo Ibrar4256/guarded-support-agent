@@ -1,0 +1,7 @@
+{
+  "version": "2026-11-14",
+  "currency": "USD",
+  "unit": "per million tokens",
+  "note": "List prices, so free-tier traffic is costed as a paid tier would bill it (ADR-023 Part 4). Keys are provider/model. Every entry needs its source page and the date it was checked; a model missing here is unpriced (NULL cost), never free. Empty until the models are chosen.",
+  "models": {}
+}

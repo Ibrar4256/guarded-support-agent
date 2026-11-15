@@ -980,3 +980,31 @@ strict enough that "the mock wasn't hit" can't pass.
 
 **What's next:** slice 2: `llm_calls` and the price table, the fallback cooldown; then the turn
 and C01. Real Groq and Gemini fixtures need the user's keys.
+
+
+### Agent: call records, prices and the provider pool (ADR-023, slice 2) (2026-11-14)
+
+**What shipped:**
+- `llm_calls` (migration 0004): one append-only row per model call, success or failure, with
+  attempts, tokens, usage completeness, characters, timings and list-price cost; CHECKs so a row
+  can't claim a cost without tokens and a price version; no foreign keys, so telemetry never
+  waits behind a worker's row lock.
+- `RecordingModel` (one record per call, steps numbered, best-effort, not lease-fenced) and
+  `DbCallRecorder` (its own short, timeout-bounded transaction).
+- The price table: exact decimal strings, each with its source and checked date; unpriced is
+  NULL, never zero. Shipped empty: no model chosen yet, and no invented prices.
+- `ProviderPool`: one provider per turn, a cooldown and an alert on a spent quota or failed
+  auth, the fallback from the next turn, fail-fast with no network when nothing is usable, and a
+  page on a request bug.
+- 41 new tests; 11 plants caught (two of them in the migration, the dev schema rebuilt after).
+  Agent 889, refund_api 255, e2e 16.
+
+**What broke:** one constraint test row violated two CHECKs, so Postgres named a different one
+than expected; each row now breaks exactly one. Two plant reasons were pytest's parenthesized
+form of the same assertion, recorded as such.
+
+**What I learned:** a foreign key on a hot telemetry table is a lock dependency on the money
+path; constraints can carry the integrity instead.
+
+**What's next:** the turn (ADR-022) and C01, behind the scripted model; then real Groq and
+Gemini fixtures and prices once the models are chosen (keys added by the user).
