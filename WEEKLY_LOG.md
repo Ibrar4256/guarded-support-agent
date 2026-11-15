@@ -1008,3 +1008,25 @@ path; constraints can carry the integrity instead.
 
 **What's next:** the turn (ADR-022) and C01, behind the scripted model; then real Groq and
 Gemini fixtures and prices once the models are chosen (keys added by the user).
+
+
+### Agent: the turn's foundations (ADR-022, slice T1) (2026-11-15)
+
+**What shipped:** `TurnSettings` (the 14 `TURN_*` settings, validated, cross-checked with the
+model's minimum attempt); the start transaction (lease or `TurnInProgress`; a missing and a
+foreign conversation both `ConversationNotFound`; oversized or empty messages refused before
+anything is saved; a pending proposal answered with a status template and the lease handed
+back, no model; resume or create the run); fenced finishers (`reply_and_complete`,
+`reply_and_wait` with `try_again`'s cause); the turn heartbeat (`LostTurn` on a takeover,
+`TurnOverrun` past the deadline plus one statement timeout); the tool connection with
+session-level timeouts reset before it returns to the pool. 28 tests, 11 plants caught. Agent
+917, refund_api 255, e2e 16.
+
+**What broke:** nothing in the code. I removed a `FOR UPDATE` from the status read at turn start
+before testing (a pending run may be held by a worker mid-send), and made the overrun test's
+stuck work outlive its outer bound so a broken backstop fails cleanly instead of racing.
+
+**What I learned:** `SET LOCAL` can't reach a transaction someone else opens; session settings
+on a pooled connection are a leak unless reset (or the connection discarded).
+
+**What's next:** T2, C01 on customer messages at the turn's start.

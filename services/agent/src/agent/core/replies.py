@@ -14,3 +14,6 @@ class ReplyTemplate(StrEnum):
     NEEDS_PERSON = "needs_person"  # ESCALATED before any money moved
     NOT_CONFIRMED = "not_confirmed"  # ESCALATED / rejected by the reconciler
     PROCESSING = "processing"  # EXECUTING or NEEDS_RECONCILIATION
+    AWAITING_REVIEW = "awaiting_review"  # a message while AWAIT_APPROVAL
+    TRY_AGAIN = "try_again"  # provider failure, deadline or proposal lock timeout; run waits
+    REPHRASE = "rephrase"  # the provider's filter rejected the customer's input (ADR-023)

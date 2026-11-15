@@ -243,6 +243,46 @@ class World:
                 )
             )
 
+    def add_conversation(self) -> uuid.UUID:
+        """A conversation of this customer with no runs yet."""
+        conversation = uuid.uuid4()
+        with self.transaction() as connection:
+            connection.execute(insert(conversations).values(id=conversation, user_id=self.user))
+        return conversation
+
+    def conversation_events(self, conversation: uuid.UUID) -> list[Row[Any]]:
+        with self.owner.connect() as connection:
+            return list(
+                connection.execute(
+                    select(events)
+                    .where(events.c.conversation_id == conversation)
+                    .order_by(events.c.id)
+                )
+            )
+
+    def conversation(self, conversation: uuid.UUID) -> Row[Any]:
+        with self.owner.connect() as connection:
+            return connection.execute(
+                select(conversations).where(conversations.c.id == conversation)
+            ).one()
+
+    def seconds_until_lease(self, conversation: uuid.UUID) -> float:
+        """How far the conversation's turn lease is from expiring, on the database clock."""
+        with self.owner.connect() as connection:
+            return float(
+                connection.execute(
+                    select(
+                        func.extract("epoch", conversations.c.turn_expires_at - func.now())
+                    ).where(conversations.c.id == conversation)
+                ).scalar_one()
+            )
+
+    def runs_of(self, conversation: uuid.UUID) -> list[Row[Any]]:
+        with self.owner.connect() as connection:
+            return list(
+                connection.execute(select(runs).where(runs.c.conversation_id == conversation))
+            )
+
     def events(self, run: uuid.UUID) -> list[Row[Any]]:
         with self.owner.connect() as connection:
             return list(
@@ -321,6 +361,13 @@ class World:
             )
             connection.execute(delete(decisions).where(decisions.c.run_id.in_(mine)))
             connection.execute(delete(events).where(events.c.run_id.in_(mine)))
+            connection.execute(
+                delete(events).where(
+                    events.c.conversation_id.in_(
+                        select(conversations.c.id).where(conversations.c.user_id == self.user)
+                    )
+                )
+            )
             connection.execute(delete(runs).where(runs.c.user_id == self.user))
             connection.execute(delete(orders).where(orders.c.owner_user_id == self.user))
             connection.execute(delete(conversations).where(conversations.c.user_id == self.user))

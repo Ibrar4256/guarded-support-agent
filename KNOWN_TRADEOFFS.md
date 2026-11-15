@@ -310,6 +310,16 @@ lives in `WEEKLY_LOG.md`.
   provider adapter (ADR-023) knows the model's tokenizer.
 - **No retention rule for conversation data** yet: customer messages, reply text and summaries
   are kept indefinitely until that decision is made, for all three together.
+- **A tool's connection carries session-level timeouts**, because tools open their own
+  transactions (ADR-020) and `SET LOCAL` can't reach them; they're reset before the connection
+  returns to the pool, and a connection whose reset fails is discarded rather than reused.
+- **A stuck turn holds its conversation for up to its deadline plus one statement timeout plus
+  one lease** before another message can start: the heartbeat's backstop leaves time for the
+  turn's own `try_again` write.
+- **The status reply to a message during a pending proposal reads the run without a lock**, so
+  it can be a moment stale (say "awaiting review" just as a reviewer approves); it never waits
+  behind a worker mid-send.
+- **An oversized message is refused with nothing saved**: the customer has to shorten it.
 - **The budget and timeout defaults are unmeasured starting values** (6 calls, 2 malformed,
   60 s deadline, 30 s lease); tune them from telemetry.
 
