@@ -342,12 +342,17 @@ lives in `WEEKLY_LOG.md`.
 
 ### The proposal path (ADR-009, turn slice T4)
 
-- **The customer lock is `FOR UPDATE`, which also blocks foreign-key checks** (`FOR KEY SHARE`)
-  on that customer row. While a proposal or a pre-send check holds it (milliseconds), starting a
-  new run for the same customer in another conversation waits; past the turn's lock timeout
-  that turn fails to start with a database error rather than a clean reply. Found by a test.
-  `FOR NO KEY UPDATE` would still serialize the policy checks without blocking FK checks; it's a
-  pending decision because ADR-005 names `FOR UPDATE` and the worker shares the lock.
+- **The customer lock is `FOR NO KEY UPDATE` (ADR-024)**, not ADR-005's `FOR UPDATE`, which also
+  blocked foreign-key checks, so a proposal or pre-send could stall the start of another
+  conversation for the same customer. It relies on the customer row never being updated or
+  deleted; if profile fields ever move into `customers`, revisit (ADR-024 Option E).
+- **R18 is approximate, not exact as ADR-009 says:** an escalation at turn start (C01, a spent
+  budget, the `escalate` tool) doesn't take the customer lock, so a proposal in another
+  conversation can miss one that commits at the same moment. R18 only raises a proposal to
+  review; taking the customer lock at turn start would break the lock order.
+- **Other lock waits at turn start still surface as a database error** (the C01 flag on a pending
+  run takes its row lock): the chat API should map `55P03` there to "please try again"
+  (ADR-024 Option C, recorded for that slice).
 - **R17 ("proposals in the last 24 h") counts the customer's `proposal` decision rows**, so it
   needs no new column; a proposal that timed out on the lock writes no row and isn't counted.
 - **An escalated proposal stores only its `action_id` on the run**; order, amount and currency

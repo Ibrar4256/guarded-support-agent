@@ -1108,3 +1108,26 @@ skips a field can make a test unable to fail.
 
 **What's next:** a decision on the customer lock's mode, then T5, memory (past-ticket digest and
 rolling summary).
+
+
+### Agent: the customer lock's mode (ADR-024) (2026-11-16)
+
+**What shipped:** ADR-024, locked: the per-customer lock is `FOR NO KEY UPDATE`, superseding
+ADR-005's `FOR UPDATE` (pointer lines in ADR-005 and ADR-009). Measured first on our Postgres:
+under `FOR UPDATE` an insert referencing the customer was blocked; under `FOR NO KEY UPDATE` it
+proceeds and a second limit check still waits. Code: one statement, `presend.customer_lock`,
+used by the pre-send check, the proposal path and the seed. `test_customer_lock.py`: inserts and
+a whole new turn go through while a limit check holds the customer, a second limit check still
+waits, the seed uses the shared statement and doesn't wait on a foreign-key check. 5 tests, 7
+plants caught (including T4's concurrent-proposal control re-run under the new mode). Agent
+1014, refund_api 255, e2e 16.
+
+**What broke:** nothing in the code. The machine had restarted and our Postgres container was
+stopped, so the first test run errored on connection; `docker compose up -d --wait postgres`
+brought it back on 5433.
+
+**What I learned:** "nobody updates this row" isn't "nothing locks this row": foreign-key checks
+lock the parent. Writing the ADR also showed R18 is approximate (turn-start escalations don't
+take the customer lock), now in KNOWN_TRADEOFFS.
+
+**What's next:** T5, memory (past-ticket digest and rolling summary).

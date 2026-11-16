@@ -35,6 +35,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from agent import envvars
 from agent.core.lifecycle import TERMINAL_STATUSES
 from agent.core.policy import FulfillmentStatus
+from agent.db.presend import customer_lock
 from agent.db.schema import customers, orders, runs
 from agent.refund_client.models import BIGINT_MAX, CURRENCY_PATTERN, ID_PATTERN
 
@@ -118,14 +119,9 @@ def apply(connection: Connection, wanted_orders: Sequence[ManifestOrder]) -> See
     """In the caller's transaction: check every existing order's facts first, then write."""
     wanted = {order.order_id: order for order in wanted_orders}
     owners = sorted({order.owner_user_id for order in wanted_orders})
-    # ADR-005's lock order: customers first. Holding them, no pre-send check for these customers
-    # runs concurrently, so "has an unfinished run" can't change under the seed.
-    connection.execute(
-        select(customers.c.id)
-        .where(customers.c.id.in_(owners))
-        .order_by(customers.c.id)
-        .with_for_update()
-    ).all()
+    # ADR-005's lock order (mode: ADR-024): customers first. Holding them, no pre-send check for
+    # these customers runs concurrently, so "has an unfinished run" can't change under the seed.
+    connection.execute(customer_lock(owners)).all()
     existing = {
         row.id: (row.owner_user_id, row.charged_minor, row.currency)
         for row in connection.execute(

@@ -15,6 +15,9 @@ and tests, or recorded in a new ADR that supersedes this one.
 this run hasn't looked up back to the model before evaluation (R02 itself unchanged); the
 proposal-time "please try again" reply records its cause.
 
+**Noted by [ADR-024](024-customer-lock-mode.md):** the customer lock is `FOR NO KEY UPDATE`; and R18 is
+approximate, not exact: escalations at turn start don't take the customer lock.
+
 **Precedence:** later amending ADRs win: **ADR-009 > ADR-008 > ADR-001–007**.
 For refund-api behavior and the agent's handling of its responses, **[ADR-010](010-refund-api-implementation-decisions.md) > ADR-009 > ADR-008 > ADR-001–007**; ADR-010 doesn't change these policy rules.
 

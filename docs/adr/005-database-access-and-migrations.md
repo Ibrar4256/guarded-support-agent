@@ -16,6 +16,10 @@ an append-only `llm_calls` table.
 **Amended by [ADR-008](008-run-lifecycle-and-cross-adr-clarifications.md)** (run statuses,
 transitions, the reconciler, wording clarifications). Where they disagree, ADR-008 wins.
 
+**Superseded in part by [ADR-024](024-customer-lock-mode.md):** the customer lock is `FOR NO KEY
+UPDATE`, not `FOR UPDATE` (foreign-key checks take `FOR KEY SHARE` on the customer row, so
+"unrelated writes never contend" was wrong under `FOR UPDATE`). Lock order and timeouts unchanged.
+
 **Amended by [ADR-014](014-worker-execution-loop.md):** the release after N consecutive `55P03` timeouts sets a cooldown
 (`claimable_after`) and counts toward `release_streak`; at its limit an `APPROVED` run is
 escalated, nothing sent. Every release bumps `claim_version`.

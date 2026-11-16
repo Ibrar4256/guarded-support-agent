@@ -7,11 +7,12 @@ customer row is locked; the lock is never held across HTTP.
 
 import json
 import uuid
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, insert, or_, select, update
+from sqlalchemy import Select, func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from agent.core.capacity import ApprovalSource, RefundRecord, used_by_customer, used_on_order
@@ -110,12 +111,23 @@ async def load_subject(conn: AsyncConnection, claim: Claim) -> Subject | None:
     return Subject(row.id, row.conversation_id, row.action_id, row.review_hash)
 
 
+def customer_lock(user_ids: Iterable[str]) -> Select[tuple[str]]:
+    """The per-customer lock (ADR-005, mode from ADR-024), the one statement every limit check
+    and the seed take it with. ``FOR NO KEY UPDATE`` still makes two holders exclude each other,
+    but not foreign-key checks (``FOR KEY SHARE``), so inserting a run, conversation or order
+    for the customer never waits on it. Sorted, so several customers lock in one order."""
+    return (
+        select(customers.c.id)
+        .where(customers.c.id.in_(sorted(set(user_ids))))
+        .order_by(customers.c.id)
+        .with_for_update(key_share=True)
+    )
+
+
 async def lock_customer(conn: AsyncConnection, user_id: str) -> None:
     """ADR-005: serialize limit checks per customer. Waits are bounded by ``lock_timeout``."""
     if LOCK_CUSTOMER:
-        await conn.execute(
-            select(customers.c.id).where(customers.c.id == user_id).with_for_update()
-        )
+        await conn.execute(customer_lock([user_id]))
 
 
 async def load_inputs(conn: AsyncConnection, run: PresendRun, now: datetime) -> PresendInputs:
