@@ -1,7 +1,9 @@
 """One customer message, start to finish (ADR-022 S1): start, loop under the lease, finish.
 
 A proposal finishes through ADR-009's proposal path (``turn.propose``) after the loop, with no
-further model call.
+further model call. Memory (``turn.memory``): the window, the newest summary and the past-ticket
+digest are read in the same short transaction; a summary the window calls for starts only after
+the finish has released the lease (S6).
 
 The turn never holds a database connection while waiting on the model (S4): the window is read
 in its own short transaction, each tool call checks out its own connection, and the finish is
@@ -20,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from agent.alerts import Alerter
 from agent.core.policy import PolicyConfig
+from agent.db import memory as memory_db
 from agent.db import turns
 from agent.db.claims import worker_transaction
 from agent.llm.pool import ProviderPool
@@ -29,6 +32,14 @@ from agent.tools.contract import LostTurn
 from agent.turn.finish import TryAgainCause, escalate_and_reply, reply_and_complete, reply_and_wait
 from agent.turn.lease import TurnOverrun, hold_lease
 from agent.turn.loop import Escalate, LoopContext, LoopOutcome, Propose, Reply, Wait, run_loop
+from agent.turn.memory import (
+    BackgroundTasks,
+    SummaryDeps,
+    SummaryJob,
+    digest,
+    plan_summary,
+    write_summary,
+)
 from agent.turn.prompt import MessageEvent, build_messages, new_nonce, window
 from agent.turn.propose import ProposalContext, ProposalStep, run_proposal
 from agent.turn.settings import TurnSettings
@@ -59,6 +70,8 @@ class TurnDeps:
     alerter: Alerter
     policy: PolicyConfig
     monotonic: Callable[[], float] = field(default=time.monotonic)
+    # Summaries the turn starts after its lease is released (ADR-022 S6).
+    background: BackgroundTasks = field(default_factory=BackgroundTasks)
 
 
 @dataclass(frozen=True)
@@ -78,7 +91,7 @@ async def run_turn(
         return TurnResult(ids, TurnOutcome.ANSWERED_AT_START)
     deadline = deps.monotonic() + deps.settings.deadline.total_seconds()
     try:
-        outcome = await hold_lease(
+        outcome, job = await hold_lease(
             deps.engine,
             deps.settings,
             ids,
@@ -86,23 +99,46 @@ async def run_turn(
             lambda: _work(deps, ids, user, deadline),
             monotonic=deps.monotonic,
         )
-        return TurnResult(ids, await _finish(deps, ids, user, outcome))
+        finished = await _finish(deps, ids, user, outcome)
     except (LostTurn, TurnOverrun) as lost:
         logger.warning("turn %s gave up its conversation: %s", ids.turn_id, lost)
         return TurnResult(ids, TurnOutcome.LOST)
+    if job is not None:  # the lease is released: the summary holds nothing the next turn needs
+        deps.background.spawn(write_summary(_summary_deps(deps), job))
+    return TurnResult(ids, finished)
 
 
-async def _work(deps: TurnDeps, ids: TurnIds, user: str, deadline: float) -> LoopOutcome:
+def _summary_deps(deps: TurnDeps) -> SummaryDeps:
+    return SummaryDeps(
+        deps.engine, deps.settings, deps.pool, deps.record, deps.prices, deps.monotonic
+    )
+
+
+async def _work(
+    deps: TurnDeps, ids: TurnIds, user: str, deadline: float
+) -> tuple[LoopOutcome, SummaryJob | None]:
     settings = deps.settings
     async with worker_transaction(
         deps.engine,
         statement_timeout=settings.statement_timeout,
         lock_timeout=settings.lock_timeout,
     ) as conn:
-        events = await turns.window_events(conn, ids.conversation_id, settings.window_messages)
-    history = window(
-        [MessageEvent(kind, payload) for kind, payload in events],
-        max_chars=settings.window_max_chars,
+        summary = await memory_db.latest_summary(conn, ids.conversation_id)
+        covered = None if summary is None else summary.covers_through_event_id
+        rows = await turns.window_events(
+            conn, ids.conversation_id, settings.window_messages, covered
+        )
+        past = await memory_db.past_runs(
+            conn, user, exclude_run=ids.run_id, limit=settings.digest_tickets
+        )
+    events = [MessageEvent(kind, payload, event_id) for event_id, kind, payload in rows]
+    history = window(events, max_chars=settings.window_max_chars, covered_through=covered)
+    job = plan_summary((ids.conversation_id, ids.run_id, ids.turn_id), events, summary, settings)
+    messages = build_messages(
+        history,
+        nonce=new_nonce(),
+        digest=digest(past),
+        summary=None if summary is None else summary.text,
     )
     pooled = deps.pool.for_turn()
     model = RecordingModel(
@@ -115,7 +151,7 @@ async def _work(deps: TurnDeps, ids: TurnIds, user: str, deadline: float) -> Loo
         monotonic=deps.monotonic,
     )
     context = LoopContext(deps.engine, settings, ids, user, model, deadline, deps.monotonic)
-    return await run_loop(context, build_messages(history, nonce=new_nonce()))
+    return await run_loop(context, messages), job
 
 
 PROPOSAL_OUTCOMES = {

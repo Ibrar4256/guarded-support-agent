@@ -340,6 +340,23 @@ lives in `WEEKLY_LOG.md`.
 - **The budget and timeout defaults are unmeasured starting values** (6 calls, 2 malformed,
   60 s deadline, 30 s lease); tune them from telemetry.
 
+### Memory (ADR-002, ADR-022 S6, turn slice T5)
+
+- **Summaries run in-process and nothing drains them at shutdown yet**: a process that exits
+  mid-summary loses it (best-effort by design; the next turn at the threshold retries). The chat
+  API's shutdown should drain `TurnDeps.background` with a bound.
+- **With no summary at all, the window query reads the whole conversation**, then trims to the
+  character budget; if summaries keep failing, that read grows with the conversation. The
+  `summary_failed` and `summary_gap` logs are the signal.
+- **Two overlapping turns can both summarize** (a wasted call): readers take the summary
+  covering the latest event, and an insert never lands under a newer one.
+- **The digest has no ticket category**: runs don't carry one in v1, so a line is the ticket id,
+  date, outcome and any refund (confirmed as issued, unknown as pending).
+- **The summary is model output from untrusted text**: stored with its prompt version and model,
+  fenced whenever it's used, and measured by the injection evals, never trusted as fact.
+- **The summary's size is bounded only by the model's output-token cap** (ADR-023); it isn't
+  counted in the window's character budget.
+
 ### The proposal path (ADR-009, turn slice T4)
 
 - **The customer lock is `FOR NO KEY UPDATE` (ADR-024)**, not ADR-005's `FOR UPDATE`, which also

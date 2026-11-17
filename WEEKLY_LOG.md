@@ -1131,3 +1131,31 @@ lock the parent. Writing the ADR also showed R18 is approximate (turn-start esca
 take the customer lock), now in KNOWN_TRADEOFFS.
 
 **What's next:** T5, memory (past-ticket digest and rolling summary).
+
+
+### Agent: memory (ADR-002, ADR-022 S6, turn slice T5) (2026-11-16)
+
+**What shipped:** the turn's memory. Migration 0005 adds `conversation_summaries` (append-only,
+the last event each summary covers, its prompt version and model). The window is now the last N
+message events plus every one no summary covers yet; dropping an uncovered one for the character
+budget logs `summary_gap`. When the messages beyond N reach `SUMMARY_TRIGGER_MESSAGES`, the turn
+starts a background summary after its reply and lease release, with its own deadline; readers
+take the summary covering the latest event, and an insert is refused under a newer one. The
+past-ticket digest is the user's last K other runs from database fields (confirmed refunds as
+issued, unknown as pending, nothing for rejected or none), fenced like the summary. A summary
+failure of any kind is logged as `summary_failed` and the old summary stays. 21 tests, 12 plants
+caught (one on the migration's append-only grant, with the schema rebuilt from base after).
+Agent 1035, refund_api 255, e2e 16.
+
+**What broke:** a flaky test, about one run in eight: it expected one stored summary, but the
+follow-up message it sent had read its window before the first summary was stored and started
+its own. ADR-022 allows that (a wasted call, never a wrong summary); the test now asserts the
+summary readers use covers the newest cut-off, and passed 15 runs in a row. A fence assertion
+could match the system prompt's own mention of the marker; it now matches real nonce-paired
+fences only.
+
+**What I learned:** when a concurrent test flakes, check what the design actually promises
+before touching the code; the test may be claiming more.
+
+**What's next:** T6, one end-to-end path from a customer message through the proposal and the
+worker to an issued refund.

@@ -23,6 +23,7 @@ from agent.core.capacity import ApprovalSource
 from agent.core.lifecycle import RefundOutcome, RunStatus
 from agent.core.policy import FulfillmentStatus
 from agent.db.schema import (
+    conversation_summaries,
     conversations,
     customers,
     decisions,
@@ -360,6 +361,13 @@ class World:
                 delete(run_order_lookups).where(run_order_lookups.c.run_id.in_(mine))
             )
             connection.execute(delete(decisions).where(decisions.c.run_id.in_(mine)))
+            connection.execute(
+                delete(conversation_summaries).where(
+                    conversation_summaries.c.conversation_id.in_(
+                        select(conversations.c.id).where(conversations.c.user_id == self.user)
+                    )
+                )
+            )
             connection.execute(delete(events).where(events.c.run_id.in_(mine)))
             connection.execute(
                 delete(events).where(

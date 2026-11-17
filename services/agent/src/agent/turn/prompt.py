@@ -3,8 +3,10 @@
 - The window is the conversation's message events (``customer_message`` and ``reply``), never
   earlier tool calls or results: tool output can't persist into a later prompt (Part 1). Earlier
   template replies appear as a short notice; their wording belongs to the chat API.
-- The window keeps at least the last ``MEMORY_WINDOW_MESSAGES`` messages and fits in
-  ``PROMPT_WINDOW_MAX_CHARS``, dropping the oldest first and logging ``window_trimmed`` (S9).
+- The window keeps at least the last ``MEMORY_WINDOW_MESSAGES`` messages, plus any the summary
+  doesn't cover yet, and fits in ``PROMPT_WINDOW_MAX_CHARS``, dropping the oldest first and
+  logging ``window_trimmed`` (S9); dropping one the summary doesn't cover is also a
+  ``summary_gap`` (S6): it's gone from the model's view.
 - Untrusted free text (the past-ticket digest, the summary, later KB bodies) goes in a fence
   with a per-turn random nonce; any fence marker inside the text is escaped first (Part 3).
 """
@@ -39,6 +41,7 @@ MESSAGE_KINDS = ("customer_message", "reply")
 class MessageEvent:
     kind: str
     payload: dict[str, Any]
+    event_id: int | None = None
 
 
 def new_nonce() -> str:
@@ -59,24 +62,44 @@ def as_message(event: MessageEvent) -> dict[str, str]:
     return {"role": "assistant", "content": f"[notice: {event.payload.get('template', 'unknown')}]"}
 
 
-def window(events: Sequence[MessageEvent], *, max_chars: int) -> list[dict[str, str]]:
+def window(
+    events: Sequence[MessageEvent], *, max_chars: int, covered_through: int | None = None
+) -> list[dict[str, str]]:
     """The newest messages that fit in ``max_chars``, oldest first. ``events`` are oldest first
     and already limited to what the window may hold (the database query keeps the last N, plus
-    any not yet summarized); the newest message is always kept."""
-    messages = [as_message(e) for e in events if e.kind in MESSAGE_KINDS]
+    any not yet summarized); the newest message is always kept. ``covered_through`` is the last
+    event id the summary covers (None: no summary)."""
+    shown = [e for e in events if e.kind in MESSAGE_KINDS]
     kept: list[dict[str, str]] = []
     used = 0
-    for message in reversed(messages):
+    for event in reversed(shown):
+        message = as_message(event)
         size = len(message["content"])
         if kept and used + size > max_chars:
             break
         kept.append(message)
         used += size
-    if len(kept) < len(messages):
+    dropped = shown[: len(shown) - len(kept)]
+    if dropped:
         logger.info(
-            "window_trimmed: kept %d of %d messages (%d chars)", len(kept), len(messages), used
+            "window_trimmed: kept %d of %d messages (%d chars)", len(kept), len(shown), used
         )
+        lost = [e for e in dropped if not is_covered(e, covered_through)]
+        if lost:
+            logger.warning(
+                "summary_gap: dropped %d message(s) no summary covers",
+                len(lost),
+                extra={"summary_gap": len(lost)},
+            )
     return list(reversed(kept))
+
+
+def is_covered(event: MessageEvent, covered_through: int | None) -> bool:
+    return (
+        covered_through is not None
+        and event.event_id is not None
+        and event.event_id <= covered_through
+    )
 
 
 def build_messages(

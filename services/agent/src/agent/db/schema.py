@@ -277,6 +277,28 @@ events = Table(
 )
 Index("ix_events_conversation_id_id", events.c.conversation_id, events.c.id)
 
+conversation_summaries = Table(
+    "conversation_summaries",
+    metadata,
+    # The rolling summary (ADR-002, ADR-022 Part 1, S6). Append-only: the runtime role gets
+    # INSERT and SELECT only. Readers use the row covering the latest event, never the newest
+    # insert, so a late summary of older events can't replace a newer one.
+    Column("id", BigInteger, primary_key=True, autoincrement=True),
+    Column("conversation_id", UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=False),
+    Column("covers_through_event_id", BigInteger, ForeignKey("events.id"), nullable=False),
+    Column("summary", Text, nullable=False),
+    Column("prompt_version", Text, nullable=False),
+    Column("provider", Text, nullable=False),
+    Column("model", Text, nullable=False),
+    created_at(),
+    CheckConstraint("length(summary) > 0", name="summary_not_empty"),
+)
+Index(
+    "ix_conversation_summaries_conversation_id_covers",
+    conversation_summaries.c.conversation_id,
+    conversation_summaries.c.covers_through_event_id,
+)
+
 DECISION_STAGES = (
     "proposal",
     "presend",

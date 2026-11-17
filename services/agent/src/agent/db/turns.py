@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from agent.core.c01 import C01_VERSION
@@ -201,20 +201,26 @@ async def record_c01_decision(
 
 
 async def window_events(
-    conn: AsyncConnection, conversation_id: uuid.UUID, limit: int
-) -> list[tuple[str, dict[str, Any]]]:
-    """The last ``limit`` message events of the conversation, across runs, oldest first.
-    Tool calls and results are never stored here, so they can't reach a later prompt."""
-    result = await conn.execute(
-        select(events.c.kind, events.c.payload)
-        .where(
-            events.c.conversation_id == conversation_id,
-            events.c.kind.in_((CUSTOMER_MESSAGE, REPLY)),
-        )
-        .order_by(events.c.id.desc())
-        .limit(limit)
+    conn: AsyncConnection,
+    conversation_id: uuid.UUID,
+    last_n: int,
+    covered_through: int | None,
+) -> list[tuple[int, str, dict[str, Any]]]:
+    """The conversation's message events, across runs, oldest first: the last ``last_n``, plus
+    every one the newest summary doesn't cover yet (``id > covered_through``; all of them when
+    there's no summary), so a message that has left the last N but isn't summarized stays
+    (ADR-022 S6). Tool calls and results are never stored here, so they can't reach a later
+    prompt."""
+    messages = (
+        events.c.conversation_id == conversation_id,
+        events.c.kind.in_((CUSTOMER_MESSAGE, REPLY)),
     )
-    return [(row.kind, row.payload) for row in reversed(result.all())]
+    query = select(events.c.id, events.c.kind, events.c.payload).where(*messages)
+    if covered_through is not None:
+        last = select(events.c.id).where(*messages).order_by(events.c.id.desc()).limit(last_n)
+        query = query.where(or_(events.c.id.in_(last), events.c.id > covered_through))
+    result = await conn.execute(query.order_by(events.c.id))
+    return [(row.id, row.kind, row.payload) for row in result]
 
 
 async def trailing_provider_failures(
