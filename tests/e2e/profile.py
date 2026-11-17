@@ -87,3 +87,25 @@ WORKER = {
     "POLICY_GLOBAL_REVIEW_QUEUE_CAP": "50",
     "POLICY_DECLINE_COOLDOWN_SECONDS": "604800",
 }
+
+# The turn (ADR-022 S2), for ``agent_testing.scripted_turn`` (turn slice T6), inside its startup
+# guards: heartbeat (1 s) <= lease (6 s) / 3; lock timeout (0.5 s) <= statement timeout (1.5 s)
+# < deadline (20 s); heartbeat + lock timeout x 3 attempts (2.5 s) < lease; message cap < window.
+TURN = {
+    "TURN_MAX_MODEL_CALLS": "6",
+    "TURN_MAX_MALFORMED": "2",
+    "TURN_DEADLINE_SECONDS": "20",
+    "TURN_LEASE_SECONDS": "6",
+    "TURN_HEARTBEAT_SECONDS": "1",
+    "TURN_STATEMENT_TIMEOUT_SECONDS": "1.5",
+    "TURN_LOCK_TIMEOUT_SECONDS": "0.5",
+    "MEMORY_WINDOW_MESSAGES": "12",
+    "DIGEST_TICKETS": "5",
+    "CUSTOMER_MESSAGE_MAX_CHARS": "4000",
+    "PROMPT_WINDOW_MAX_CHARS": "24000",
+    "TURN_PROVIDER_FAILURE_ALERT_AFTER": "3",
+    "SUMMARY_TRIGGER_MESSAGES": "8",
+    "SUMMARY_DEADLINE_SECONDS": "10",
+    "TURN_PROPOSAL_LOCK_ATTEMPTS": "3",
+    "REVIEW_DEADLINE_SECONDS": "86400",
+}

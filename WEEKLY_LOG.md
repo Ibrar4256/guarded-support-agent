@@ -1159,3 +1159,26 @@ before touching the code; the test may be claiming more.
 
 **What's next:** T6, one end-to-end path from a customer message through the proposal and the
 worker to an issued refund.
+
+
+### End to end: a customer message to an issued refund (turn slice T6) (2026-11-17)
+
+**What shipped:** `python -m agent_testing.scripted_turn`, a second agent test entry point
+beside `make_approved_run` (ADR-015 Part 3's pattern; pointer line in ADR-015): it creates a
+customer, an order and a conversation, then runs one production turn on a scripted model (look
+the order up, propose the refund) with real policy, decision log, approval and call records.
+`tests/e2e/test_conversation.py`: the turn's APPROVED run is sent by the crash-test worker to the
+real refund-api and ends COMPLETED/confirmed, exactly one refund, the customer told "processing"
+then "refund issued"; the control, the same script on a shipped order, is escalated before any
+worker starts and refund-api never sees it. The e2e profile gained the turn's settings. 2 e2e
+tests and 4 agent tests; 4 plants caught. Agent 1039, refund_api 255, e2e 18.
+
+**What broke:** the control first passed with proposal-time policy planted broken: the worker's
+pre-send re-check refused the refund on the same rule (R09), so no money moved. That's ADR-009's
+two layers working, but the control couldn't tell which layer refused; it now checks the run is
+escalated right after the turn, and the plant fails it.
+
+**What I learned:** defense in depth can hide a broken layer from an end-state test; a control has
+to pin down the layer it's about.
+
+**What's next:** choosing the real models (Groq/Gemini) and capturing fixtures, then the chat API.

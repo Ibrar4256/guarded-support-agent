@@ -51,3 +51,28 @@ def example_worker_env(
         "POLICY_GLOBAL_REVIEW_QUEUE_CAP": "50",
         "POLICY_DECLINE_COOLDOWN_SECONDS": "604800",
     }
+
+
+def example_turn_env(
+    *, db_url: str = "postgresql+psycopg://u:p@localhost:1/agent"
+) -> dict[str, str]:
+    """The worker's environment plus the turn's settings (ADR-022 S2), the .env.example values."""
+    return {
+        **example_worker_env(db_url=db_url),
+        "TURN_MAX_MODEL_CALLS": "6",
+        "TURN_MAX_MALFORMED": "2",
+        "TURN_DEADLINE_SECONDS": "60",
+        "TURN_LEASE_SECONDS": "30",
+        "TURN_HEARTBEAT_SECONDS": "10",
+        "TURN_STATEMENT_TIMEOUT_SECONDS": "5",
+        "TURN_LOCK_TIMEOUT_SECONDS": "2",
+        "MEMORY_WINDOW_MESSAGES": "12",
+        "DIGEST_TICKETS": "5",
+        "CUSTOMER_MESSAGE_MAX_CHARS": "4000",
+        "PROMPT_WINDOW_MAX_CHARS": "24000",
+        "TURN_PROVIDER_FAILURE_ALERT_AFTER": "3",
+        "SUMMARY_TRIGGER_MESSAGES": "8",
+        "SUMMARY_DEADLINE_SECONDS": "30",
+        "TURN_PROPOSAL_LOCK_ATTEMPTS": "3",
+        "REVIEW_DEADLINE_SECONDS": "86400",
+    }

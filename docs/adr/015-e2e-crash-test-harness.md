@@ -9,6 +9,11 @@ one timing profile checked at startup, and ADR-004's test-data rule applied.
 **Locked 2026-11-12.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Extended in turn slice T6 (no decision changed):** a second agent entry point,
+`python -m agent_testing.scripted_turn`, creates a customer, order and conversation and runs one
+production turn on a scripted model, so the suite also covers a customer message to an issued
+refund; the e2e profile gained the turn's settings. Part 3's rule holds: the suite only reads.
+
 **Precedence:** narrows ADR-007's "`tests/e2e/` against `docker-compose.yml`" for
 the crash tests (Part 1). Everything else in ADR-004's crash-test list, ADR-007's root CI job
 and ADR-011's fault build stands.

@@ -260,6 +260,15 @@ lives in `WEEKLY_LOG.md`.
   timeout fired and two sends went out for one refund, and the after-response test carries the
   `dedup_disabled` control.
 - **Linux only.** The stall check reads `/proc`, like CI and the development machine.
+- **The message-to-refund test (turn slice T6) drives the turn through a test entry point**
+  (`agent_testing.scripted_turn`), not HTTP: the chat API doesn't exist yet. When it does, the
+  test should send the message over HTTP instead, so the API's own wiring is covered too.
+- **Only the auto-approved path and a refusal run end to end.** A proposal that goes to review
+  can't reach the worker until the reviewer API exists, so that path is covered only by the
+  agent's integration tests for now.
+- **The refusal control checks the run is escalated before any worker starts**: pre-send
+  re-checks the same hard rules, so an end-state check alone passed even with proposal-time
+  policy planted broken (a plant showed it, and that no money moved).
 
 ## Order-lookup tool (ADR-020)
 

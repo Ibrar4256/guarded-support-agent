@@ -15,6 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from profile import REFUND_API as REFUND_API_PROFILE
 from profile import REFUND_API_DEPLOY
+from profile import TURN as TURN_PROFILE
 from profile import WORKER as WORKER_PROFILE
 from typing import Any
 from urllib.parse import urlsplit
@@ -236,6 +237,29 @@ class E2E:
         if user_id is not None:
             argv += ["--user", user_id]
         out = await run_to_completion(argv, env=self.worker_env(), cwd=AGENT, seconds=BOUND)
+        made: dict[str, Any] = json.loads(out)
+        return made
+
+    async def scripted_turn(
+        self, order_id: str, amount_minor: int, *, charged_minor: int, status: str = "delivered"
+    ) -> dict[str, Any]:
+        """One real customer turn on a scripted model (turn slice T6): the agent creates the
+        customer, order and conversation and runs the production turn; we only read."""
+        argv = [
+            venv_python(AGENT),
+            "-m",
+            "agent_testing.scripted_turn",
+            "--order",
+            order_id,
+            "--amount",
+            str(amount_minor),
+            "--charged",
+            str(charged_minor),
+            "--status",
+            status,
+        ]
+        env = {**self.worker_env(), **TURN_PROFILE}
+        out = await run_to_completion(argv, env=env, cwd=AGENT, seconds=BOUND)
         made: dict[str, Any] = json.loads(out)
         return made
 
