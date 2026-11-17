@@ -1182,3 +1182,25 @@ escalated right after the turn, and the plant fails it.
 to pin down the layer it's about.
 
 **What's next:** choosing the real models (Groq/Gemini) and capturing fixtures, then the chat API.
+
+
+### Decision: real models on free tiers (ADR-025) (2026-11-17)
+
+**What shipped:** ADR-025, locked after two outside reviews (pointer lines in ADR-023 and
+EVAL_PLAN). Free tiers only, one account per provider (Groq, Gemini, Cloudflare; Ollama
+local-only); credentials and an ordered model list per purpose from the environment; production
+refuses a model not verified for its purpose with the current prompt fingerprint and a context
+that fits; tool calling proven per provider and model; record-and-replay evals with deterministic
+eval prompts; a daily eval budget that keeps a demo reserve; a merge gate for prompt changes;
+synthetic data only on the demo. Query routing is next as ADR-026. No code yet.
+
+**What broke:** nothing built. The reviews caught that replay keys would never have matched (a
+random nonce and relative dates in every prompt), that evals could eat the demo's quota, and that
+"verified" would go stale after a prompt change.
+
+**What I learned:** pooling free accounts is a terms problem, not an engineering one; the
+engineering answer is fewer live calls, not more accounts. And record-and-replay only works if
+everything that reaches a prompt is deterministic.
+
+**What's next:** one key per provider (the developer adds them), one measuring smoke run, then
+ADR-025's code.

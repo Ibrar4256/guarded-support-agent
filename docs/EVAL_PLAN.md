@@ -3,6 +3,13 @@
 How we measure safety and quality for the support agent. Decisions behind this are in
 ADR-001 (Consequences).
 
+**Amended by [ADR-025](adr/025-providers-models-and-eval-budget.md):** the LLM suites run on free
+tiers, one account per provider. Per-PR runs replay recorded responses (no quota); a nightly drift
+check runs one shard live at k=1; the full suites are re-recorded at k=3 whenever a prompt
+fingerprint or model changes, within a daily budget that keeps a demo reserve, resuming across
+days. Reported numbers come from the recording run, with its date and models. Where the "Runs"
+column below says nightly, read ADR-025's schedule.
+
 ## Systems under test
 
 | ID | System | Purpose |

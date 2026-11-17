@@ -433,6 +433,20 @@ lives in `WEEKLY_LOG.md`.
   retried on every turn until the deadline, surfaced only by the provider-failure alert. The
   spent-quota fixture may be documented rather than captured.
 
+## Providers and eval budget (ADR-025)
+
+- **Free tiers only, one account per provider.** A full live re-record of the LLM suites can take
+  several days of quota; coverage is kept, speed isn't. A small capped budget would remove most of
+  that wait.
+- **Per-PR LLM checks replay recordings**: they catch regressions in our code, not changes in the
+  models. Fresh model numbers come only from recording runs, dated.
+- **The demo is synthetic-data-only**: Gemini's unpaid terms allow human review of prompts, so
+  real personal data would need paid tiers.
+- **"Free plan, no payment method" is a manual runbook check** before each deploy; no provider
+  API reports it reliably.
+- **Ollama is local-only** (loopback, refused in production); free hosting can't run it, and the
+  machine's free disk fits only a small model.
+
 ## Refund policy (ADR-009)
 
 - **Single currency in v1.** Other currencies are refused (R15); capacity sums assume one

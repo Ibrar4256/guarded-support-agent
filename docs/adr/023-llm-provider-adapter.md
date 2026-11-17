@@ -10,6 +10,13 @@ character counts on every row (Part 4); a fallback model is evaluated before it'
 **Locked 2026-11-14.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Superseded in part by [ADR-025](025-providers-models-and-eval-budget.md):** S3's settings shape
+(one `LLM_PROVIDER`/`LLM_MODEL`/`LLM_API_KEY` and one optional fallback) becomes one credential set
+per provider and an ordered `provider:model` list per purpose (`LLM_TURN_MODELS`,
+`LLM_SUMMARY_MODELS`); Part 3's "a fallback is configured only after its model has passed the
+evals" becomes a production startup check against `verified_models.json`, tied to a prompt
+fingerprint. Everything else here stands.
+
 **Precedence:** fills in ADR-005's "port Project 1's provider, retry and telemetry pieces to
 `AsyncOpenAI`" and ADR-022 S8 (what the turn needs from the provider). ADR-006 (ScriptedLLM, the
 contract test, real-provider fixtures, the production gate) applies unchanged: the adapter is
