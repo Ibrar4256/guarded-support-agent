@@ -1297,3 +1297,37 @@ v1.0) and three answered 429 from OpenRouter's shared upstream pool (pinned as r
 four completed smoke-run turns; three refused the injection, Cohere proposed the full charge.
 One summary failed with a relayed upstream 400 that passed on a re-run (recorded, not
 classified without a captured body).
+
+
+### Decision and slice: the eval runner (ADR-026) and its clock seams (2026-11-19)
+
+**What shipped:** ADR-026, locked after one outside review (pointer lines in ADR-025, which now
+calls routing ADR-027, and EVAL_PLAN). Slice 1, the seams: `agent.db.clock` (a `Clock` protocol;
+production's `DatabaseClock` reads `None` and every turn-path write is `COALESCE(:at, now())`, so
+production stamps stay each transaction's own `now()`), an id source for run ids and an injected
+fence nonce for the turn and the summary. Every turn-path write takes the clock once per
+transaction: 9 former SQL `now()` writes and 7 inserts that relied on column defaults (runs,
+events, decisions, summaries, order lookups); the policy's "now" comes from the clock when it
+gives one. `TurnDeps`/`SummaryDeps` carry production defaults; the eval side is
+`agent_testing.evals.clock` (a logical clock at `ANCHOR = 2026-01-15T12:00Z`, seeded ids and
+nonces). Tests: a scan that allows SQL clock reads only in the lease statements and the policy's
+production fallback; production stamps equal the lease's transaction time; the refund window
+follows the anchor (29 days in, 31 out) while the real clock refuses both; every stamp of an
+approval, a review, a C01 escalation, an escalate call and a summary sits just after the anchor;
+the digest shows the seeded ticket id and the anchor's date, fenced with the seeded nonce. Agent
+1211 (was 1199); 10 plants caught.
+
+**What broke:** fixed seeded ids collided with earlier runs' rows in the shared test database
+(`pk_runs`), exactly what ADR-026 Part 1 predicted; slice-1 tests take a per-execution seed, and
+"the same case twice gives identical prompts" waits for the runner's fresh database per case. A
+replaced docstring lost its closing quotes; a test stub didn't accept the new keyword. The scan's
+first version flagged Python variables named `now`; it now looks for SQL only. ADR-026 S2a's
+invariant bound (anchor + 1 day) is too tight for `review_deadline` (a stamp plus 24 hours); the
+runner's invariant must allow deadline columns their configured offset.
+
+**What I learned:** making the new parameter required, not defaulted, let the type checker list
+every caller that needed it; the integration test then showed the one it couldn't (a stub typed
+`Any`).
+
+**What's next:** slice 2, the recording layer (S2's wrapper, replay/record/live, the anchor
+guard, the real-date leak check), then the runner with fresh databases per case.

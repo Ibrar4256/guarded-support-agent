@@ -21,6 +21,7 @@ from agent.alerts import Severity
 from agent.core.lifecycle import RunStatus
 from agent.core.replies import ReplyTemplate
 from agent.db import order_lookup as order_lookup_db
+from agent.db.clock import DATABASE_CLOCK
 from agent.llm.errors import ContextTooLong, InputRejected, ProviderUnavailable
 from agent.llm.recording import CallRecord
 from agent.llm.types import (
@@ -318,7 +319,12 @@ async def test_a_lock_timeout_or_an_answer_breaks_the_provider_failure_streak(
     lock_turn = world.hold_turn(first.ids.run_id)
     lock_ids = TurnIds(conversation, first.ids.run_id, lock_turn)
     await reply_and_wait(
-        async_runtime_engine, SETTINGS, lock_ids, ReplyTemplate.TRY_AGAIN, TryAgainCause.LOCK
+        async_runtime_engine,
+        SETTINGS,
+        lock_ids,
+        ReplyTemplate.TRY_AGAIN,
+        TryAgainCause.LOCK,
+        clock=DATABASE_CLOCK,
     )
     await turn(async_runtime_engine, world, conversation, failing, alerter=alerter)
 

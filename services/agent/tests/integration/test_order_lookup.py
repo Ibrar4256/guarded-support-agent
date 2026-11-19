@@ -25,6 +25,7 @@ from worker_world import World
 from agent.core.lifecycle import RunStatus
 from agent.core.policy import FulfillmentStatus
 from agent.db import order_lookup as order_lookup_db
+from agent.db.clock import DATABASE_CLOCK
 from agent.tools import order_lookup
 from agent.tools.contract import LostTurn, ToolContext
 from agent.tools.order_lookup import NOT_FOUND, UNAVAILABLE, OrderLookupArgs, lookup_order
@@ -67,6 +68,7 @@ def context(world: World, turn: tuple[uuid.UUID, uuid.UUID], conn: AsyncConnecti
         turn_id=turn_id,
         run_id=run,
         conn=conn,
+        clock=DATABASE_CLOCK,
     )
 
 
@@ -380,13 +382,13 @@ async def test_a_takeover_waits_until_the_fenced_lookup_is_recorded(
     blocked: list[OperationalError] = []
 
     async def takeover_between_fence_and_insert(
-        connection: AsyncConnection, run: uuid.UUID, order_id: str
+        connection: AsyncConnection, run: uuid.UUID, order_id: str, *, at: datetime | None
     ) -> None:
         try:
             await asyncio.to_thread(take_over, owner_engine, run)
         except OperationalError as exc:
             blocked.append(exc)
-        await record(connection, run, order_id)
+        await record(connection, run, order_id, at=at)
 
     monkeypatch.setattr(order_lookup, "record_lookup", takeover_between_fence_and_insert)
     async with asyncio.timeout(BOUND_SECONDS):

@@ -22,6 +22,7 @@ from agent.core.lifecycle import RunStatus
 from agent.core.replies import ReplyTemplate
 from agent.db import turns
 from agent.db.claims import worker_transaction
+from agent.db.clock import Clock, IdSource
 from agent.turn.settings import TurnSettings
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,8 @@ async def start_turn(
     conversation_id: uuid.UUID,
     user: str,
     message: str,
+    clock: Clock,
+    new_id: IdSource,
 ) -> TurnStart:
     check_message(message, settings)
     c01 = classify_customer_message(message)
@@ -93,36 +96,42 @@ async def start_turn(
             if await turns.owns_conversation(conn, conversation_id, user):
                 raise TurnInProgress(str(conversation_id))
             raise ConversationNotFound(str(conversation_id))
+        at = clock.stamp()
         found = await turns.unfinished_run(conn, conversation_id)
         if found is None:
-            run_id = await turns.create_run(conn, conversation_id, user)
+            run_id = await turns.create_run(conn, conversation_id, user, run_id=new_id(), at=at)
             status = RunStatus.AGENT_STEP
         else:
             run_id, status = found.run_id, found.status
         await turns.append_event(
-            conn, conversation_id, run_id, turns.CUSTOMER_MESSAGE, {"text": message}
+            conn, conversation_id, run_id, turns.CUSTOMER_MESSAGE, {"text": message}, at=at
         )
         ids = TurnIds(conversation_id, run_id, turn_id)
         if c01.flagged:
             logger.info("C01 on run %s: %s", run_id, ", ".join(c01.patterns))
             if status is RunStatus.AGENT_STEP:
-                await turns.escalate_for_c01(conn, run_id)
-                await turns.record_c01_decision(conn, run_id, None, C01_ESCALATED, c01.patterns)
+                await turns.escalate_for_c01(conn, run_id, at=at)
+                await turns.record_c01_decision(
+                    conn, run_id, None, C01_ESCALATED, c01.patterns, at=at
+                )
                 await turns.append_event(
                     conn,
                     conversation_id,
                     run_id,
                     turns.REPLY,
                     {"template": ReplyTemplate.NEEDS_PERSON.value},
+                    at=at,
                 )
                 await turns.release_lease(conn, conversation_id, turn_id)
                 return TurnStart(ids, user, RunStatus.ESCALATED, ReplyTemplate.NEEDS_PERSON)
-            action_id = await turns.flag_pending_for_c01(conn, run_id)
-            await turns.record_c01_decision(conn, run_id, action_id, C01_FLAGGED, c01.patterns)
+            action_id = await turns.flag_pending_for_c01(conn, run_id, at=at)
+            await turns.record_c01_decision(
+                conn, run_id, action_id, C01_FLAGGED, c01.patterns, at=at
+            )
         template = PENDING_TEMPLATES.get(status)
         if template is not None:
             await turns.append_event(
-                conn, conversation_id, run_id, turns.REPLY, {"template": template.value}
+                conn, conversation_id, run_id, turns.REPLY, {"template": template.value}, at=at
             )
             await turns.release_lease(conn, conversation_id, turn_id)
         return TurnStart(ids, user, status, template)

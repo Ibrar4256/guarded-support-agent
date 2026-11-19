@@ -80,6 +80,7 @@ async def read(engine: AsyncEngine, world: World, order: str) -> ProposalInputs:
             user=world.user,
             proposal=RefundProposal(action(), order, 1_000, "USD"),
             breaker_window=BREAKER_WINDOW,
+            at=None,
         )
 
 

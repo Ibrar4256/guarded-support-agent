@@ -411,6 +411,7 @@ async def test_a_summary_covering_older_events_is_not_inserted(
                     prompt_version="test",
                     provider="test",
                     model="test",
+                    at=None,
                 )
             )
 

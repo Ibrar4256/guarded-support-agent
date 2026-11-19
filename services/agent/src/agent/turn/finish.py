@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from agent.core.replies import ReplyTemplate
 from agent.db import turns
 from agent.db.claims import worker_transaction
+from agent.db.clock import Clock
 from agent.tools.contract import LostTurn
 from agent.turn.settings import TurnSettings
 from agent.turn.start import TurnIds
@@ -31,14 +32,17 @@ class TryAgainCause(StrEnum):
 
 
 async def reply_and_complete(
-    engine: AsyncEngine, settings: TurnSettings, ids: TurnIds, text: str
+    engine: AsyncEngine, settings: TurnSettings, ids: TurnIds, text: str, *, clock: Clock
 ) -> None:
     async with worker_transaction(
         engine, statement_timeout=settings.statement_timeout, lock_timeout=settings.lock_timeout
     ) as conn:
         if not await turns.hold_turn(conn, ids.conversation_id, ids.turn_id):
             raise LostTurn(f"turn {ids.turn_id} lost conversation {ids.conversation_id}")
-        await turns.append_event(conn, ids.conversation_id, ids.run_id, turns.REPLY, {"text": text})
+        at = clock.stamp()
+        await turns.append_event(
+            conn, ids.conversation_id, ids.run_id, turns.REPLY, {"text": text}, at=at
+        )
         await turns.complete_run(conn, ids.run_id)
         await turns.release_lease(conn, ids.conversation_id, ids.turn_id)
 
@@ -49,6 +53,8 @@ async def reply_and_wait(
     ids: TurnIds,
     template: ReplyTemplate,
     cause: TryAgainCause | None = None,
+    *,
+    clock: Clock,
 ) -> None:
     if (template is ReplyTemplate.TRY_AGAIN) != (cause is not None):
         raise ValueError("a try_again reply needs its cause, and only it has one")
@@ -60,25 +66,29 @@ async def reply_and_wait(
     ) as conn:
         if not await turns.hold_turn(conn, ids.conversation_id, ids.turn_id):
             raise LostTurn(f"turn {ids.turn_id} lost conversation {ids.conversation_id}")
-        await turns.append_event(conn, ids.conversation_id, ids.run_id, turns.REPLY, payload)
+        await turns.append_event(
+            conn, ids.conversation_id, ids.run_id, turns.REPLY, payload, at=clock.stamp()
+        )
         await turns.release_lease(conn, ids.conversation_id, ids.turn_id)
 
 
 async def escalate_and_reply(
-    engine: AsyncEngine, settings: TurnSettings, ids: TurnIds, reason: str
+    engine: AsyncEngine, settings: TurnSettings, ids: TurnIds, reason: str, *, clock: Clock
 ) -> None:
     async with worker_transaction(
         engine, statement_timeout=settings.statement_timeout, lock_timeout=settings.lock_timeout
     ) as conn:
         if not await turns.hold_turn(conn, ids.conversation_id, ids.turn_id):
             raise LostTurn(f"turn {ids.turn_id} lost conversation {ids.conversation_id}")
-        await turns.escalate_run(conn, ids.run_id)
+        at = clock.stamp()
+        await turns.escalate_run(conn, ids.run_id, at=at)
         await turns.append_event(
             conn,
             ids.conversation_id,
             ids.run_id,
             turns.REPLY,
             {"template": ReplyTemplate.NEEDS_PERSON.value},
+            at=at,
         )
         await turns.release_lease(conn, ids.conversation_id, ids.turn_id)
     logger.info("run %s escalated: %s", ids.run_id, reason)

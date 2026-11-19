@@ -3,12 +3,13 @@
 Nothing here commits on its own; the turn owns its transactions. Lock order (ADR-009):
 ``customers`` → ``conversations`` → ``runs``. Every write a turn makes after its start is
 conditional on ``conversations.active_turn_id = :turn`` under ``FOR SHARE`` (``hold_turn``), so a
-takeover waits for the write's transaction instead of committing under it.
+takeover waits for the write's transaction instead of committing under it. Every write that
+stamps time takes ``at`` from the turn's clock (ADR-026); None writes SQL ``now()`` as before.
 """
 
 import uuid
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, insert, or_, select, update
@@ -18,6 +19,7 @@ from agent.core.c01 import C01_VERSION
 from agent.core.c01 import RULE_ID as C01_RULE_ID
 from agent.core.lifecycle import TERMINAL_STATUSES, RunStatus, require_transition
 from agent.core.policy import POLICY_VERSION
+from agent.db.clock import stamped
 from agent.db.presend import DECIDED_BY_POLICY
 from agent.db.schema import conversations, decisions, events, runs
 
@@ -108,12 +110,22 @@ async def unfinished_run(conn: AsyncConnection, conversation_id: uuid.UUID) -> U
     return None if row is None else UnfinishedRun(row.id, RunStatus(row.status))
 
 
-async def create_run(conn: AsyncConnection, conversation_id: uuid.UUID, user: str) -> uuid.UUID:
+async def create_run(
+    conn: AsyncConnection,
+    conversation_id: uuid.UUID,
+    user: str,
+    *,
+    run_id: uuid.UUID,
+    at: datetime | None,
+) -> uuid.UUID:
     require_transition(None, RunStatus.AGENT_STEP)
-    run_id = uuid.uuid4()
     await conn.execute(
         insert(runs).values(
-            id=run_id, conversation_id=conversation_id, user_id=user, status=RunStatus.AGENT_STEP
+            id=run_id,
+            conversation_id=conversation_id,
+            user_id=user,
+            status=RunStatus.AGENT_STEP,
+            created_at=stamped(at),
         )
     )
     return run_id
@@ -125,10 +137,16 @@ async def append_event(
     run_id: uuid.UUID | None,
     kind: str,
     payload: dict[str, Any],
+    *,
+    at: datetime | None,
 ) -> None:
     await conn.execute(
         insert(events).values(
-            conversation_id=conversation_id, run_id=run_id, kind=kind, payload=payload
+            conversation_id=conversation_id,
+            run_id=run_id,
+            kind=kind,
+            payload=payload,
+            created_at=stamped(at),
         )
     )
 
@@ -146,20 +164,24 @@ async def complete_run(conn: AsyncConnection, run_id: uuid.UUID) -> None:
         raise RuntimeError(f"run {run_id} left AGENT_STEP while this turn held its conversation")
 
 
-async def escalate_for_c01(conn: AsyncConnection, run_id: uuid.UUID) -> None:
+async def escalate_for_c01(
+    conn: AsyncConnection, run_id: uuid.UUID, *, at: datetime | None
+) -> None:
     """C01 during ``AGENT_STEP``: ``→ ESCALATED`` with ``c01_flagged_at`` (ADR-009)."""
     require_transition(RunStatus.AGENT_STEP, RunStatus.ESCALATED)
     result = await conn.execute(
         update(runs)
         .where(runs.c.id == run_id, runs.c.status == RunStatus.AGENT_STEP)
-        .values(status=RunStatus.ESCALATED, escalated_at=func.now(), c01_flagged_at=func.now())
+        .values(status=RunStatus.ESCALATED, escalated_at=stamped(at), c01_flagged_at=stamped(at))
         .returning(runs.c.id)
     )
     if result.one_or_none() is None:
         raise RuntimeError(f"run {run_id} left AGENT_STEP while this turn held its conversation")
 
 
-async def flag_pending_for_c01(conn: AsyncConnection, run_id: uuid.UUID) -> str | None:
+async def flag_pending_for_c01(
+    conn: AsyncConnection, run_id: uuid.UUID, *, at: datetime | None
+) -> str | None:
     """C01 after a proposal: flag the run for reviewers and bump ``review_revision`` (A03), so
     an approval from a page that predates the message fails. The status is untouched: an
     in-flight or queued refund isn't cancelled (ADR-009). Returns the run's action id."""
@@ -167,8 +189,8 @@ async def flag_pending_for_c01(conn: AsyncConnection, run_id: uuid.UUID) -> str 
         update(runs)
         .where(runs.c.id == run_id)
         .values(
-            c01_flagged_at=func.coalesce(runs.c.c01_flagged_at, func.now()),
-            escalated_at=func.coalesce(runs.c.escalated_at, func.now()),
+            c01_flagged_at=func.coalesce(runs.c.c01_flagged_at, stamped(at)),
+            escalated_at=func.coalesce(runs.c.escalated_at, stamped(at)),
             review_revision=runs.c.review_revision + 1,
         )
         .returning(runs.c.action_id)
@@ -183,6 +205,8 @@ async def record_c01_decision(
     action_id: str | None,
     outcome: str,
     patterns: tuple[str, ...],
+    *,
+    at: datetime | None,
 ) -> None:
     """The decision log keeps the matched pattern IDs only, never the message (ADR-009)."""
     await conn.execute(
@@ -196,6 +220,7 @@ async def record_c01_decision(
             config_snapshot={"c01_version": C01_VERSION},
             input_snapshot={"patterns": list(patterns)},
             decided_by=DECIDED_BY_POLICY,
+            decided_at=stamped(at),
         )
     )
 
@@ -242,13 +267,13 @@ async def trailing_provider_failures(
     return count
 
 
-async def escalate_run(conn: AsyncConnection, run_id: uuid.UUID) -> None:
+async def escalate_run(conn: AsyncConnection, run_id: uuid.UUID, *, at: datetime | None) -> None:
     """``AGENT_STEP → ESCALATED`` when the turn's step or malformed budget runs out (ADR-008)."""
     require_transition(RunStatus.AGENT_STEP, RunStatus.ESCALATED)
     result = await conn.execute(
         update(runs)
         .where(runs.c.id == run_id, runs.c.status == RunStatus.AGENT_STEP)
-        .values(status=RunStatus.ESCALATED, escalated_at=func.now())
+        .values(status=RunStatus.ESCALATED, escalated_at=stamped(at))
         .returning(runs.c.id)
     )
     if result.one_or_none() is None:

@@ -13,6 +13,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from agent.core.policy import FulfillmentStatus
+from agent.db.clock import stamped
 from agent.db.schema import conversations, orders, run_order_lookups, runs
 
 
@@ -56,11 +57,13 @@ async def turn_holds_run(conn: AsyncConnection, run_id: uuid.UUID, turn_id: uuid
     return result.one_or_none() is not None
 
 
-async def record_lookup(conn: AsyncConnection, run_id: uuid.UUID, order_id: str) -> None:
+async def record_lookup(
+    conn: AsyncConnection, run_id: uuid.UUID, order_id: str, *, at: datetime | None
+) -> None:
     """R02 provenance: a second lookup of the same order in the same run is a no-op."""
     await conn.execute(
         pg_insert(run_order_lookups)
-        .values(run_id=run_id, order_id=order_id)
+        .values(run_id=run_id, order_id=order_id, looked_up_at=stamped(at))
         .on_conflict_do_nothing()
     )
 

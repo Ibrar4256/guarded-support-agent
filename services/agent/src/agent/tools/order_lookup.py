@@ -56,7 +56,7 @@ async def lookup_order(ctx: ToolContext, args: OrderLookupArgs) -> str:
                 result = found_result(order)
                 if not await turn_holds_run(ctx.conn, ctx.run_id, ctx.turn_id):
                     raise LostTurn(f"turn {ctx.turn_id} no longer holds run {ctx.run_id}")
-                await record_lookup(ctx.conn, ctx.run_id, order.order_id)
+                await record_lookup(ctx.conn, ctx.run_id, order.order_id, at=ctx.clock.stamp())
                 return result
     except DBAPIError:
         logger.warning("order lookup failed for run %s", ctx.run_id, exc_info=True)

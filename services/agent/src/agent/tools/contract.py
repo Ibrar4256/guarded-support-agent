@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from agent.db.clock import Clock
+
 
 class ToolArgs(BaseModel):
     """Strict: no extra fields, no type coercion."""
@@ -33,6 +35,7 @@ class ToolContext:
     turn_id: uuid.UUID
     run_id: uuid.UUID
     conn: AsyncConnection
+    clock: Clock  # for any time a tool writes (ADR-026)
 
 
 class LostTurn(Exception):

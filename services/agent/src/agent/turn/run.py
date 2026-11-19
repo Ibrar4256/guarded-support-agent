@@ -25,6 +25,7 @@ from agent.core.policy import PolicyConfig
 from agent.db import memory as memory_db
 from agent.db import turns
 from agent.db.claims import worker_transaction
+from agent.db.clock import DATABASE_CLOCK, Clock, IdSource
 from agent.llm.pool import ProviderPool
 from agent.llm.prices import PriceTable
 from agent.llm.recording import CallContext, Recorder, RecordingModel
@@ -73,6 +74,11 @@ class TurnDeps:
     monotonic: Callable[[], float] = field(default=time.monotonic)
     # Summaries the turn starts after its lease is released (ADR-022 S6).
     background: BackgroundTasks = field(default_factory=BackgroundTasks)
+    # Time, run ids and fence nonces (ADR-026 S3): production's database clock, uuid4 and a
+    # random nonce; the eval runner passes its logical clock and seeded sources.
+    clock: Clock = DATABASE_CLOCK
+    new_id: IdSource = field(default=uuid.uuid4)
+    nonce: Callable[[], str] = field(default=new_nonce)
 
 
 @dataclass(frozen=True)
@@ -85,7 +91,13 @@ async def run_turn(
     deps: TurnDeps, *, conversation_id: uuid.UUID, user: str, message: str
 ) -> TurnResult:
     started = await start_turn(
-        deps.engine, deps.settings, conversation_id=conversation_id, user=user, message=message
+        deps.engine,
+        deps.settings,
+        conversation_id=conversation_id,
+        user=user,
+        message=message,
+        clock=deps.clock,
+        new_id=deps.new_id,
     )
     ids = started.ids
     if started.answered is not None:
@@ -111,7 +123,14 @@ async def run_turn(
 
 def _summary_deps(deps: TurnDeps) -> SummaryDeps:
     return SummaryDeps(
-        deps.engine, deps.settings, deps.pool, deps.record, deps.prices, deps.monotonic
+        deps.engine,
+        deps.settings,
+        deps.pool,
+        deps.record,
+        deps.prices,
+        deps.monotonic,
+        clock=deps.clock,
+        nonce=deps.nonce,
     )
 
 
@@ -137,7 +156,7 @@ async def _work(
     job = plan_summary((ids.conversation_id, ids.run_id, ids.turn_id), events, summary, settings)
     messages = build_messages(
         history,
-        nonce=new_nonce(),
+        nonce=deps.nonce(),
         digest=digest(past),
         summary=None if summary is None else summary.text,
     )
@@ -151,7 +170,9 @@ async def _work(
         prices=deps.prices,
         monotonic=deps.monotonic,
     )
-    context = LoopContext(deps.engine, settings, ids, user, model, deadline, deps.monotonic)
+    context = LoopContext(
+        deps.engine, settings, ids, user, model, deadline, deps.monotonic, deps.clock
+    )
     return await run_loop(context, messages), job
 
 
@@ -165,15 +186,19 @@ PROPOSAL_OUTCOMES = {
 
 async def _finish(deps: TurnDeps, ids: TurnIds, user: str, outcome: LoopOutcome) -> TurnOutcome:
     if isinstance(outcome, Propose):
-        context = ProposalContext(deps.engine, deps.settings, deps.policy, deps.alerter, ids, user)
+        context = ProposalContext(
+            deps.engine, deps.settings, deps.policy, deps.alerter, ids, user, deps.clock
+        )
         return PROPOSAL_OUTCOMES[await run_proposal(context, outcome.args)]
     if isinstance(outcome, Reply):
-        await reply_and_complete(deps.engine, deps.settings, ids, outcome.text)
+        await reply_and_complete(deps.engine, deps.settings, ids, outcome.text, clock=deps.clock)
         return TurnOutcome.REPLIED
     if isinstance(outcome, Escalate):
-        await escalate_and_reply(deps.engine, deps.settings, ids, outcome.reason)
+        await escalate_and_reply(deps.engine, deps.settings, ids, outcome.reason, clock=deps.clock)
         return TurnOutcome.ESCALATED
-    await reply_and_wait(deps.engine, deps.settings, ids, outcome.template, outcome.cause)
+    await reply_and_wait(
+        deps.engine, deps.settings, ids, outcome.template, outcome.cause, clock=deps.clock
+    )
     _alert(deps, ids, outcome)
     if outcome.cause is TryAgainCause.PROVIDER:
         await _alert_on_repeated_provider_failures(deps, ids)

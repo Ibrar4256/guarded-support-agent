@@ -32,6 +32,7 @@ from agent.core.policy import (
     ReviewDecline,
     RuleId,
 )
+from agent.db.clock import stamped
 from agent.db.presend import (
     CONTROLS_ROW_ID,
     DECIDED_BY_POLICY,
@@ -86,9 +87,11 @@ async def load_proposal_inputs(
     user: str,
     proposal: RefundProposal,
     breaker_window: timedelta,
+    at: datetime | None,
 ) -> ProposalInputs:
-    """Database reads only, under the customer lock. Raises ``MissingInputError`` (fail closed)."""
-    now = await db_now(conn)
+    """Database reads only, under the customer lock. Raises ``MissingInputError`` (fail closed).
+    The policy's "now" is ``at`` when the clock gives one (ADR-026), else the database's."""
+    now = at if at is not None else await db_now(conn)
     return ProposalInputs(
         proposal=proposal,
         session_user_id=user,
@@ -221,6 +224,7 @@ async def insert_decision(
     config_snapshot: dict[str, Any],
     input_snapshot: dict[str, Any],
     review_hash: str | None,
+    at: datetime | None,
 ) -> None:
     await conn.execute(
         insert(decisions).values(
@@ -234,11 +238,12 @@ async def insert_decision(
             input_snapshot=input_snapshot,
             review_hash=review_hash,
             decided_by=DECIDED_BY_POLICY,
+            decided_at=stamped(at),
         )
     )
 
 
-async def trip_breaker(conn: AsyncConnection) -> bool:
+async def trip_breaker(conn: AsyncConnection, *, at: datetime | None) -> bool:
     """R13's trip signal (ADR-009): last in the lock order; concurrent trips are harmless.
     True only for the transaction that tripped it."""
     result = await conn.execute(
@@ -246,7 +251,7 @@ async def trip_breaker(conn: AsyncConnection) -> bool:
         .where(
             policy_controls.c.id == CONTROLS_ROW_ID, policy_controls.c.breaker_tripped_at.is_(None)
         )
-        .values(breaker_tripped_at=func.now())
+        .values(breaker_tripped_at=stamped(at))
         .returning(policy_controls.c.id)
     )
     return result.one_or_none() is not None
@@ -265,7 +270,12 @@ async def _move(conn: AsyncConnection, run_id: uuid.UUID, to: RunStatus, **value
 
 
 async def approve(
-    conn: AsyncConnection, run_id: uuid.UUID, proposal: RefundProposal, review_hash: str
+    conn: AsyncConnection,
+    run_id: uuid.UUID,
+    proposal: RefundProposal,
+    review_hash: str,
+    *,
+    at: datetime | None,
 ) -> None:
     """``AGENT_STEP → APPROVED`` by policy: key and canonical payload with the approval."""
     await _move(
@@ -274,7 +284,7 @@ async def approve(
         RunStatus.APPROVED,
         **approval_values(proposal),
         approval_source=ApprovalSource.POLICY,
-        approved_at=func.now(),
+        approved_at=stamped(at),
         review_hash=review_hash,
     )
 
@@ -286,6 +296,8 @@ async def await_review(
     proposal: RefundProposal,
     review_hash: str,
     deadline: timedelta,
+    *,
+    at: datetime | None,
 ) -> None:
     """``AGENT_STEP → AWAIT_APPROVAL``: ``review_deadline`` and a ``pending_review`` event; no
     key yet (it's created when a reviewer approves, ADR-004 step 1)."""
@@ -298,7 +310,7 @@ async def await_review(
         amount_minor=proposal.amount_minor,
         currency=proposal.currency,
         review_hash=review_hash,
-        review_deadline=func.now() + deadline,
+        review_deadline=stamped(at) + deadline,
     )
     await conn.execute(
         insert(events).values(
@@ -306,15 +318,18 @@ async def await_review(
             run_id=run_id,
             kind=PENDING_REVIEW,
             payload={"action_id": proposal.action_id},
+            created_at=stamped(at),
         )
     )
 
 
-async def escalate_proposal(conn: AsyncConnection, run_id: uuid.UUID, action_id: str) -> None:
+async def escalate_proposal(
+    conn: AsyncConnection, run_id: uuid.UUID, action_id: str, *, at: datetime | None
+) -> None:
     """``AGENT_STEP → ESCALATED``, nothing sent. Only the ``action_id`` goes on the run: the
     proposal itself is in the decision row's snapshot, and an amount R01 refused (≤ 0) would
     break the run's own CHECK and with it the escalation."""
-    await _move(conn, run_id, RunStatus.ESCALATED, action_id=action_id, escalated_at=func.now())
+    await _move(conn, run_id, RunStatus.ESCALATED, action_id=action_id, escalated_at=stamped(at))
 
 
 def breaker_trip_snapshot(inputs: ProposalInputs, config: PolicyConfig) -> dict[str, Any]:

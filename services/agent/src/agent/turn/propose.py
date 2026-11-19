@@ -39,6 +39,7 @@ from agent.core.review_hash import review_hash
 from agent.db import proposal as db
 from agent.db import turns
 from agent.db.claims import worker_transaction
+from agent.db.clock import Clock
 from agent.db.presend import jsonable, lock_customer
 from agent.tools.contract import LostTurn
 from agent.turn.finish import TryAgainCause, reply_and_wait
@@ -76,6 +77,7 @@ class ProposalContext:
     alerter: Alerter
     ids: TurnIds
     user: str
+    clock: Clock
 
 
 class _FailClosed(Exception):
@@ -103,7 +105,12 @@ async def run_proposal(ctx: ProposalContext, args: ProposeRefundArgs) -> Proposa
                 return await _fail_closed(ctx, proposal, _FailClosed(f"database error {sqlstate}"))
             logger.info("run %s: proposal lock wait %d timed out", ctx.ids.run_id, attempt)
     await reply_and_wait(
-        ctx.engine, ctx.settings, ctx.ids, ReplyTemplate.TRY_AGAIN, TryAgainCause.LOCK
+        ctx.engine,
+        ctx.settings,
+        ctx.ids,
+        ReplyTemplate.TRY_AGAIN,
+        TryAgainCause.LOCK,
+        clock=ctx.clock,
     )
     return ProposalStep.TRY_AGAIN
 
@@ -118,6 +125,7 @@ async def _evaluate_and_move(ctx: ProposalContext, proposal: RefundProposal) -> 
         await lock_customer(conn, ctx.user)
         if not await turns.hold_turn(conn, ids.conversation_id, ids.turn_id):
             raise LostTurn(f"turn {ids.turn_id} lost conversation {ids.conversation_id}")
+        at = ctx.clock.stamp()
         try:
             inputs = await db.load_proposal_inputs(
                 conn,
@@ -125,6 +133,7 @@ async def _evaluate_and_move(ctx: ProposalContext, proposal: RefundProposal) -> 
                 user=ctx.user,
                 proposal=proposal,
                 breaker_window=ctx.policy.breaker_window,
+                at=at,
             )
         except MissingInputError as exc:
             raise _FailClosed(f"missing input: {exc}") from exc
@@ -144,9 +153,10 @@ async def _evaluate_and_move(ctx: ProposalContext, proposal: RefundProposal) -> 
             config_snapshot=config_snapshot,
             input_snapshot=input_snapshot,
             review_hash=bound,
+            at=at,
         )
         if result.outcome is Outcome.AUTO:
-            await db.approve(conn, ids.run_id, proposal, bound)
+            await db.approve(conn, ids.run_id, proposal, bound, at=at)
         elif result.outcome is Outcome.REVIEW:
             await db.await_review(
                 conn,
@@ -155,10 +165,11 @@ async def _evaluate_and_move(ctx: ProposalContext, proposal: RefundProposal) -> 
                 proposal,
                 bound,
                 ctx.settings.review_deadline,
+                at=at,
             )
         else:
-            await db.escalate_proposal(conn, ids.run_id, proposal.action_id)
-        tripped = result.trip_breaker and await db.trip_breaker(conn)
+            await db.escalate_proposal(conn, ids.run_id, proposal.action_id, at=at)
+        tripped = result.trip_breaker and await db.trip_breaker(conn, at=at)
         if tripped:
             await db.insert_decision(
                 conn,
@@ -171,10 +182,11 @@ async def _evaluate_and_move(ctx: ProposalContext, proposal: RefundProposal) -> 
                 config_snapshot=config_snapshot,
                 input_snapshot=db.breaker_trip_snapshot(inputs, ctx.policy),
                 review_hash=None,
+                at=at,
             )
         step, template = TEMPLATES[result.outcome]
         await turns.append_event(
-            conn, ids.conversation_id, ids.run_id, turns.REPLY, {"template": template.value}
+            conn, ids.conversation_id, ids.run_id, turns.REPLY, {"template": template.value}, at=at
         )
         await turns.release_lease(conn, ids.conversation_id, ids.turn_id)
     logger.info(
@@ -203,7 +215,8 @@ async def _fail_closed(
         ) as conn:
             if not await turns.hold_turn(conn, ids.conversation_id, ids.turn_id):
                 raise LostTurn(f"turn {ids.turn_id} lost conversation {ids.conversation_id}")
-            await db.escalate_proposal(conn, ids.run_id, proposal.action_id)
+            at = ctx.clock.stamp()
+            await db.escalate_proposal(conn, ids.run_id, proposal.action_id, at=at)
             await db.insert_decision(
                 conn,
                 run_id=ids.run_id,
@@ -215,6 +228,7 @@ async def _fail_closed(
                 config_snapshot=jsonable(asdict(ctx.policy)),
                 input_snapshot=jsonable({"reason": failed.reason, "proposal": asdict(proposal)}),
                 review_hash=None,
+                at=at,
             )
             await turns.append_event(
                 conn,
@@ -222,6 +236,7 @@ async def _fail_closed(
                 ids.run_id,
                 turns.REPLY,
                 {"template": ReplyTemplate.NEEDS_PERSON.value},
+                at=at,
             )
             await turns.release_lease(conn, ids.conversation_id, ids.turn_id)
     except LostTurn:

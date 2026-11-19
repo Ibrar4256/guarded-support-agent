@@ -15,6 +15,7 @@ from worker_world import World
 
 from agent.core.lifecycle import RunStatus
 from agent.core.replies import ReplyTemplate
+from agent.db.clock import DATABASE_CLOCK
 from agent.turn.start import TurnStart, start_turn
 
 THREAT = "I am going to sue you, my lawyer is ready"
@@ -24,7 +25,13 @@ async def say(
     engine: AsyncEngine, world: World, conversation: uuid.UUID, message: str
 ) -> TurnStart:
     return await start_turn(
-        engine, SETTINGS, conversation_id=conversation, user=world.user, message=message
+        engine,
+        SETTINGS,
+        conversation_id=conversation,
+        user=world.user,
+        message=message,
+        clock=DATABASE_CLOCK,
+        new_id=uuid.uuid4,
     )
 
 

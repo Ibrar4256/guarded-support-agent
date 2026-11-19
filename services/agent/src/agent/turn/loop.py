@@ -28,6 +28,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from agent.core.replies import ReplyTemplate
+from agent.db.clock import Clock
 from agent.db.order_lookup import was_looked_up
 from agent.llm.errors import ContextTooLong, InputRejected, ModelError
 from agent.llm.types import ChatModel, FinishReason, ModelResponse, Purpose, ToolCall
@@ -99,6 +100,7 @@ class LoopContext:
     model: ChatModel
     deadline: float
     monotonic: Callable[[], float]
+    clock: Clock
 
 
 def outcome_for(error: ModelError) -> Wait:
@@ -186,6 +188,7 @@ async def run_read_tool(ctx: LoopContext, tool: ReadTool, args: ToolArgs) -> str
             turn_id=ctx.ids.turn_id,
             run_id=ctx.ids.run_id,
             conn=conn,
+            clock=ctx.clock,
         )
         return await tool.run(tool_ctx, args)
 

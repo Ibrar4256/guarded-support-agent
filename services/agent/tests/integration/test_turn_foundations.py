@@ -18,6 +18,7 @@ from worker_world import World
 from agent.core.lifecycle import RunStatus
 from agent.core.replies import ReplyTemplate
 from agent.db import turns
+from agent.db.clock import DATABASE_CLOCK
 from agent.db.schema import conversations
 from agent.tools.contract import LostTurn
 from agent.turn.finish import TryAgainCause, reply_and_complete, reply_and_wait
@@ -39,7 +40,13 @@ async def start(
     engine: AsyncEngine, world: World, conversation: uuid.UUID, message: str = "hi"
 ) -> TurnStart:
     return await start_turn(
-        engine, SETTINGS, conversation_id=conversation, user=world.user, message=message
+        engine,
+        SETTINGS,
+        conversation_id=conversation,
+        user=world.user,
+        message=message,
+        clock=DATABASE_CLOCK,
+        new_id=uuid.uuid4,
     )
 
 
@@ -191,7 +198,9 @@ async def test_a_reply_completes_the_run_and_frees_the_conversation(
     conversation = world.add_conversation()
     started = await start(async_runtime_engine, world, conversation)
 
-    await reply_and_complete(async_runtime_engine, SETTINGS, started.ids, "It shipped today.")
+    await reply_and_complete(
+        async_runtime_engine, SETTINGS, started.ids, "It shipped today.", clock=DATABASE_CLOCK
+    )
 
     assert world.row(started.ids.run_id).status == RunStatus.COMPLETED
     assert kinds(world, conversation)[-1] == ("reply", {"text": "It shipped today."})
@@ -206,7 +215,12 @@ async def test_try_again_leaves_the_run_waiting_and_records_its_cause(
     started = await start(async_runtime_engine, world, conversation)
 
     await reply_and_wait(
-        async_runtime_engine, SETTINGS, started.ids, ReplyTemplate.TRY_AGAIN, TryAgainCause.PROVIDER
+        async_runtime_engine,
+        SETTINGS,
+        started.ids,
+        ReplyTemplate.TRY_AGAIN,
+        TryAgainCause.PROVIDER,
+        clock=DATABASE_CLOCK,
     )
 
     assert world.row(started.ids.run_id).status == RunStatus.AGENT_STEP
@@ -226,9 +240,17 @@ async def test_a_turn_that_lost_its_lease_writes_nothing(
     world.hold_turn(started.ids.run_id)  # another turn takes the conversation over
 
     with pytest.raises(LostTurn):
-        await reply_and_complete(async_runtime_engine, SETTINGS, started.ids, "stale")
+        await reply_and_complete(
+            async_runtime_engine, SETTINGS, started.ids, "stale", clock=DATABASE_CLOCK
+        )
     with pytest.raises(LostTurn):
-        await reply_and_wait(async_runtime_engine, SETTINGS, started.ids, ReplyTemplate.REPHRASE)
+        await reply_and_wait(
+            async_runtime_engine,
+            SETTINGS,
+            started.ids,
+            ReplyTemplate.REPHRASE,
+            clock=DATABASE_CLOCK,
+        )
 
     assert world.row(started.ids.run_id).status == RunStatus.AGENT_STEP
     assert [k for k, _ in kinds(world, conversation)] == ["customer_message"]
@@ -238,7 +260,9 @@ async def test_try_again_needs_its_cause(async_runtime_engine: AsyncEngine) -> N
     ids = TurnIds(uuid.uuid4(), uuid.uuid4(), uuid.uuid4())
 
     with pytest.raises(ValueError, match="cause"):
-        await reply_and_wait(async_runtime_engine, SETTINGS, ids, ReplyTemplate.TRY_AGAIN)
+        await reply_and_wait(
+            async_runtime_engine, SETTINGS, ids, ReplyTemplate.TRY_AGAIN, clock=DATABASE_CLOCK
+        )
 
 
 # --- The heartbeat --------------------------------------------------------------------------------
@@ -249,7 +273,13 @@ async def test_the_heartbeat_keeps_the_lease_while_the_turn_works(
 ) -> None:
     conversation = world.add_conversation()
     started = await start_turn(
-        async_runtime_engine, FAST, conversation_id=conversation, user=world.user, message="hi"
+        async_runtime_engine,
+        FAST,
+        conversation_id=conversation,
+        user=world.user,
+        message="hi",
+        clock=DATABASE_CLOCK,
+        new_id=uuid.uuid4,
     )
 
     async def slow_work() -> str:
@@ -271,7 +301,13 @@ async def test_a_takeover_cancels_the_work_with_a_lost_turn(
 ) -> None:
     conversation = world.add_conversation()
     started = await start_turn(
-        async_runtime_engine, FAST, conversation_id=conversation, user=world.user, message="hi"
+        async_runtime_engine,
+        FAST,
+        conversation_id=conversation,
+        user=world.user,
+        message="hi",
+        clock=DATABASE_CLOCK,
+        new_id=uuid.uuid4,
     )
     cancelled = asyncio.Event()
 
@@ -295,7 +331,13 @@ async def test_a_turn_past_its_deadline_stops_renewing(
 ) -> None:
     conversation = world.add_conversation()
     started = await start_turn(
-        async_runtime_engine, FAST, conversation_id=conversation, user=world.user, message="hi"
+        async_runtime_engine,
+        FAST,
+        conversation_id=conversation,
+        user=world.user,
+        message="hi",
+        clock=DATABASE_CLOCK,
+        new_id=uuid.uuid4,
     )
 
     async def stuck() -> None:

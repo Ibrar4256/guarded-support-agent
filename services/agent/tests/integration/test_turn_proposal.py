@@ -563,7 +563,7 @@ async def test_if_the_fail_closed_transaction_fails_too_it_alerts_and_the_run_wa
     async def failing(*_: Any, **__: Any) -> Any:
         raise core_policy.MissingInputError("order vanished")
 
-    async def broken(*_: Any) -> None:
+    async def broken(*_: Any, **__: Any) -> None:
         raise RuntimeError("the database went away")
 
     monkeypatch.setattr(proposal_db, "load_proposal_inputs", failing)

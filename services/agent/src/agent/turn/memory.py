@@ -24,6 +24,7 @@ from agent.core.currency import UnknownCurrencyError, format_minor
 from agent.core.lifecycle import RefundOutcome, RunStatus
 from agent.db import memory as memory_db
 from agent.db.claims import worker_transaction
+from agent.db.clock import DATABASE_CLOCK, Clock
 from agent.db.memory import PastRun, StoredSummary
 from agent.llm.errors import ModelError
 from agent.llm.pool import ProviderPool
@@ -150,6 +151,8 @@ class SummaryDeps:
     record: Recorder
     prices: PriceTable
     monotonic: Callable[[], float] = time.monotonic
+    clock: Clock = DATABASE_CLOCK
+    nonce: Callable[[], str] = new_nonce
 
 
 async def write_summary(deps: SummaryDeps, job: SummaryJob) -> bool:
@@ -181,7 +184,7 @@ async def _write_summary(deps: SummaryDeps, job: SummaryJob) -> bool:
     deadline = deps.monotonic() + deps.settings.summary_deadline.total_seconds()
     try:
         response = await model.complete(
-            summary_messages(job, new_nonce()), [], deadline=deadline, purpose=Purpose.SUMMARY
+            summary_messages(job, deps.nonce()), [], deadline=deadline, purpose=Purpose.SUMMARY
         )
     except ModelError as error:
         return _failed(job, type(error).__name__)
@@ -201,6 +204,7 @@ async def _write_summary(deps: SummaryDeps, job: SummaryJob) -> bool:
             prompt_version=SUMMARY_PROMPT_VERSION,
             provider=pooled.provider,
             model=pooled.model_name,
+            at=deps.clock.stamp(),
         )
     if not stored:
         logger.info(

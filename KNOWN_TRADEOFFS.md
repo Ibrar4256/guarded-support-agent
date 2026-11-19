@@ -487,6 +487,21 @@ lives in `WEEKLY_LOG.md`.
 - **Captured fixtures are real provider bodies**, redacted for keys and masked key echoes;
   a capture still needs reading before it's committed.
 
+## The eval runner (ADR-026)
+
+- **Turn-path time is injected; lease time isn't.** `turn_expires_at` stays on the database
+  clock because nothing reads it back into a prompt or a rule; a future rule that compares
+  lease times would need the clock too (the scan's allowlist names the exception).
+- **The scan finds SQL clock references, not intent.** It looks for `func.now()`, its kin,
+  `db_now` and SQL text; time computed some other way (a Python `datetime.now()` passed in)
+  is caught only by the per-case invariant once the runner exists.
+- **Seeded ids need a fresh database per case.** In the shared test database, fixed ids
+  collide with earlier runs, so slice-1 tests use a per-execution seed; byte-identical prompts
+  across runs are proven by the runner (Part 1).
+- **The invariant's upper bound must allow deadlines.** ADR-026 S2a says anchor + 1 day;
+  `review_deadline` is a stamp plus the review window (24 h by default), so the runner allows
+  deadline columns their configured offset.
+
 ## Refund policy (ADR-009)
 
 - **Single currency in v1.** Other currencies are refused (R15); capacity sums assume one

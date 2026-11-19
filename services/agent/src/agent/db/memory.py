@@ -17,6 +17,7 @@ from sqlalchemy import exists, insert, literal, select
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from agent.core.lifecycle import RefundOutcome, RunStatus
+from agent.db.clock import stamped
 from agent.db.schema import conversation_summaries, runs
 
 
@@ -63,6 +64,7 @@ async def insert_summary_if_newer(
     prompt_version: str,
     provider: str,
     model: str,
+    at: datetime | None,
 ) -> bool:
     """False when a row already covers this event or a later one: the new text is dropped."""
     newer = exists().where(
@@ -76,6 +78,7 @@ async def insert_summary_if_newer(
         literal(prompt_version),
         literal(provider),
         literal(model),
+        stamped(at),
     ).where(~newer)
     result = await conn.execute(
         insert(conversation_summaries)
@@ -87,6 +90,7 @@ async def insert_summary_if_newer(
                 "prompt_version",
                 "provider",
                 "model",
+                "created_at",
             ],
             values,
         )
