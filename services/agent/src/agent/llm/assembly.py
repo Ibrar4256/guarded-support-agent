@@ -20,6 +20,17 @@ logger = logging.getLogger(__name__)
 FINISH_REASONS = {reason.value: reason for reason in FinishReason}
 
 
+def text_piece(value: object) -> str | None:
+    """A streamed piece of text, or a broken stream. Cloudflare sends number-like pieces as JSON
+    numbers (captured: ``"content": 0`` for the "0" of "0.05", and ``9999`` for " 9999", its
+    space gone). Neither can be turned back into the text the model wrote: dropping a falsy
+    ``0`` printed ".05", and ``str()`` printed "0.059999". Text is never altered, so any
+    non-text piece is one of the adapter's errors, never a guess and never a ``TypeError``."""
+    if value is None or isinstance(value, str):
+        return value
+    raise ProviderUnavailable(f"the stream sent non-text content ({type(value).__name__})")
+
+
 class Delivery:
     def __init__(self, on_text: OnText | None) -> None:
         self._on_text = on_text
@@ -62,10 +73,11 @@ class StreamAssembler:
             self.usage = Usage(chunk.usage.prompt_tokens, chunk.usage.completion_tokens)
         for choice in chunk.choices:
             delta = choice.delta
-            if delta.content:
-                self._grow(len(delta.content))
-                self._text.append(delta.content)
-                delivery.send(delta.content)
+            content = text_piece(delta.content)
+            if content:
+                self._grow(len(content))
+                self._text.append(content)
+                delivery.send(content)
             for position, call_delta in enumerate(delta.tool_calls or ()):
                 index = call_delta.index if call_delta.index is not None else position
                 call = self._calls.setdefault(index, _PartialCall())
@@ -76,9 +88,10 @@ class StreamAssembler:
                     if function.name and function.name != call.name:
                         # Names normally arrive once; a split name continues the first part.
                         call.name += function.name
-                    if function.arguments:
-                        self._grow(len(function.arguments))
-                        call.arguments.append(function.arguments)
+                    arguments = text_piece(function.arguments)
+                    if arguments:
+                        self._grow(len(arguments))
+                        call.arguments.append(arguments)
                 self._mark_started()
             if choice.finish_reason is not None:
                 self.finish_reason = FINISH_REASONS.get(

@@ -6,6 +6,7 @@ stall must be cut off by ``asyncio.timeout``.
 
 import asyncio
 import time
+from typing import Any
 
 import httpx2
 import pytest
@@ -345,3 +346,29 @@ async def test_every_request_streams_with_usage_and_the_output_cap() -> None:
     assert request["stream_options"] == {"include_usage": True}
     assert request["max_tokens"] == 123
     assert "tools" not in request  # no tools offered: the parameter is omitted
+
+
+# --- Non-text pieces in a stream (Cloudflare sends number-like pieces as JSON numbers) ---
+
+
+@pytest.mark.parametrize("piece", [0, 9999, 1.5, True], ids=["zero", "integer", "float", "bool"])
+async def test_a_non_text_piece_is_a_provider_error_never_altered_text(piece: Any) -> None:
+    wire = Wire().then(stream_ok([chunk(content="0"), chunk(content=piece), chunk(finish="stop")]))
+
+    with pytest.raises(ProviderUnavailable, match="non-text content"):
+        await complete(adapter(wire, FakeClock(), max_attempts=1))
+
+
+async def test_a_non_text_argument_piece_is_a_provider_error() -> None:
+    wire = Wire().then(
+        stream_ok(
+            [
+                chunk(tool_calls=[call_delta(0, call_id="c1", name="lookup_order", arguments="{")]),
+                chunk(tool_calls=[{"index": 0, "function": {"arguments": 4000}}]),
+                chunk(finish="tool_calls"),
+            ]
+        )
+    )
+
+    with pytest.raises(ProviderUnavailable, match="non-text content"):
+        await complete(adapter(wire, FakeClock(), max_attempts=1))

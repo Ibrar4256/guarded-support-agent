@@ -25,6 +25,7 @@ class ErrorMarkers:
     quota: tuple[str, ...] = ()
     context_too_long: tuple[str, ...] = ()
     input_rejected: tuple[str, ...] = ()
+    auth: tuple[str, ...] = ()  # a 400 that is really a bad key (Gemini)
 
 
 # OpenAI's documented error codes, which compatible endpoints may reuse.
@@ -82,7 +83,11 @@ PROVIDERS: dict[str, Provider] = {
     for provider in (
         Provider("groq", "https://api.groq.com/openai/v1", "GROQ_API_KEY"),
         Provider(
-            "gemini", "https://generativelanguage.googleapis.com/v1beta/openai/", "GEMINI_API_KEY"
+            "gemini",
+            "https://generativelanguage.googleapis.com/v1beta/openai/",
+            "GEMINI_API_KEY",
+            # Captured 2026-11-19: an invalid key is a 400 INVALID_ARGUMENT with this message.
+            markers=ErrorMarkers(auth=("please pass a valid api key",)),
         ),
         Provider(
             "cloudflare",

@@ -156,7 +156,8 @@ def validate_arguments(call: ToolCall, model: type[ToolArgs]) -> ToolArgs:
 def assistant_message(response: ModelResponse) -> dict[str, Any]:
     return {
         "role": "assistant",
-        "content": response.text or None,
+        # A string even when empty: Cloudflare refuses null content (captured 400).
+        "content": response.text,
         "tool_calls": [
             {
                 "id": call.id,

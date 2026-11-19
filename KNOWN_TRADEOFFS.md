@@ -468,8 +468,19 @@ lives in `WEEKLY_LOG.md`.
   startup.
 - **Cerebras runs on $5 trial credits**, not a free tier: usable for the model comparison only,
   never as a demo model.
-- **Cloudflare's OpenAI-compatible endpoint is unproven**: `GET /models` answers 405 there; chat
-  and tool calls are proven only by the smoke run's captured response (S4).
+- **Cloudflare's Llama 3.3 70B is unusable for replies with numbers**: it streams number-like
+  pieces as JSON numbers that can't be turned back into the model's text exactly, so the
+  adapter refuses such a stream (`ProviderUnavailable`, then try again). Cloudflare's
+  gpt-oss-20b sends text and is unaffected.
+- **Gemini can't serve the turn yet**: its OpenAI-compatible endpoint requires each tool call's
+  `thought_signature` to be sent back, and the normalized `ToolCall` drops it. Gemini serves
+  summaries (no tools) fine.
+- **Cerebras and SambaNova are out for now**: Cerebras returns 402 without billing; SambaNova's
+  configured key is refused for chat.
+- **The smoke run writes synthetic rows to the database it's pointed at**, including APPROVED
+  refund runs that a worker would send to the refund service it's configured with.
+- **Captured fixtures are real provider bodies**, redacted for keys and masked key echoes;
+  a capture still needs reading before it's committed.
 
 ## Refund policy (ADR-009)
 

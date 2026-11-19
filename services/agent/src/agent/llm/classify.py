@@ -44,6 +44,10 @@ def _classify_status(exc: openai.APIStatusError, markers: ErrorMarkers) -> Model
     message = f"{status}: {exc.message}"
     if status in (401, 403):
         return AuthFailed(message)
+    if status == 402:
+        # Payment required: the account has no credit left (Cerebras when its trial credit is
+        # gone). Stop using the provider; never something to retry or page about (ADR-025 S5).
+        return QuotaExhausted(message)
     if status == 429:
         if _matches(text, (*markers.quota, *GENERIC_MARKERS.quota)):
             return QuotaExhausted(message)
@@ -52,6 +56,8 @@ def _classify_status(exc: openai.APIStatusError, markers: ErrorMarkers) -> Model
         return ProviderTimeout(message)
     if status >= 500:
         return ProviderUnavailable(message)
+    if _matches(text, markers.auth):
+        return AuthFailed(message)
     if _matches(text, (*markers.context_too_long, *GENERIC_MARKERS.context_too_long)):
         return ContextTooLong(message)
     if _matches(text, (*markers.input_rejected, *GENERIC_MARKERS.input_rejected)):

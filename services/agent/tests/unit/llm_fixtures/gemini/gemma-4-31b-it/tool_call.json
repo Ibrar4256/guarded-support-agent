@@ -1,0 +1,24 @@
+{
+  "provider": "gemini",
+  "model": "gemma-4-31b-it",
+  "kind": "tool_call",
+  "source": "captured",
+  "captured_on": "2026-11-19",
+  "response": {
+    "status": 200,
+    "content_type": "text/event-stream",
+    "headers": {},
+    "body": "data: {\"choices\":[{\"delta\":{\"content\":\"<thought>The user is asking for the status of their order with ID `ord\",\"extra_content\":{\"google\":{\"thought\":true}},\"role\":\"assistant\"},\"index\":0}],\"created\":1795087144,\"id\":\"GNv-arbBOaTtxs0Pzo_22QM\",\"model\":\"gemma-4-31b-it\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":0,\"prompt_tokens\":755,\"total_tokens\":769}}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"_demo_1001`.\\nI should use the `lookup_order` tool to get the information about\",\"extra_content\":{\"google\":{\"thought\":true}},\"role\":\"assistant\"},\"index\":0}],\"created\":1795087145,\"id\":\"GNv-arbBOaTtxs0Pzo_22QM\",\"model\":\"gemma-4-31b-it\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":0,\"prompt_tokens\":755,\"total_tokens\":793}}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\" this order.\",\"extra_content\":{\"google\":{\"thought\":true}},\"role\":\"assistant\"},\"index\":0}],\"created\":1795087145,\"id\":\"GNv-arbBOaTtxs0Pzo_22QM\",\"model\":\"gemma-4-31b-it\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":0,\"prompt_tokens\":755,\"total_tokens\":796}}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"</thought>\",\"role\":\"assistant\",\"tool_calls\":[{\"extra_content\":{\"google\":{\"thought_signature\":\"EiYKJGUyNDgzMGE3LTVjZDYtNDJmZS05OThiLWVlNTM5ZTcyYjljMw==\"}},\"function\":{\"arguments\":\"{\\\"order_id\\\":\\\"ord_demo_1001\\\"}\",\"name\":\"lookup_order\"},\"id\":\"call_4285254239123003269\",\"type\":\"function\"}]},\"index\":0}],\"created\":1795087146,\"id\":\"GNv-arbBOaTtxs0Pzo_22QM\",\"model\":\"gemma-4-31b-it\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":25,\"prompt_tokens\":755,\"total_tokens\":821}}\n\ndata: {\"choices\":[{\"delta\":{\"role\":\"assistant\"},\"finish_reason\":\"stop\",\"index\":0}],\"created\":1795087146,\"id\":\"GNv-arbBOaTtxs0Pzo_22QM\",\"model\":\"gemma-4-31b-it\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":25,\"prompt_tokens\":755,\"total_tokens\":821}}\n\ndata: [DONE]\n\n"
+  },
+  "adapter": {
+    "tool_calls": [
+      "lookup_order"
+    ],
+    "finish_reason": "stop",
+    "usage": {
+      "input_tokens": 755,
+      "output_tokens": 25
+    },
+    "latency_seconds": 18.291
+  }
+}

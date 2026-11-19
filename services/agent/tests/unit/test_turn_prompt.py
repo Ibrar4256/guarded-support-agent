@@ -62,3 +62,14 @@ def test_template_replies_appear_as_notices() -> None:
     assert window([notice], max_chars=100) == [
         {"role": "assistant", "content": "[notice: try_again]"}
     ]
+
+
+def test_an_assistant_tool_call_message_has_string_content() -> None:
+    """Cloudflare refuses ``null`` content (captured 400: 'string' not in 'null')."""
+    from agent.llm.types import ToolCall
+    from agent.turn.fingerprint import sample_response
+    from agent.turn.loop import assistant_message
+
+    message = assistant_message(sample_response(ToolCall("c1", "lookup_order", "{}")))
+
+    assert message["content"] == ""

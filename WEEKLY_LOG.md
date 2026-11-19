@@ -1245,3 +1245,38 @@ strings.
 
 **What's next:** the measuring smoke run per provider: capture tool-call and error fixtures, fill
 `tool_call_proofs.json`, measure tokens per conversation from `llm_calls`.
+
+
+### Agent: data terms, captured fixtures and the first measuring smoke run (ADR-025 S4/S5/S11) (2026-11-19)
+
+**What shipped:** data terms checked and recorded for Groq, Cloudflare, SambaNova, Cerebras and
+OpenRouter (runbook). `python -m agent_testing.capture` saves one real response per request as a
+fixture (one attempt, keys and masked key echoes redacted, only rate-limit headers kept);
+`python -m agent_testing.smoke_turn` runs the production turn on a real model for three synthetic
+conversations plus a summary and reports tokens from `llm_calls`. Tool calling proven for six
+models (Groq gpt-oss-120b, both Cloudflare candidates, three Gemini models), now in
+`tool_call_proofs.json`; auth fixtures for all six providers; fixture-driven tests replay every
+captured response through the adapter. Measured numbers are in the runbook: a first call is
+~650–1,000 input tokens, not the 2,500 ADR-025 estimated.
+
+**What broke (all found by the real run, none by the mocks):** (1) Cloudflare and Gemini failed
+every turn's second call with 400, paged as `InvalidRequest`: Cloudflare refuses `null` content
+on an assistant tool-call message (now `""`); Gemini wants each call's `thought_signature`
+echoed back (not fixed yet: a decision). (2) Cloudflare's Llama streams number-like pieces as
+JSON numbers: the assembler crashed with `TypeError` (outside the adapter's closed error set),
+and before that a falsy `0` was silently dropped, turning "0.05" into ".05". Converting numbers
+back isn't exact either (" 9999" arrives as 9999, its space gone), so such a stream is now
+refused as a provider error. (3) Gemini answers a bad key with 400 (now `AuthFailed` by a
+marker); Cerebras answers 402 `payment_required` (now `QuotaExhausted`, never a page).
+(4) SambaNova's key is rejected for chat; the "verified" check two days earlier hit a `/models`
+endpoint that answers without any key. (5) One SambaNova error body echoed a masked fragment of
+the key; capture now redacts it, with a test and a fixture-wide check. 12 plants caught.
+
+**What I learned:** a mock only proves what you already believed about a provider; the second
+call of a conversation is where compatibility layers differ. A check that can't fail (a public
+endpoint) is worse than no check, because it gets written down as proof. And when a provider
+hands back a lossy value, refusing beats repairing.
+
+**What's next:** the Gemini thought-signature decision; a SambaNova key; the record-and-replay
+runner; adversarial cases from this run (an injection-framed message got a full refund within
+policy).

@@ -1,5 +1,7 @@
 """A complete, valid worker environment for tests, independent of any local ``.env``."""
 
+from collections.abc import Mapping
+
 
 def example_worker_env(
     *, db_url: str = "postgresql+psycopg://u:p@localhost:1/agent"
@@ -76,3 +78,37 @@ def example_turn_env(
         "TURN_PROPOSAL_LOCK_ATTEMPTS": "3",
         "REVIEW_DEADLINE_SECONDS": "86400",
     }
+
+
+# Every provider credential variable (ADR-025 S1); the real tools copy these from the
+# developer's environment and nothing else.
+CREDENTIAL_VARS = (
+    "GROQ_API_KEY",
+    "GEMINI_API_KEY",
+    "CLOUDFLARE_API_TOKEN",
+    "CLOUDFLARE_ACCOUNT_ID",
+    "OPENROUTER_API_KEY",
+    "CEREBRAS_API_KEY",
+    "SAMBANOVA_API_KEY",
+    "OLLAMA_BASE_URL",
+)
+
+
+def example_llm_env(*, turn_models: str, summary_models: str) -> dict[str, str]:
+    """The model settings with the .env.example values (ADR-023 S3, ADR-025 S1); no keys."""
+    return {
+        "LLM_TURN_MODELS": turn_models,
+        "LLM_SUMMARY_MODELS": summary_models,
+        "LLM_MAX_OUTPUT_TOKENS": "1024",
+        "LLM_MAX_OUTPUT_CHARS": "16000",
+        "LLM_TEMPERATURE": "0.2",
+        "LLM_MAX_ATTEMPTS": "3",
+        "LLM_BACKOFF_BASE_SECONDS": "0.5",
+        "LLM_BACKOFF_CAP_SECONDS": "8",
+        "LLM_MIN_ATTEMPT_SECONDS": "5",
+        "LLM_QUOTA_COOLDOWN_SECONDS": "900",
+    }
+
+
+def credentials(environ: Mapping[str, str]) -> dict[str, str]:
+    return {name: environ[name] for name in CREDENTIAL_VARS if environ.get(name)}

@@ -1,0 +1,16 @@
+{
+  "provider": "cerebras",
+  "model": "gpt-oss-120b",
+  "kind": "error",
+  "source": "captured",
+  "captured_on": "2026-11-19",
+  "response": {
+    "status": 402,
+    "content_type": "application/json",
+    "headers": {},
+    "body": "{\"message\":\"Payment required to access this resource. Visit your billing tab.\",\"type\":\"payment_required_error\",\"param\":\"quota\",\"code\":\"payment_required\"}"
+  },
+  "adapter": {
+    "error": "QuotaExhausted"
+  }
+}

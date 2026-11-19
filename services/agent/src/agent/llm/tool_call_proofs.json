@@ -1,4 +1,35 @@
 {
   "about": "ADR-025 S4: each provider:model whose endpoint carried a tool call, proven by a captured fixture under tests/unit/llm_fixtures that the adapter parses into one. Only these may serve the turn.",
-  "proofs": []
+  "proofs": [
+    {
+      "model": "groq:openai/gpt-oss-120b",
+      "fixture": "groq/openai_gpt-oss-120b/tool_call.json",
+      "captured_on": "2026-11-19"
+    },
+    {
+      "model": "cloudflare:@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "fixture": "cloudflare/_cf_meta_llama-3.3-70b-instruct-fp8-fast/tool_call.json",
+      "captured_on": "2026-11-19"
+    },
+    {
+      "model": "cloudflare:@cf/openai/gpt-oss-20b",
+      "fixture": "cloudflare/_cf_openai_gpt-oss-20b/tool_call.json",
+      "captured_on": "2026-11-19"
+    },
+    {
+      "model": "gemini:gemini-3.5-flash-lite",
+      "fixture": "gemini/gemini-3.5-flash-lite/tool_call.json",
+      "captured_on": "2026-11-19"
+    },
+    {
+      "model": "gemini:gemini-3.1-flash-lite",
+      "fixture": "gemini/gemini-3.1-flash-lite/tool_call.json",
+      "captured_on": "2026-11-19"
+    },
+    {
+      "model": "gemini:gemma-4-31b-it",
+      "fixture": "gemini/gemma-4-31b-it/tool_call.json",
+      "captured_on": "2026-11-19"
+    }
+  ]
 }
