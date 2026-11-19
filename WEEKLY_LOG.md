@@ -1331,3 +1331,14 @@ every caller that needed it; the integration test then showed the one it couldn'
 
 **What's next:** slice 2, the recording layer (S2's wrapper, replay/record/live, the anchor
 guard, the real-date leak check), then the runner with fresh databases per case.
+
+**Slice 2, the recording layer (same day):** `agent_testing.evals.recording`: `EvalModel` wraps a
+case's model and keys every call by ADR-025's SHA-256 (provider, model, prompt fingerprint,
+messages, tools, temperature, output cap, run index); `replay` returns the stored response or
+fails with `MissingRecording` naming the key and never calls the model, `record` writes one JSON
+file per key, `live` stores nothing. Each recording stores the anchor and replay refuses another
+(`AnchorMismatch`, naming both); every mode refuses a prompt containing the real date
+(`RealDateLeak`) before any call; a call that raises is never recorded; evals are refused in
+production. 20 tests, 7 plants caught (two first named the wrong failure text and were
+re-aimed: a strict model being called is the right failure for "replay fell back to live").
+Agent 1231.

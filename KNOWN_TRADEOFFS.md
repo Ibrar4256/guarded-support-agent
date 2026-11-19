@@ -498,6 +498,13 @@ lives in `WEEKLY_LOG.md`.
 - **Seeded ids need a fresh database per case.** In the shared test database, fixed ids
   collide with earlier runs, so slice-1 tests use a per-execution seed; byte-identical prompts
   across runs are proven by the runner (Part 1).
+- **A failed live call is never recorded.** A rate limit or outage isn't the model's answer, so
+  `record` raises it and the case has no recording until a later attempt succeeds; replay then
+  fails loudly on that key rather than replaying an error.
+- **The real-date check looks for today's ISO date only** (UTC and local), the form the code
+  renders. A date written another way ("Nov 19") would pass; nothing renders one today.
+- **Recordings carry the provider's opaque data** (Gemini's thought signatures) inside the
+  stored tool calls, so replay sends the same signatures back; they're synthetic-case data.
 - **The invariant's upper bound must allow deadlines.** ADR-026 S2a says anchor + 1 day;
   `review_deadline` is a stamp plus the review window (24 h by default), so the runner allows
   deadline columns their configured offset.
