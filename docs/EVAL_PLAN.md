@@ -10,6 +10,10 @@ fingerprint or model changes, within a daily budget that keeps a demo reserve, r
 days. Reported numbers come from the recording run, with its date and models. Where the "Runs"
 column below says nightly, read ADR-025's schedule.
 
+**Built by [ADR-026](adr/026-eval-runner.md):** each case runs in its own cloned database at a
+fixed anchor date (a logical clock on the turn path), cases are YAML judged by rule-based checks
+on database state, and recordings are committed one file per key.
+
 ## Systems under test
 
 | ID | System | Purpose |

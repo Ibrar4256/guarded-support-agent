@@ -17,6 +17,10 @@ start, `llm_calls` rows, and "a fallback is configured only after its model has 
 which this ADR turns from a rule into a startup check. **Follow-up:** query routing (a router
 choosing among a purpose's models per turn) is ADR-026, built on this one.
 
+**Filled in by [ADR-026](026-eval-runner.md):** the eval runner (fresh database per case, a
+logical eval clock and injected ids on the turn path, one recording file per key, YAML cases
+with rule-based judges, budget and resume). Query routing, called ADR-026 above, is ADR-027.
+
 ## Context
 The project must run, demo and be evaluated on free tiers only: there's no budget for paid
 plans. Free limits are tight. Checked 2026-11-17 on the providers' own pages:
