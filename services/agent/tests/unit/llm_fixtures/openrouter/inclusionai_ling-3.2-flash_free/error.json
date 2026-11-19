@@ -1,0 +1,16 @@
+{
+  "provider": "openrouter",
+  "model": "inclusionai/ling-3.2-flash:free",
+  "kind": "error",
+  "source": "captured",
+  "captured_on": "2026-11-19",
+  "response": {
+    "status": 429,
+    "content_type": "application/json",
+    "headers": {},
+    "body": "{\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"inclusionai/ling-3.2-flash:free is temporarily rate-limited upstream. Please retry shortly, or add your own provider key to use your own limits: https://openrouter.ai/workspaces/default/byok\",\"provider_name\":\"Ant Digital\",\"is_byok\":false,\"provider_error_code\":\"rpm_limit_exceeded\",\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key to use your own limits (https://openrouter.ai/workspaces/default/byok), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing.\"}},\"user_id\":\"user_38kTKoC2YgNOy8nnWgGHJtxloBk\"}"
+  },
+  "adapter": {
+    "error": "RateLimited"
+  }
+}

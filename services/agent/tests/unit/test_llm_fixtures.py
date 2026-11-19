@@ -30,6 +30,10 @@ ERRORS: dict[str, type[ModelError]] = {
     "sambanova/MiniMax-M3.1-Flash/error.json": QuotaExhausted,  # 402 payment method required
     "sambanova/GLM-5.3/error.json": RateLimited,  # 429 "high demand", no quota marker
     "sambanova/gpt-oss-120b/error.json": AuthFailed,  # the earlier key was refused
+    # OpenRouter's shared free pool busy upstream: a rate limit, retried, never a cooldown.
+    "openrouter/google_gemma-4-26b-a4b-it_free/error.json": RateLimited,
+    "openrouter/google_gemma-4-31b-it_free/error.json": RateLimited,
+    "openrouter/inclusionai_ling-3.2-flash_free/error.json": RateLimited,
 }
 
 

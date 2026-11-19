@@ -475,8 +475,13 @@ lives in `WEEKLY_LOG.md`.
   shown to another provider, but the adapter trusts its size: a few hundred characters per
   call, not counted in the context bound.
 - **Cerebras is dropped and SambaNova is out**: both answer 402 without a payment method, which
-  ADR-025 S5 forbids. That leaves three working providers (Groq, Gemini, Cloudflare) plus
-  OpenRouter's `:free` models, still untested.
+  ADR-025 S5 forbids. Working: Groq, Gemini, Cloudflare and four OpenRouter `:free` models.
+- **OpenRouter's free models share an upstream pool**: 429s with `limit_source:
+  upstream_provider_shared_pool` come at any volume (rate limits, retried), on top of the
+  account's 50 requests a day. Fine for comparisons, too thin for a demo primary.
+- **OpenRouter relays some upstream failures as 400 "Provider returned error"**, which today
+  classifies as `InvalidRequest` and pages (seen once on a summary; the same request passed on
+  a re-run). No marker until such a body is captured (ADR-023's rule).
 - **The smoke run writes synthetic rows to the database it's pointed at**, including APPROVED
   refund runs that a worker would send to the refund service it's configured with.
 - **Captured fixtures are real provider bodies**, redacted for keys and masked key echoes;

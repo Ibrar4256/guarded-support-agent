@@ -30,6 +30,26 @@
       "model": "gemini:gemma-4-31b-it",
       "fixture": "gemini/gemma-4-31b-it/tool_call.json",
       "captured_on": "2026-11-19"
+    },
+    {
+      "model": "openrouter:baidu/ernie-5.5-flash-preview:free",
+      "fixture": "openrouter/baidu_ernie-5.5-flash-preview_free/tool_call.json",
+      "captured_on": "2026-11-19"
+    },
+    {
+      "model": "openrouter:cohere/north-mini-code:free",
+      "fixture": "openrouter/cohere_north-mini-code_free/tool_call.json",
+      "captured_on": "2026-11-19"
+    },
+    {
+      "model": "openrouter:dots-studio/dots-3-note-preview:free",
+      "fixture": "openrouter/dots-studio_dots-3-note-preview_free/tool_call.json",
+      "captured_on": "2026-11-19"
+    },
+    {
+      "model": "openrouter:recursive/flint-v1.0:free",
+      "fixture": "openrouter/recursive_flint-v1.0_free/tool_call.json",
+      "captured_on": "2026-11-19"
     }
   ]
 }

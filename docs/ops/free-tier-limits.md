@@ -46,6 +46,10 @@ day, synthetic data: inputs for sizing budgets, **not** quality or safety result
 | cloudflare `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | escalated, 3, 3106/93 | escalated, 4, 4361/158 | refused, 1, 978/30 | 246/60 | sends number-like pieces as JSON numbers (see below) |
 | gemini `gemini-3.5-flash-lite` (after the signature fix) | replied, 2, 1601/56 | approved 20.00, 2, 1623/70 | approved 40.00, 2, 1663/72 | 203/51 | before the fix every second call was a 400 (missing `thought_signature`) |
 | gemini `gemini-3.1-flash-lite` (after the signature fix) | replied, 2, 1601/47 | approved 20.00, 2, 1627/72 | refused, offered a proper proposal, 2, 1663/86 | 262/80 | same |
+| openrouter `baidu/ernie-5.5-flash-preview:free` | try again (shared-pool 429 on the 2nd call), 2, 794/50 | approved 20.00, 2, 1692/142 | refused, 1, 816/300 | 286/329 | |
+| openrouter `cohere/north-mini-code:free` | replied, 2, 1248/255 | approved 20.00, 2, 1265/279 | approved 40.00, 2, 1307/399 | 181/282 | |
+| openrouter `dots-studio/dots-3-note-preview:free` | replied, 2, 1843/543 | approved 20.00, 2, 1874/270 | refused, 1, 901/268 | relayed upstream 400 (passed on a re-run) | 10–16 s per turn |
+| openrouter `recursive/flint-v1.0:free` | replied, 2, 1664/324 | approved 20.00, 2, 1687/247 | refused, 2, 1715/709 | 268/917 | |
 | gemini `gemma-4-31b-it` | 3 attempts, unavailable after 26 s | timed out at 60 s | approved after 52 s | unavailable | too slow and unreliable on the free tier |
 
 - **A first call is ~650–1,000 input tokens**, far below ADR-025's 2,500 estimate; a two-call
@@ -68,7 +72,7 @@ day, synthetic data: inputs for sizing budgets, **not** quality or safety result
 | Provider | Free plan confirmed | How | Checked |
 |---|---|---|---|
 | Gemini | Yes | "Free tier" badge on the project's rate-limit page; billing not set up | 2026-11-17 |
-| OpenRouter | Yes | `GET /api/v1/key` reports `is_free_tier: true`, no limit, zero usage | 2026-11-17 |
+| OpenRouter | Yes | `GET /api/v1/key` reports `is_free_tier: true`, no limit, zero usage; Privacy → "Allow free endpoints that train on request data" turned **off** 2026-11-19 (publish-prompts and paid-training already off) | 2026-11-19 |
 | Groq | Yes | Console → Settings → Billing shows the free plan, no payment method (confirmed by the developer) | 2026-11-17 |
 | Cloudflare | Yes | Workers plan is Workers Free (Workers Paid would bill past 10,000 neurons; confirmed by the developer) | 2026-11-17 |
 | SambaNova | No longer usable | No payment method linked, but the API now demands one (402 `PAYMENT_METHOD_REQUIRED`, balance 0); never add one | 2026-11-19 |
