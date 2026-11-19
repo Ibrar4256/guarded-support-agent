@@ -1,0 +1,4 @@
+{
+  "about": "ADR-025 S4: each provider:model whose endpoint carried a tool call, proven by a captured fixture under tests/unit/llm_fixtures that the adapter parses into one. Only these may serve the turn.",
+  "proofs": []
+}

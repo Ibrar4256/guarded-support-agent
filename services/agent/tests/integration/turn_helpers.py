@@ -63,6 +63,7 @@ def turn_deps(
 
     from agent.llm.pool import PoolMember, ProviderPool
     from agent.llm.prices import PriceTable
+    from agent.llm.types import Purpose
     from agent.turn.run import TurnDeps
 
     async def record(call: "CallRecord") -> None:
@@ -70,8 +71,7 @@ def turn_deps(
 
     clock = monotonic or time.monotonic
     pool = ProviderPool(
-        PoolMember("scripted", "scripted-model", model),
-        None,
+        {purpose: [PoolMember("scripted", "scripted-model", model)] for purpose in Purpose},
         cooldown=timedelta(seconds=900),
         alerter=alerter,
         monotonic=clock,

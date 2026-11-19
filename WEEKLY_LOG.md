@@ -1204,3 +1204,44 @@ everything that reaches a prompt is deterministic.
 
 **What's next:** one key per provider (the developer adds them), one measuring smoke run, then
 ADR-025's code.
+
+
+### Agent: providers, model lists and startup checks (ADR-025 step 1) (2026-11-19)
+
+**What shipped:** one credential set per provider (Groq, Gemini, Cloudflare with its account id,
+OpenRouter, Cerebras, SambaNova, Ollama), replacing `LLM_PROVIDER`/`LLM_MODEL`/`LLM_API_KEY`/
+`LLM_FALLBACK_*`; `LLM_TURN_MODELS` and `LLM_SUMMARY_MODELS` as ordered `provider:model` lists
+(each provider once per list; model names keep their own colons). All seven hosts are in the code
+table: Cloudflare's URL from a template and an id-format check, Ollama's loopback-only URL rebuilt
+from its parsed parts and refused in production. The provider pool takes an ordered list per
+purpose with one cooldown map shared across purposes, so the summary no longer rides on the
+turn's model. Startup checks (`agent.turn.model_checks`): a turn model needs a tool-call proof
+(`tool_call_proofs.json`, bound to captured fixtures by a unit test); `verified_models.json` must
+hold the model for its purpose and the current prompt fingerprint (refused in production, warned
+elsewhere); the model's context must hold the purpose's largest prompt plus output. Both files
+are empty until the first capture and eval. Agent 1144 (was 1039), refund_api 255, e2e 18; 25
+plants caught.
+
+**Decisions inside the locked ADR (user's choices):** the fingerprint covers every fixed
+model-facing text, rendered through the real functions with fixed inputs, not just the system
+prompt and tool schemas; S12's bound adds the turn's own earlier responses, which the ADR's
+formula left out; S4's proof lives in a committed registry the service can read, since `tests/`
+doesn't ship; the same provider twice in a list is refused.
+
+**What broke:** with today's defaults the worst-case turn is 17,118 tokens, not the ADR's ~11K:
+its formula skipped five earlier responses (5,120 tokens). Still fits 24K models. Two parts have
+no bound at all yet (several lookups in one response; the summary's input while summaries keep
+failing), recorded as tradeoffs for a follow-up ADR. `run.py` lost its `Purpose` import in the
+rename; unit tests didn't import it, ruff caught it before the integration suite did. Two
+fingerprint tests first failed because they patched a module whose constant another module had
+imported by name; the fingerprint now reads constants through their owning modules. Two plants
+were themselves wrong (one made the test die with `KeyError`, one expected the wrong Hypothesis
+wording) and were fixed before counting.
+
+**What I learned:** a "largest prompt" formula written in prose can miss the part that grows
+fastest; making a test assemble the real worst-case prompt and compare is what exposed it. And
+a fingerprint is only as good as its coverage, so render through the code instead of listing
+strings.
+
+**What's next:** the measuring smoke run per provider: capture tool-call and error fixtures, fill
+`tool_call_proofs.json`, measure tokens per conversation from `llm_calls`.

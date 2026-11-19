@@ -446,6 +446,30 @@ lives in `WEEKLY_LOG.md`.
   API reports it reliably.
 - **Ollama is local-only** (loopback, refused in production); free hosting can't run it, and the
   machine's free disk fits only a small model.
+- **Each provider at most once per purpose's list**: cooldowns are per provider, so a second model
+  at the same provider would be benched with the first. Groq's limits are actually per model; a
+  per-model quota cooldown would let two Groq models back each other up (ADR-026 can revisit).
+- **The context-fit bound isn't complete** (S12). It counts one read-tool result per step, the
+  model's own earlier responses at the output cap, and the summary's input as when summaries
+  keep up. Not bounded: several `lookup_order` calls in one response (each adds a result),
+  corrections echoing the model's own tool names, and the summary's input growing while
+  summaries keep failing. A follow-up ADR should cap read calls per response and the summary
+  job's size; until then a long-tail turn can still hit `ContextTooLong` (try again, alert).
+- **Characters per token is a fixed 3** until measured tokens replace it, and per-message
+  overhead (role markers, tool-call framing) isn't counted.
+- **The prompt fingerprint renders sample inputs** through the real code. A wording change on a
+  path the samples don't reach wouldn't change it; any change that does, including a pydantic
+  upgrade that reshapes a tool schema, invalidates every verification for that purpose.
+- **Startup checks only refuse in production for S3**; outside it an unverified model is a
+  warning, so local runs and the smoke run can use candidates. S4 (tool-call proof) and S12
+  (context fit) refuse everywhere.
+- **The tool-call proof registry is trusted at startup**; a unit test, not the service, checks
+  each entry against its captured fixture. A hand-added entry without a fixture fails CI, not
+  startup.
+- **Cerebras runs on $5 trial credits**, not a free tier: usable for the model comparison only,
+  never as a demo model.
+- **Cloudflare's OpenAI-compatible endpoint is unproven**: `GET /models` answers 405 there; chat
+  and tool calls are proven only by the smoke run's captured response (S4).
 
 ## Refund policy (ADR-009)
 

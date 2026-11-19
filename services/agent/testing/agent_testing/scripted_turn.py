@@ -32,6 +32,7 @@ from agent.db.llm_calls import DbCallRecorder
 from agent.db.schema import conversations, customers, orders, runs
 from agent.llm.pool import PoolMember, ProviderPool
 from agent.llm.prices import PriceTable
+from agent.llm.types import Purpose
 from agent.policy_settings import policy_config_from_env
 from agent.turn.run import TurnDeps, run_turn
 from agent.turn.settings import TurnSettings
@@ -103,8 +104,7 @@ async def scripted_turn(
             engine=engine,
             settings=settings,
             pool=ProviderPool(
-                PoolMember("scripted", "scripted-model", model),
-                None,
+                {purpose: [PoolMember("scripted", "scripted-model", model)] for purpose in Purpose},
                 cooldown=timedelta(seconds=900),
                 alerter=alerter,
             ),

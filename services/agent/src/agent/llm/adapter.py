@@ -61,7 +61,7 @@ class OpenAICompatibleModel:
         self._jitter = jitter
         self._client = AsyncOpenAI(
             api_key=choice.api_key,
-            base_url=self.provider.base_url,
+            base_url=choice.base_url,
             max_retries=0,
             http_client=http_client,
         )

@@ -12,6 +12,11 @@ and tests, or recorded in a new ADR that supersedes this one.
 intercept; Option D's HTTP-level mocks use `httpx2.MockTransport`, injected through the SDK's
 `http_client`. Same wire-level contract, different mock library.
 
+**Settings shape changed by [ADR-025](025-providers-models-and-eval-budget.md) S1:** the
+scripted model is listed as `scripted:<label>` in `LLM_TURN_MODELS` / `LLM_SUMMARY_MODELS`
+(still needs `TESTING=true`, refused with `APP_ENV=production`) instead of
+`LLM_PROVIDER=scripted`.
+
 **Filled in by [ADR-023](023-llm-provider-adapter.md):** the real adapter's interface, error
 types and streaming rules that `ScriptedLLM` must match; 429 and 400 classification pinned by
 fixtures per provider (a spent-quota fixture may be documented rather than captured).

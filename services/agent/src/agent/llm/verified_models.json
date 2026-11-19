@@ -1,0 +1,4 @@
+{
+  "about": "Eval output (ADR-025 S3, S12): each provider:model that passed a purpose's evals with the prompt fingerprint computed at startup, its context size in tokens, the eval run and date. Written by the eval runner, never by hand.",
+  "verified": []
+}

@@ -15,15 +15,20 @@ from typing import Any
 import httpx2
 
 from agent.llm.adapter import OpenAICompatibleModel
+from agent.llm.providers import PROVIDERS
 from agent.llm.settings import LLMSettings, ProviderChoice
+from agent.llm.types import Purpose
 
 Responder = Callable[[httpx2.Request], httpx2.Response]
+GROQ_URL = str(PROVIDERS["groq"].base_url)
 
 
 def settings(**overrides: Any) -> LLMSettings:
     values: dict[str, Any] = {
-        "primary": ProviderChoice("groq", "test-model", "test-key"),
-        "fallback": None,
+        "models": {
+            purpose: (ProviderChoice("groq", "test-model", GROQ_URL, "test-key"),)
+            for purpose in Purpose
+        },
         "max_output_tokens": 256,
         "max_output_chars": 10_000,
         "temperature": 0.2,
@@ -166,9 +171,11 @@ def adapter(
 ) -> OpenAICompatibleModel:
     llm_settings = settings(**setting_overrides)
     if clock is None:
-        return OpenAICompatibleModel(llm_settings.primary, llm_settings, http_client=wire.client())
+        return OpenAICompatibleModel(
+            llm_settings.models[Purpose.TURN][0], llm_settings, http_client=wire.client()
+        )
     return OpenAICompatibleModel(
-        llm_settings.primary,
+        llm_settings.models[Purpose.TURN][0],
         llm_settings,
         http_client=wire.client(),
         monotonic=clock.monotonic,

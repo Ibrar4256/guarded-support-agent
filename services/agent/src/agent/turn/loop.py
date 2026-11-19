@@ -54,6 +54,7 @@ EMPTY_REPLY_NOTE = (
 )
 NOT_ALONE = "propose_refund and escalate must be the only tool call in their response"
 NOT_LOOKED_UP = "look up the order in this conversation before proposing a refund"
+EMPTY_REPLY = "empty reply"
 
 
 @dataclass(frozen=True)
@@ -199,9 +200,14 @@ async def leave_with(ctx: LoopContext, write: WriteCall) -> LoopOutcome:
     raise TypeError(f"no handler for write tool {write.tool.name}")
 
 
-async def run_loop(ctx: LoopContext, messages: list[dict[str, Any]]) -> LoopOutcome:
+def turn_tools() -> list[dict[str, Any]]:
+    """The tool schemas every model call of the turn offers, in this order."""
     tools = [tool.schema() for tool in READ_TOOLS.values()]
-    tools += [tool.schema() for tool in WRITE_TOOLS.values()]
+    return tools + [tool.schema() for tool in WRITE_TOOLS.values()]
+
+
+async def run_loop(ctx: LoopContext, messages: list[dict[str, Any]]) -> LoopOutcome:
+    tools = turn_tools()
     malformed = 0
     for _ in range(ctx.settings.max_model_calls):
         if ctx.deadline - ctx.monotonic() <= 0:
@@ -216,7 +222,7 @@ async def run_loop(ctx: LoopContext, messages: list[dict[str, Any]]) -> LoopOutc
         try:
             if not response.tool_calls:
                 if not response.text.strip():
-                    raise Malformed("empty reply")
+                    raise Malformed(EMPTY_REPLY)
                 if response.finish_reason is FinishReason.LENGTH:
                     logger.info("turn %s: reply truncated by the output limit", ctx.ids.turn_id)
                 return Reply(response.text)

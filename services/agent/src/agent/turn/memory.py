@@ -168,7 +168,7 @@ async def write_summary(deps: SummaryDeps, job: SummaryJob) -> bool:
 
 
 async def _write_summary(deps: SummaryDeps, job: SummaryJob) -> bool:
-    pooled = deps.pool.for_turn()
+    pooled = deps.pool.model_for(Purpose.SUMMARY)
     model = RecordingModel(
         pooled,
         provider=pooled.provider,

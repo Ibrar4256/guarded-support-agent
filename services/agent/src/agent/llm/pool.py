@@ -1,20 +1,24 @@
-"""Choosing a provider per turn, and cooling one down (ADR-023 Part 3).
+"""Choosing a model per turn, and cooling a provider down (ADR-023 Part 3, ADR-025 S1).
 
-A turn asks ``for_turn()`` once and keeps that model for the whole turn: a turn never switches
+Each purpose (the turn, the summary) has its own ordered list of models, primary first. A turn
+asks ``model_for(purpose)`` once and keeps that model for the whole turn: a turn never switches
 provider mid-loop, because tool-call ids and transcripts differ between providers. A spent quota
-or failed authentication puts the provider into a cooldown and raises an alert; the next turn
-starts on the fallback if one is configured. With no usable provider the call fails at once with
-``QuotaExhausted`` (the turn's "try again"), without touching the network. A request the adapter
-built wrongly (``InvalidRequest``) pages. Cooldowns are per process (KNOWN_TRADEOFFS).
+or failed authentication puts the provider into a cooldown and raises an alert; the cooldown is
+shared by every purpose (it's the provider's account that's spent), and the next call starts on
+the first entry of its list that isn't cooling down. With none usable the call fails at once
+with ``QuotaExhausted`` (the turn's "try again"), without touching the network. A request the
+adapter built wrongly (``InvalidRequest``) pages. Cooldowns are per process (KNOWN_TRADEOFFS).
 """
 
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import timedelta
 
 from agent.alerts import Alerter
+from agent.llm.adapter import OpenAICompatibleModel
 from agent.llm.errors import AuthFailed, InvalidRequest, QuotaExhausted
+from agent.llm.settings import SCRIPTED, LLMSettings
 from agent.llm.types import ChatModel, Message, ModelResponse, OnText, Purpose, ToolSchema
 
 COOLDOWN_ALERT = "llm_provider_cooldown"
@@ -31,27 +35,33 @@ class PoolMember:
 class ProviderPool:
     def __init__(
         self,
-        primary: PoolMember,
-        fallback: PoolMember | None,
+        members: Mapping[Purpose, Sequence[PoolMember]],
         *,
         cooldown: timedelta,
         alerter: Alerter,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
-        if fallback is not None and fallback.provider == primary.provider:
-            raise ValueError("the fallback must be a different provider")
-        self._members = (primary,) if fallback is None else (primary, fallback)
+        self._members: dict[Purpose, tuple[PoolMember, ...]] = {}
+        for purpose in Purpose:
+            listed = tuple(members.get(purpose, ()))
+            if not listed:
+                raise ValueError(f"no models for {purpose.value}")
+            providers = [member.provider for member in listed]
+            if len(set(providers)) != len(providers):
+                raise ValueError(f"{purpose.value} lists a provider twice")
+            self._members[purpose] = listed
         self._cooldown = cooldown.total_seconds()
         self._alerter = alerter
         self._monotonic = monotonic
         self._cooling_until: dict[str, float] = {}
 
-    def for_turn(self) -> "PooledModel":
-        """The first member not cooling down; the primary (failing fast) when all are."""
-        for member in self._members:
+    def model_for(self, purpose: Purpose) -> "PooledModel":
+        """The purpose's first model not cooling down; its primary (failing fast) when all are."""
+        listed = self._members[purpose]
+        for member in listed:
             if not self.cooling(member.provider):
                 return PooledModel(member, self)
-        return PooledModel(self._members[0], self)
+        return PooledModel(listed[0], self)
 
     def cooling(self, provider: str) -> bool:
         until = self._cooling_until.get(provider)
@@ -112,3 +122,16 @@ class PooledModel:
         except InvalidRequest as error:
             self._pool.invalid_request(self.member, error)
             raise
+
+
+def build_pool(settings: LLMSettings, *, alerter: Alerter) -> ProviderPool:
+    """The production pool: one adapter per listed model. Scripted models are test-only and
+    are wired by the test helpers, never here."""
+    members: dict[Purpose, list[PoolMember]] = {}
+    for purpose, choices in settings.models.items():
+        for choice in choices:
+            if choice.provider == SCRIPTED:
+                raise ValueError("scripted models are wired by the test helpers, not build_pool")
+            model = OpenAICompatibleModel(choice, settings)
+            members.setdefault(purpose, []).append(PoolMember(choice.provider, choice.model, model))
+    return ProviderPool(members, cooldown=settings.quota_cooldown, alerter=alerter)

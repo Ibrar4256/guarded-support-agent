@@ -28,6 +28,7 @@ from agent.db.claims import worker_transaction
 from agent.llm.pool import ProviderPool
 from agent.llm.prices import PriceTable
 from agent.llm.recording import CallContext, Recorder, RecordingModel
+from agent.llm.types import Purpose
 from agent.tools.contract import LostTurn
 from agent.turn.finish import TryAgainCause, escalate_and_reply, reply_and_complete, reply_and_wait
 from agent.turn.lease import TurnOverrun, hold_lease
@@ -140,7 +141,7 @@ async def _work(
         digest=digest(past),
         summary=None if summary is None else summary.text,
     )
-    pooled = deps.pool.for_turn()
+    pooled = deps.pool.model_for(Purpose.TURN)
     model = RecordingModel(
         pooled,
         provider=pooled.provider,
