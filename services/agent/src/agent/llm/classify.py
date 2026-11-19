@@ -46,8 +46,9 @@ def _classify_status(exc: openai.APIStatusError, markers: ErrorMarkers) -> Model
         return AuthFailed(message)
     if status == 402:
         # Payment required: the account has no credit left (captured from SambaNova once its
-        # free credit was gone: PAYMENT_METHOD_REQUIRED). Stop using the provider; never
-        # something to retry or page about (ADR-025 S5).
+        # free credit was gone: PAYMENT_METHOD_REQUIRED; kept in llm_fixtures_retired since
+        # SambaNova was dropped). Stop using the provider; never something to retry or page
+        # about (ADR-025 S5).
         return QuotaExhausted(message)
     if status == 429:
         if _matches(text, (*markers.quota, *GENERIC_MARKERS.quota)):

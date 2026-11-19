@@ -97,7 +97,6 @@ PROVIDERS: dict[str, Provider] = {
             url_from=cloudflare_url,
         ),
         Provider("openrouter", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
-        Provider("sambanova", "https://api.sambanova.ai/v1", "SAMBANOVA_API_KEY"),
         Provider(
             "ollama",
             None,

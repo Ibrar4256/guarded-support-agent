@@ -1,13 +1,18 @@
 """``python -m agent_testing.capture``: real provider responses saved as fixtures (ADR-025 S4, S5).
 
     python -m agent_testing.capture --model groq:openai/gpt-oss-120b [--model ...] \\
-        --kind tool_call|auth --out tests/unit/llm_fixtures
+        --kind tool_call|auth|system_note|byte_ceiling --out tests/unit/llm_fixtures
 
 - ``tool_call``: one turn request (the real system prompt and turn tools, a synthetic customer
   asking about an order). The fixture's kind is what came back: ``tool_call``, or ``text`` when
   the model answered without a tool, which proves nothing for S4.
 - ``auth``: the same request with a deliberately invalid key, to pin the provider's
   auth-failure body; it costs no quota.
+- ``system_note``: the turn request followed by a system note, the shape ADR-028 2A sends after
+  a malformed response (the response itself isn't echoed): does the provider accept it?
+- ``byte_ceiling``: one customer message of 4-byte characters (no system prompt, no tools), to
+  check ADR-028's ceiling of one token per UTF-8 byte against the provider's own count. The
+  fixture records the request's content size in characters and bytes.
 
 One attempt per request (no retries), so the fixture is exactly one response. Only synthetic
 data is sent (S11). Refuses ``APP_ENV=production``. Never writes a key: the request isn't
@@ -42,7 +47,19 @@ from agent_testing.env import credentials, example_llm_env
 MESSAGE = "Hi, can you check on my order ord_demo_1001? It still hasn't arrived."
 INVALID_KEY = "invalid-key-for-fixture-capture"
 DEADLINE_SECONDS = 60
-KINDS = ("tool_call", "auth")
+KINDS = ("tool_call", "auth", "system_note", "byte_ceiling")
+# Kinds named by what was sent, not by what came back.
+REQUEST_KINDS = ("system_note", "byte_ceiling")
+SYSTEM_NOTE = (
+    "Your last response was not run: unknown tool 'lookup_orders'. Nothing in it ran. "
+    "Use only the tools offered."
+)
+CEILING_INSTRUCTION = "Reply with the single word OK. "
+# Four kinds of 4-byte characters, 250 each: emoji, CJK Extension B, plane-15 private use and
+# tag characters. Common ones may be single tokens; rare ones fall back to bytes (the worst case).
+CEILING_PAYLOAD = "".join(
+    chr(start + i) for start in (0x1F600, 0x20000, 0xF0000, 0xE0041) for i in range(250)
+)
 DROPPED_HEADERS = {"content-encoding", "content-length", "transfer-encoding", "set-cookie"}
 KEPT_HEADER = re.compile(r"(x-)?ratelimit-.*|retry-after", re.IGNORECASE)
 # A key echoed back masked, e.g. "Incorrect API key provided: ab12cd*****9f0e".
@@ -93,6 +110,21 @@ def turn_request() -> list[dict[str, Any]]:
     return build_messages(window(events, max_chars=24_000), nonce=new_nonce())
 
 
+def request_for(kind: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The messages and tools sent for ``kind``."""
+    if kind == "byte_ceiling":
+        return [{"role": "user", "content": CEILING_INSTRUCTION + CEILING_PAYLOAD}], []
+    messages = turn_request()
+    if kind == "system_note":
+        messages.append({"role": "system", "content": SYSTEM_NOTE})
+    return messages, turn_tools()
+
+
+def content_size(messages: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    text = "".join(str(message["content"]) for message in messages)
+    return {"messages": len(messages), "chars": len(text), "bytes": len(text.encode("utf-8"))}
+
+
 async def capture(
     environ: Mapping[str, str],
     model: str,
@@ -110,6 +142,7 @@ async def capture(
     choice: ProviderChoice = settings.models[Purpose.TURN][0]
     if kind == "auth":
         choice = dataclasses.replace(choice, api_key=INVALID_KEY)
+    messages, tools = request_for(kind)
     recorder = RecordingTransport() if transport is None else RecordingTransport(inner=transport)
     async with httpx2.AsyncClient(transport=recorder) as client:
         adapter = OpenAICompatibleModel(choice, settings, http_client=client)
@@ -118,8 +151,8 @@ async def capture(
         error: ModelError | None = None
         try:
             response = await adapter.complete(
-                turn_request(),
-                turn_tools(),
+                messages,
+                tools,
                 deadline=started + DEADLINE_SECONDS,
                 purpose=Purpose.TURN,
             )
@@ -129,6 +162,7 @@ async def capture(
         raise CaptureRefused(f"expected one response, got {len(recorder.captured)}")
     got = recorder.captured[0]
     secrets = [value for value in credentials(environ).values() if len(value) >= 8]
+    facts = {"request": content_size(messages)} if kind == "byte_ceiling" else {}
     return {
         "provider": choice.provider,
         "model": choice.model,
@@ -142,6 +176,7 @@ async def capture(
             "body": redact(got.body, secrets),
         },
         "adapter": summary(response, error),
+        **facts,
     }
 
 
@@ -153,8 +188,8 @@ def redact(text: str, secrets: Sequence[str]) -> str:
 
 
 def fixture_kind(requested: str, response: ModelResponse | None) -> str:
-    if requested == "auth":
-        return "auth"
+    if requested == "auth" or requested in REQUEST_KINDS:
+        return requested
     if response is None:
         return "error"
     return "tool_call" if response.tool_calls else "text"

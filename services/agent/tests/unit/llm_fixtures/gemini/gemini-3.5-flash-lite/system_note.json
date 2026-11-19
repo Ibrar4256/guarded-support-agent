@@ -1,0 +1,24 @@
+{
+  "provider": "gemini",
+  "model": "gemini-3.5-flash-lite",
+  "kind": "system_note",
+  "source": "captured",
+  "captured_on": "2026-11-19",
+  "response": {
+    "status": 200,
+    "content_type": "text/event-stream",
+    "headers": {},
+    "body": "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"extra_content\":{\"google\":{\"thought_signature\":\"EnsKeQFpFH0Tjohjc+4lBJyzcZfC5aqhtrBNzNen7cA1ypk+0zaHyQf2hEmf9sD3I9rqFFpj4iv3c3ZbaEa5uNhQiXoMY40DyiNiiO+gDKi7a3P8D4Z1Mv/TyaAHAbSj9SOSlWRp7/i9v14cnvTdtTE4EMraibbVRaDcv9w=\"}},\"function\":{\"arguments\":\"{\\\"order_id\\\":\\\"ord_demo_1001\\\"}\",\"name\":\"lookup_order\"},\"id\":\"call_13826773458145655263\",\"type\":\"function\"}]},\"index\":0}],\"created\":1795108667,\"id\":\"IS__aq3IEbv6vdIPuM2XIA\",\"model\":\"gemini-3.5-flash-lite\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":25,\"prompt_tokens\":558,\"total_tokens\":583}}\n\ndata: {\"choices\":[{\"delta\":{\"role\":\"assistant\"},\"finish_reason\":\"stop\",\"index\":0}],\"created\":1795108667,\"id\":\"IS__aq3IEbv6vdIPuM2XIA\",\"model\":\"gemini-3.5-flash-lite\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":25,\"prompt_tokens\":558,\"total_tokens\":583}}\n\ndata: [DONE]\n\n"
+  },
+  "adapter": {
+    "tool_calls": [
+      "lookup_order"
+    ],
+    "finish_reason": "stop",
+    "usage": {
+      "input_tokens": 558,
+      "output_tokens": 25
+    },
+    "latency_seconds": 26.659
+  }
+}

@@ -65,14 +65,14 @@ async def test_the_first_entry_not_cooling_serves_down_a_longer_list() -> None:
     clock, alerter = FakeClock(), RecordingAlerter()
     first = member("groq", Turn(raises=QuotaExhausted("daily limit")))
     second = member("gemini", Turn(raises=AuthFailed("bad key")))
-    third = member("sambanova", Turn(text="from sambanova"))
+    third = member("openrouter", Turn(text="from openrouter"))
     providers = pool([first, second, third], clock, alerter)
 
     for _ in range(2):
         with pytest.raises((QuotaExhausted, AuthFailed)):
             await ask(providers.model_for(Purpose.TURN))
 
-    assert await ask(providers.model_for(Purpose.TURN)) == "sambanova"
+    assert await ask(providers.model_for(Purpose.TURN)) == "openrouter"
     assert alerter.kinds(Severity.ALERT) == [COOLDOWN_ALERT, COOLDOWN_ALERT]
 
 

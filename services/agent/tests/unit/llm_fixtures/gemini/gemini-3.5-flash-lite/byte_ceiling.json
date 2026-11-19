@@ -1,0 +1,27 @@
+{
+  "provider": "gemini",
+  "model": "gemini-3.5-flash-lite",
+  "kind": "byte_ceiling",
+  "source": "captured",
+  "captured_on": "2026-11-19",
+  "response": {
+    "status": 200,
+    "content_type": "text/event-stream",
+    "headers": {},
+    "body": "data: {\"choices\":[{\"delta\":{\"content\":\"OK\",\"role\":\"assistant\"},\"index\":0}],\"created\":1795108676,\"id\":\"QC__asquN7OpvdIPg9aUiA8\",\"model\":\"gemini-3.5-flash-lite\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":1,\"prompt_tokens\":3510,\"total_tokens\":3511}}\n\ndata: {\"choices\":[{\"delta\":{\"extra_content\":{\"google\":{\"thought_signature\":\"EnsKeQFpFH0TFVj20Ky55DCbZYmg3QiHhM7YeHR7juctH+WjrbprH215OKbWHbLVhY0ucvcp7ZWGsLeeX/TYfPopfgid5NV0i1F1267F7LfZF2bAZWhgCSTtkoxzMQYbtpV1K5gsawzGLAp+qNvRjHUgmiOxSlkHEQUTbA8=\"}},\"role\":\"assistant\"},\"finish_reason\":\"stop\",\"index\":0}],\"created\":1795108676,\"id\":\"QC__asquN7OpvdIPg9aUiA8\",\"model\":\"gemini-3.5-flash-lite\",\"object\":\"chat.completion.chunk\",\"usage\":{\"completion_tokens\":1,\"prompt_tokens\":3510,\"total_tokens\":3511}}\n\ndata: [DONE]\n\n"
+  },
+  "adapter": {
+    "tool_calls": [],
+    "finish_reason": "stop",
+    "usage": {
+      "input_tokens": 3510,
+      "output_tokens": 1
+    },
+    "latency_seconds": 3.97
+  },
+  "request": {
+    "messages": 1,
+    "chars": 1031,
+    "bytes": 4031
+  }
+}

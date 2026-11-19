@@ -456,7 +456,13 @@ lives in `WEEKLY_LOG.md`.
   summaries keep failing. A follow-up ADR should cap read calls per response and the summary
   job's size; until then a long-tail turn can still hit `ContextTooLong` (try again, alert).
 - **Characters per token is a fixed 3** until measured tokens replace it, and per-message
-  overhead (role markers, tool-call framing) isn't counted.
+  overhead (role markers, tool-call framing) isn't counted. Measured 2026-11-19: text of 4-byte
+  characters is ~3.4 tokens per character on Groq, Gemini and Cloudflare, ten times the estimate;
+  ADR-028 (proposed) replaces it with one token per UTF-8 byte. ERNIE's ratio isn't measured
+  (its capture hit OpenRouter's shared-pool limit).
+- **Cloudflare's gpt-oss-20b answered a mid-conversation system note with its tool call in the
+  reasoning channel** (no call, no text, k=1, pinned). The loop treats that as an empty reply;
+  the adapter doesn't read calls out of reasoning.
 - **The prompt fingerprint renders sample inputs** through the real code. A wording change on a
   path the samples don't reach wouldn't change it; any change that does, including a pydantic
   upgrade that reshapes a tool schema, invalidates every verification for that purpose.
@@ -474,8 +480,17 @@ lives in `WEEKLY_LOG.md`.
   signature) sent back unchanged to the same provider within the turn. It's never stored or
   shown to another provider, but the adapter trusts its size: a few hundred characters per
   call, not counted in the context bound.
-- **Cerebras is dropped and SambaNova is out**: both answer 402 without a payment method, which
+- **Cerebras and SambaNova are dropped**: both answer 402 without a payment method, which
   ADR-025 S5 forbids. Working: Groq, Gemini, Cloudflare and four OpenRouter `:free` models.
+- **The only captured 402s come from a dropped provider** (SambaNova), kept in
+  `tests/unit/llm_fixtures_retired/` and replayed under its former host-table entry. No provider
+  we use has answered 402 yet, so its body shape isn't pinned for any of them; the rule is by
+  status, so any 402 classifies the same.
+- **Nothing in code keeps OpenRouter on `:free` models.** A paid model on the $0 free-tier
+  account is served and billed, taking the balance negative (measured 2026-11-19: one capture
+  call, $0.0001233). ADR-025 S5's guard is the setup runbook plus the 402 classification, and
+  OpenRouter didn't answer 402. A settings check refusing OpenRouter models without `:free`
+  (and the same in the capture and smoke tools) would close it.
 - **OpenRouter's free models share an upstream pool**: 429s with `limit_source:
   upstream_provider_shared_pool` come at any volume (rate limits, retried), on top of the
   account's 50 requests a day. Fine for comparisons, too thin for a demo primary.

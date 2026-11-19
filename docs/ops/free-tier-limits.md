@@ -17,10 +17,12 @@ replaced by measured tokens (`llm_calls`) after the first smoke run.
 | Gemini | 2.5 Pro, 3.1 Pro, 2 Flash, 2 Flash Lite, 4 Argon, 4 Carbon | 0 | 0 | 0 | — | same: not on the free tier |
 | Groq | openai/gpt-oss-120b, openai/gpt-oss-20b, qwen/qwen3.8-27b | 30 | 8K | 1K | 200K | console.groq.com/docs/rate-limits (per organization) |
 | Cloudflare | Workers AI (all models) | — | — | — | 10,000 neurons | developers.cloudflare.com/workers-ai/platform/pricing |
-| SambaNova | gpt-oss-120b, Meta-Llama-3.3-70B-Instruct, gemma-4-31B-it | 20 | — | 20 | 200K | docs.sambanova.ai/docs/en/models/rate-limits (free tier = no payment method) |
 | OpenRouter | `:free` models | 20 | — | 50 | — | openrouter.ai/docs/api-reference/limits |
 
 Notes:
+- **SambaNova was dropped on 2026-11-19** (removed from the host table, credential variable
+  and `.env.example`): every model answered `402 PAYMENT_METHOD_REQUIRED` with `balance_units:
+  0`, so its free credit needs a payment method, which ADR-025 S5 rules out.
 - **Cerebras was dropped on 2026-11-19** (removed from the code's host table): every call
   returned `402 payment_required`. History: it was a trial, not a free tier: the limits apply "while you use the $5 in Free Trial
   credits". When the credits are spent it needs a payment method, which ADR-025 rules out, so it's
@@ -55,7 +57,7 @@ day, synthetic data: inputs for sizing budgets, **not** quality or safety result
 - **A first call is ~650–1,000 input tokens**, far below ADR-025's 2,500 estimate; a two-call
   turn is ~1.4K in, ~0.2K out. At that size Groq's 200K tokens/day is ~120 such turns and 8K
   tokens/min about five a minute.
-- **Not usable now:** Cerebras answered every chat call with `402 payment_required` (dropped).
+- **Not usable (both dropped):** Cerebras answered every chat call with `402 payment_required`.
   SambaNova first rejected the configured key for chat (its `/models` answers without any key,
   so the earlier check proved nothing); with a new key every model answers `402
   PAYMENT_METHOD_REQUIRED` with `balance_units: 0` (GLM-5.3 also 429 "high demand"), so its free
@@ -67,6 +69,21 @@ day, synthetic data: inputs for sizing budgets, **not** quality or safety result
   without it (now carried and sent back); Gemini answers a bad key with a 400 (classified as auth by a marker) and ends tool-call
   responses with `finish_reason: stop`; a 402 is a spent quota.
 
+## Measured: tokens per byte and a mid-conversation note (2026-11-19, ADR-028)
+
+`python -m agent_testing.capture --kind byte_ceiling|system_note`, one call each, free-tier ids.
+
+| Model | 1,031 chars / 4,031 bytes of 4-byte characters → input tokens | System note after the customer message |
+|---|---|---|
+| groq `openai/gpt-oss-120b` | 3,552 (0.88 per byte, 3.45 per char) | accepted; called `lookup_order` |
+| gemini `gemini-3.5-flash-lite` | 3,510 (0.87, 3.40) | accepted; called `lookup_order` (26.7 s) |
+| cloudflare `@cf/openai/gpt-oss-20b` | 3,550 (0.88, 3.44) | accepted; put the call in its reasoning, no call and no text |
+| openrouter `baidu/ernie-5.5-flash-preview:free` | 429 from the shared free pool (`tpm_rate_limit_exceeded`); not measured | accepted; called `lookup_order` |
+
+- The 3-characters-per-token estimate predicts 344 tokens for that message: about ten times too
+  few. One token per UTF-8 byte held for all three measured models.
+- OpenRouter's free models still answer after the account's balance went to −$0.000123.
+
 ## Plans: zero spend (ADR-025 S5)
 
 | Provider | Free plan confirmed | How | Checked |
@@ -75,7 +92,11 @@ day, synthetic data: inputs for sizing budgets, **not** quality or safety result
 | OpenRouter | Yes | `GET /api/v1/key` reports `is_free_tier: true`, no limit, zero usage; Privacy → "Allow free endpoints that train on request data" turned **off** 2026-11-19 (publish-prompts and paid-training already off) | 2026-11-19 |
 | Groq | Yes | Console → Settings → Billing shows the free plan, no payment method (confirmed by the developer) | 2026-11-17 |
 | Cloudflare | Yes | Workers plan is Workers Free (Workers Paid would bill past 10,000 neurons; confirmed by the developer) | 2026-11-17 |
-| SambaNova | No longer usable | No payment method linked, but the API now demands one (402 `PAYMENT_METHOD_REQUIRED`, balance 0); never add one | 2026-11-19 |
+
+- **OpenRouter bills a paid model even at a $0 balance** (2026-11-19): one capture call to
+  `openai/gpt-oss-120b` (not `:free`) was served by Amazon Bedrock and billed $0.0001233; the
+  account's `total_credits` stayed 0 and `total_usage` became 0.0001233, so the balance is
+  negative. Use only `:free` model ids; never call a paid id to test a refusal.
 
 ## Data terms (ADR-025 S11)
 
@@ -84,7 +105,6 @@ day, synthetic data: inputs for sizing budgets, **not** quality or safety result
 | Gemini (unpaid) | Yes, 2026-11-17 | Content used "to provide, improve, and develop Google products"; "human reviewers may read, annotate, and process your API input and output"; "Do not submit sensitive, confidential, or personal information to the Unpaid Services." | Synthetic data only |
 | Groq | Yes, 2026-11-19 (console.groq.com/docs/your-data) | Inference inputs and outputs not retained by default; may be logged up to 30 days only to troubleshoot reliability or investigate abuse; Zero Data Retention can be switched on in Data Controls. No training stated. | Synthetic data only (S11); consider enabling ZDR before the demo |
 | Cloudflare | Yes, 2026-11-19 (developers.cloudflare.com/workers-ai/platform/data-usage) | Zero data retention for standard inference; "Cloudflare does not use Customer Content processed by Workers AI to train AI models". | Synthetic data only (S11) |
-| SambaNova | Yes, 2026-11-19 (sambanova.ai/cloud-end-user-license-agreement §2.1) | Customer Content accessed, stored or processed "solely to the extent necessary to provide the Service ... and for no other purposes". No retention period published; the privacy policy doesn't cover API prompts (a public request for clarity has been open since Feb 2025). | Synthetic data only (S11) |
 | OpenRouter `:free` | Yes, 2026-11-19 (openrouter.ai/docs/guides/privacy/logging) | Each upstream provider applies its own policy; some may train on prompts. The account's privacy settings (separate for free models) can exclude providers that train, and requests can filter by data policy. | Synthetic data only; before use, set the account to exclude training providers for free models |
 
 The deployed demo is synthetic-data-only with a visible notice, whatever the outcome of these

@@ -1342,3 +1342,20 @@ file per key, `live` stores nothing. Each recording stores the anchor and replay
 production. 20 tests, 7 plants caught (two first named the wrong failure text and were
 re-aimed: a strict model being called is the right failure for "replay fell back to live").
 Agent 1231.
+
+**Same day, SambaNova dropped:** removed from the host table, `CREDENTIAL_VARS` and
+`.env.example`, its runbook rows and its fixtures, as Cerebras was. Its two 402
+`PAYMENT_METHOD_REQUIRED` bodies were the only captured 402s, so they moved to
+`tests/unit/llm_fixtures_retired/` and replay under SambaNova's former host-table entry (put back
+for the test only); a test also checks a retired provider stays out of the table. Planting
+402 → `RateLimited` fails exactly those two tests and nothing else in the unit suite, so they are
+the pin. Agent 1229 (5 SambaNova cases removed, 3 added); refund_api 255; e2e 18.
+
+**What broke:** my first plan was to capture a fresh 402 from OpenRouter by calling a paid model
+on the $0 free-tier account, expecting a refusal. OpenRouter served it (Amazon Bedrock) and
+billed $0.0001233, so the balance went negative. Checked by API before (credits 0, usage 0) and
+after (usage 0.0001233). Recorded in the runbook and KNOWN_TRADEOFFS: nothing in code keeps
+OpenRouter models on `:free`.
+
+**What I learned:** "no payment method" isn't "can't be billed": test a spending assumption
+with a read (the price list, the account's balance policy), never with the call itself.

@@ -18,22 +18,31 @@ from agent.llm.errors import (
     QuotaExhausted,
     RateLimited,
 )
+from agent.llm.providers import PROVIDERS, Provider
 from agent.llm.settings import ProviderChoice
 from agent.llm.types import Purpose
 
 FIXTURES = Path(__file__).with_name("llm_fixtures")
 ALL = sorted(FIXTURES.rglob("*.json"))
+# Captured from providers since dropped, kept because no provider we use has answered the same way.
+RETIRED = Path(__file__).with_name("llm_fixtures_retired")
+RETIRED_ALL = sorted(RETIRED.rglob("*.json"))
 MESSAGES = [{"role": "user", "content": "Where is order ord_demo_1001?"}]
 # Error fixtures whose cause isn't in their kind: what each must classify as.
 ERRORS: dict[str, type[ModelError]] = {
-    "sambanova/gemma-4-31B-it/error.json": QuotaExhausted,  # 402 payment method required
-    "sambanova/MiniMax-M3.1-Flash/error.json": QuotaExhausted,  # 402 payment method required
-    "sambanova/GLM-5.3/error.json": RateLimited,  # 429 "high demand", no quota marker
-    "sambanova/gpt-oss-120b/error.json": AuthFailed,  # the earlier key was refused
     # OpenRouter's shared free pool busy upstream: a rate limit, retried, never a cooldown.
     "openrouter/google_gemma-4-26b-a4b-it_free/error.json": RateLimited,
     "openrouter/google_gemma-4-31b-it_free/error.json": RateLimited,
     "openrouter/inclusionai_ling-3.2-flash_free/error.json": RateLimited,
+}
+# The only captured 402s (SambaNova, dropped 2026-11-19): what pins 402 -> QuotaExhausted.
+RETIRED_ERRORS: dict[str, type[ModelError]] = {
+    "sambanova/gemma-4-31B-it/error.json": QuotaExhausted,  # 402 payment method required
+    "sambanova/MiniMax-M3.1-Flash/error.json": QuotaExhausted,  # 402 payment method required
+}
+# The host-table entry each retired provider had when its fixtures were captured.
+RETIRED_PROVIDERS = {
+    "sambanova": Provider("sambanova", "https://api.sambanova.ai/v1", "SAMBANOVA_API_KEY")
 }
 
 
@@ -66,8 +75,8 @@ async def replay(fixture: dict[str, Any]) -> Any:
     return await model.complete(MESSAGES, [], deadline=60.0, purpose=Purpose.TURN)
 
 
-def ids(paths: list[Path]) -> list[str]:
-    return [str(path.relative_to(FIXTURES)) for path in paths]
+def ids(paths: list[Path], root: Path = FIXTURES) -> list[str]:
+    return [str(path.relative_to(root)) for path in paths]
 
 
 def of_kind(kind: str) -> list[Path]:
@@ -99,8 +108,26 @@ def test_every_error_fixture_has_an_expectation() -> None:
     assert sorted(ids(of_kind("error"))) == sorted(ERRORS)
 
 
+@pytest.mark.parametrize("name", RETIRED_ERRORS, ids=list(RETIRED_ERRORS))
+async def test_a_retired_providers_captured_error_still_classifies_by_its_cause(
+    name: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Replayed under the provider's own former entry: no markers, so status decides."""
+    fixture = load(RETIRED / name)
+    monkeypatch.setitem(PROVIDERS, fixture["provider"], RETIRED_PROVIDERS[fixture["provider"]])
+
+    with pytest.raises(RETIRED_ERRORS[name]):
+        await replay(fixture)
+
+
+def test_every_retired_fixture_has_an_expectation_and_its_provider_is_gone() -> None:
+    assert sorted(ids(RETIRED_ALL, RETIRED)) == sorted(RETIRED_ERRORS)
+    assert {load(path)["provider"] for path in RETIRED_ALL} == set(RETIRED_PROVIDERS)
+    assert set(RETIRED_PROVIDERS).isdisjoint(PROVIDERS)
+
+
 def test_no_fixture_holds_a_key_fragment() -> None:
-    masked = [p for p in ALL if "*****" in p.read_text(encoding="utf-8")]
+    masked = [p for p in ALL + RETIRED_ALL if "*****" in p.read_text(encoding="utf-8")]
 
     assert masked == []
 
@@ -129,3 +156,50 @@ async def test_gemini_tool_calls_keep_their_thought_signature_others_carry_nothi
         assert json.loads(call.extra_content)["google"]["thought_signature"]
     else:
         assert call.extra_content is None
+
+
+@pytest.mark.parametrize("path", of_kind("system_note"), ids=ids(of_kind("system_note")))
+async def test_every_provider_accepts_a_system_note_after_the_customer_message(path: Path) -> None:
+    """ADR-028 2A's correction shape: a mid-conversation system note, the malformed response not
+    echoed. Accepted: a 200 the adapter parses without an error. What the model then does is an
+    eval question (ADR-026 scripted steps), not a fixture one."""
+    fixture = load(path)
+    await replay(fixture)
+
+    assert fixture["response"]["status"] == 200
+
+
+async def test_cloudflares_gpt_oss_20b_answered_the_note_with_its_call_in_the_reasoning() -> None:
+    """Captured once (k=1): after the note, the call went to the reasoning channel and the
+    response had no tool call and no text, which the loop treats as an empty reply (malformed).
+    Pinned so a change that starts reading calls out of reasoning shows up here."""
+    fixture = load(FIXTURES / "cloudflare/_cf_openai_gpt-oss-20b/system_note.json")
+    response = await replay(fixture)
+
+    assert response.tool_calls == () and response.text == ""
+    assert '{"order_id":"ord_demo_1001"}' in reasoning(fixture)
+
+
+def reasoning(fixture: dict[str, Any]) -> str:
+    """The stream's reasoning channel, reassembled from its chunks."""
+    pieces = []
+    for line in fixture["response"]["body"].splitlines():
+        if line.startswith("data: {"):
+            for choice in json.loads(line.removeprefix("data: "))["choices"]:
+                pieces.append(choice["delta"].get("reasoning_content") or "")
+    return "".join(pieces)
+
+
+@pytest.mark.parametrize("path", of_kind("byte_ceiling"), ids=ids(of_kind("byte_ceiling")))
+async def test_input_tokens_stay_under_one_per_utf8_byte(path: Path) -> None:
+    """ADR-028's ceiling, checked against the provider's own count for 1,000 4-byte characters
+    (the request's template overhead included). The old estimate of 3 characters per token
+    undercounts this text by about ten times."""
+    fixture = load(path)
+    usage = (await replay(fixture)).usage
+    sent = fixture["request"]
+
+    assert usage is not None
+    assert usage.input_tokens <= sent["bytes"]
+    # More than one token per character: 3 characters per token undercounts by over 3 times.
+    assert usage.input_tokens > sent["chars"]

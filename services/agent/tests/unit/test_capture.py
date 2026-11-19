@@ -9,7 +9,14 @@ from typing import Any
 
 import httpx2
 import pytest
-from agent_testing.capture import INVALID_KEY, CaptureRefused, capture, fixture_path
+from agent_testing.capture import (
+    CEILING_PAYLOAD,
+    INVALID_KEY,
+    SYSTEM_NOTE,
+    CaptureRefused,
+    capture,
+    fixture_path,
+)
 from llm_wire import error_body
 from test_tool_call_proofs import TEXT_BODY, TOOL_CALL_BODY, problem_with
 
@@ -103,6 +110,40 @@ async def test_an_auth_capture_sends_only_the_invalid_key() -> None:
     assert server.requests[0].headers["authorization"] == f"Bearer {INVALID_KEY}"
     assert fixture["kind"] == "auth" and fixture["response"]["status"] == 401
     assert fixture["adapter"] == {"error": "AuthFailed"}
+
+
+def sent(server: Server) -> dict[str, Any]:
+    body: dict[str, Any] = json.loads(server.requests[0].content)
+    return body
+
+
+async def test_a_system_note_capture_sends_the_note_after_the_customer_message() -> None:
+    """ADR-028 2A's shape: the malformed response isn't echoed, so no assistant message comes
+    between the customer message and the note; the turn's tools are still offered."""
+    server = Server(streamed(TEXT_BODY))
+    fixture = await run(server, kind="system_note")
+
+    body = sent(server)
+    assert [m["role"] for m in body["messages"]] == ["system", "user", "system"]
+    assert body["messages"][-1]["content"] == SYSTEM_NOTE
+    assert "lookup_order" in [tool["function"]["name"] for tool in body["tools"]]
+    assert fixture["kind"] == "system_note"
+
+
+async def test_a_byte_ceiling_capture_sends_one_message_of_4_byte_characters_and_no_tools() -> None:
+    server = Server(streamed(TEXT_BODY))
+    fixture = await run(server, kind="byte_ceiling")
+
+    body = sent(server)
+    assert [m["role"] for m in body["messages"]] == ["user"] and "tools" not in body
+    assert len(CEILING_PAYLOAD) == 1000 and len(CEILING_PAYLOAD.encode()) == 4000
+    content = body["messages"][0]["content"]
+    assert fixture["kind"] == "byte_ceiling"
+    assert fixture["request"] == {
+        "messages": 1,
+        "chars": len(content),
+        "bytes": len(content.encode()),
+    }
 
 
 async def test_one_request_only_even_for_a_retryable_error() -> None:
