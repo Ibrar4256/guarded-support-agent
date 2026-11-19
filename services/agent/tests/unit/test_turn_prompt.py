@@ -73,3 +73,16 @@ def test_an_assistant_tool_call_message_has_string_content() -> None:
     message = assistant_message(sample_response(ToolCall("c1", "lookup_order", "{}")))
 
     assert message["content"] == ""
+
+
+def test_a_tool_calls_extra_content_goes_back_to_the_provider_unchanged() -> None:
+    from agent.llm.types import ToolCall
+    from agent.turn.fingerprint import sample_response
+    from agent.turn.loop import assistant_message
+
+    signed = ToolCall("c1", "lookup_order", "{}", '{"google": {"thought_signature": "sig"}}')
+    plain = ToolCall("c2", "lookup_order", "{}")
+    calls = assistant_message(sample_response(signed, plain))["tool_calls"]
+
+    assert calls[0]["extra_content"] == {"google": {"thought_signature": "sig"}}
+    assert "extra_content" not in calls[1]

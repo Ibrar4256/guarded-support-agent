@@ -6,6 +6,7 @@ delta has been delivered, the call must not be retried (the customer would see t
 start twice); the adapter reads ``Delivery.delivered`` for that.
 """
 
+import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -54,6 +55,7 @@ class _PartialCall:
     id: str = ""
     name: str = ""
     arguments: list[str] = field(default_factory=list)
+    extra_content: str | None = None
 
 
 class StreamAssembler:
@@ -83,6 +85,9 @@ class StreamAssembler:
                 call = self._calls.setdefault(index, _PartialCall())
                 if call_delta.id and not call.id:
                     call.id = call_delta.id
+                extra = (call_delta.model_extra or {}).get("extra_content")
+                if extra is not None:
+                    call.extra_content = json.dumps(extra, sort_keys=True)
                 function = call_delta.function
                 if function is not None:
                     if function.name and function.name != call.name:
@@ -125,6 +130,7 @@ class StreamAssembler:
                 id=call.id or f"call_{index}",
                 name=call.name,
                 arguments="".join(call.arguments),
+                extra_content=call.extra_content,
             )
             for index, call in sorted(self._calls.items())
         )

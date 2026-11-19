@@ -1,0 +1,16 @@
+{
+  "provider": "sambanova",
+  "model": "gemma-4-31B-it",
+  "kind": "error",
+  "source": "captured",
+  "captured_on": "2026-11-19",
+  "response": {
+    "status": 402,
+    "content_type": "application/json",
+    "headers": {},
+    "body": "{\"error\":{\"balance_units\":0,\"billing_portal_url\":\"https://cloud.sambanova.ai/plans/billing\",\"code\":\"PAYMENT_METHOD_REQUIRED\",\"message\":\"A payment method is required. Add one at https://cloud.sambanova.ai/plans/billing to continue.\"}}\n"
+  },
+  "adapter": {
+    "error": "QuotaExhausted"
+  }
+}

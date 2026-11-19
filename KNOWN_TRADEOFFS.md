@@ -466,17 +466,17 @@ lives in `WEEKLY_LOG.md`.
 - **The tool-call proof registry is trusted at startup**; a unit test, not the service, checks
   each entry against its captured fixture. A hand-added entry without a fixture fails CI, not
   startup.
-- **Cerebras runs on $5 trial credits**, not a free tier: usable for the model comparison only,
-  never as a demo model.
 - **Cloudflare's Llama 3.3 70B is unusable for replies with numbers**: it streams number-like
   pieces as JSON numbers that can't be turned back into the model's text exactly, so the
   adapter refuses such a stream (`ProviderUnavailable`, then try again). Cloudflare's
   gpt-oss-20b sends text and is unaffected.
-- **Gemini can't serve the turn yet**: its OpenAI-compatible endpoint requires each tool call's
-  `thought_signature` to be sent back, and the normalized `ToolCall` drops it. Gemini serves
-  summaries (no tools) fine.
-- **Cerebras and SambaNova are out for now**: Cerebras returns 402 without billing; SambaNova's
-  configured key is refused for chat.
+- **Tool calls carry opaque provider data** (`ToolCall.extra_content`, Gemini's thought
+  signature) sent back unchanged to the same provider within the turn. It's never stored or
+  shown to another provider, but the adapter trusts its size: a few hundred characters per
+  call, not counted in the context bound.
+- **Cerebras is dropped and SambaNova is out**: both answer 402 without a payment method, which
+  ADR-025 S5 forbids. That leaves three working providers (Groq, Gemini, Cloudflare) plus
+  OpenRouter's `:free` models, still untested.
 - **The smoke run writes synthetic rows to the database it's pointed at**, including APPROVED
   refund runs that a worker would send to the refund service it's configured with.
 - **Captured fixtures are real provider bodies**, redacted for keys and masked key echoes;

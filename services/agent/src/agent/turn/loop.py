@@ -158,15 +158,20 @@ def assistant_message(response: ModelResponse) -> dict[str, Any]:
         "role": "assistant",
         # A string even when empty: Cloudflare refuses null content (captured 400).
         "content": response.text,
-        "tool_calls": [
-            {
-                "id": call.id,
-                "type": "function",
-                "function": {"name": call.name, "arguments": call.arguments},
-            }
-            for call in response.tool_calls
-        ],
+        "tool_calls": [wire_call(call) for call in response.tool_calls],
     }
+
+
+def wire_call(call: ToolCall) -> dict[str, Any]:
+    """A tool call as sent back to the provider, with any data it asked to get back."""
+    wired: dict[str, Any] = {
+        "id": call.id,
+        "type": "function",
+        "function": {"name": call.name, "arguments": call.arguments},
+    }
+    if call.extra_content is not None:
+        wired["extra_content"] = json.loads(call.extra_content)
+    return wired
 
 
 def tool_message(call: ToolCall, content: str) -> dict[str, Any]:

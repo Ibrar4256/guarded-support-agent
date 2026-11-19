@@ -18,12 +18,11 @@ replaced by measured tokens (`llm_calls`) after the first smoke run.
 | Groq | openai/gpt-oss-120b, openai/gpt-oss-20b, qwen/qwen3.8-27b | 30 | 8K | 1K | 200K | console.groq.com/docs/rate-limits (per organization) |
 | Cloudflare | Workers AI (all models) | — | — | — | 10,000 neurons | developers.cloudflare.com/workers-ai/platform/pricing |
 | SambaNova | gpt-oss-120b, Meta-Llama-3.3-70B-Instruct, gemma-4-31B-it | 20 | — | 20 | 200K | docs.sambanova.ai/docs/en/models/rate-limits (free tier = no payment method) |
-| Cerebras | gpt-oss-120b | 5 | 30K uncached | — | 1M | inference-docs.cerebras.ai/support/rate-limits |
-| Cerebras | qwen-3.8-27b | 300 | 150K uncached | — | no cap | same |
 | OpenRouter | `:free` models | 20 | — | 50 | — | openrouter.ai/docs/api-reference/limits |
 
 Notes:
-- **Cerebras is a trial, not a free tier:** the limits apply "while you use the $5 in Free Trial
+- **Cerebras was dropped on 2026-11-19** (removed from the code's host table): every call
+  returned `402 payment_required`. History: it was a trial, not a free tier: the limits apply "while you use the $5 in Free Trial
   credits". When the credits are spent it needs a payment method, which ADR-025 rules out, so it's
   usable only until then (the model comparison, not the demo).
 - **Gemini's "Flash" models allow 20 requests a day**; only the Flash-Lite models (500/day) and
@@ -45,19 +44,23 @@ day, synthetic data: inputs for sizing budgets, **not** quality or safety result
 | groq `openai/gpt-oss-120b` | replied, 2, 1377/237 | approved 20.00, 2, 1400/158 | approved 40.00 (the full charge, not 9999), 2, 1432/405 | gemini 3.5 Flash-Lite: 208/47 | ~0.6 s per call |
 | cloudflare `@cf/openai/gpt-oss-20b` | replied, 2, 1314/190 | approved, 2, 1329/140 | replied "let me check" without a tool, 1, 646/351 | 257/283 | invented a "tracking number in the confirmation email" |
 | cloudflare `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | escalated, 3, 3106/93 | escalated, 4, 4361/158 | refused, 1, 978/30 | 246/60 | sends number-like pieces as JSON numbers (see below) |
-| gemini `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite` | first call ok (~755/28); second call 400 | same | same | 213/57, 212/53 | needs its `thought_signature` echoed back |
+| gemini `gemini-3.5-flash-lite` (after the signature fix) | replied, 2, 1601/56 | approved 20.00, 2, 1623/70 | approved 40.00, 2, 1663/72 | 203/51 | before the fix every second call was a 400 (missing `thought_signature`) |
+| gemini `gemini-3.1-flash-lite` (after the signature fix) | replied, 2, 1601/47 | approved 20.00, 2, 1627/72 | refused, offered a proper proposal, 2, 1663/86 | 262/80 | same |
 | gemini `gemma-4-31b-it` | 3 attempts, unavailable after 26 s | timed out at 60 s | approved after 52 s | unavailable | too slow and unreliable on the free tier |
 
 - **A first call is ~650–1,000 input tokens**, far below ADR-025's 2,500 estimate; a two-call
   turn is ~1.4K in, ~0.2K out. At that size Groq's 200K tokens/day is ~120 such turns and 8K
   tokens/min about five a minute.
-- **Not usable now:** Cerebras answers every chat call with `402 payment_required` (the trial
-  credit isn't available without billing, which S5 rules out); SambaNova rejects the configured
-  key for chat (its `/models` answers without any key, so the earlier check proved nothing).
+- **Not usable now:** Cerebras answered every chat call with `402 payment_required` (dropped).
+  SambaNova first rejected the configured key for chat (its `/models` answers without any key,
+  so the earlier check proved nothing); with a new key every model answers `402
+  PAYMENT_METHOD_REQUIRED` with `balance_units: 0` (GLM-5.3 also 429 "high demand"), so its free
+  credit isn't available without billing, which S5 rules out.
 - **Provider quirks found (each pinned by a captured fixture):** Cloudflare refuses `null`
   assistant content (now `""`); Cloudflare's Llama sends "0" and " 9999" as JSON numbers, which
   can't be turned back into the model's text exactly, so such a stream is refused as a provider
-  error; Gemini answers a bad key with a 400 (classified as auth by a marker) and ends tool-call
+  error; Gemini attaches a `thought_signature` to each tool call and refuses the next call
+  without it (now carried and sent back); Gemini answers a bad key with a 400 (classified as auth by a marker) and ends tool-call
   responses with `finish_reason: stop`; a 402 is a spent quota.
 
 ## Plans: zero spend (ADR-025 S5)
@@ -68,8 +71,7 @@ day, synthetic data: inputs for sizing budgets, **not** quality or safety result
 | OpenRouter | Yes | `GET /api/v1/key` reports `is_free_tier: true`, no limit, zero usage | 2026-11-17 |
 | Groq | Yes | Console → Settings → Billing shows the free plan, no payment method (confirmed by the developer) | 2026-11-17 |
 | Cloudflare | Yes | Workers plan is Workers Free (Workers Paid would bill past 10,000 neurons; confirmed by the developer) | 2026-11-17 |
-| SambaNova | Yes | No payment method linked, which is what defines its free tier (confirmed by the developer) | 2026-11-17 |
-| Cerebras | Trial credits | Never add a payment method; stop using it when the $5 credit is spent | — |
+| SambaNova | No longer usable | No payment method linked, but the API now demands one (402 `PAYMENT_METHOD_REQUIRED`, balance 0); never add one | 2026-11-19 |
 
 ## Data terms (ADR-025 S11)
 
@@ -79,7 +81,6 @@ day, synthetic data: inputs for sizing budgets, **not** quality or safety result
 | Groq | Yes, 2026-11-19 (console.groq.com/docs/your-data) | Inference inputs and outputs not retained by default; may be logged up to 30 days only to troubleshoot reliability or investigate abuse; Zero Data Retention can be switched on in Data Controls. No training stated. | Synthetic data only (S11); consider enabling ZDR before the demo |
 | Cloudflare | Yes, 2026-11-19 (developers.cloudflare.com/workers-ai/platform/data-usage) | Zero data retention for standard inference; "Cloudflare does not use Customer Content processed by Workers AI to train AI models". | Synthetic data only (S11) |
 | SambaNova | Yes, 2026-11-19 (sambanova.ai/cloud-end-user-license-agreement §2.1) | Customer Content accessed, stored or processed "solely to the extent necessary to provide the Service ... and for no other purposes". No retention period published; the privacy policy doesn't cover API prompts (a public request for clarity has been open since Feb 2025). | Synthetic data only (S11) |
-| Cerebras | Yes, 2026-11-19 (cerebras.ai/privacy-policy §6, effective 2024-08-27) | "We do not retain inputs and outputs associated with our training, inference and chatbot Services"; logs deleted when no longer needed. | Synthetic data only (S11); trial credits only (above) |
 | OpenRouter `:free` | Yes, 2026-11-19 (openrouter.ai/docs/guides/privacy/logging) | Each upstream provider applies its own policy; some may train on prompts. The account's privacy settings (separate for free models) can exclude providers that train, and requests can filter by data policy. | Synthetic data only; before use, set the account to exclude training providers for free models |
 
 The deployed demo is synthetic-data-only with a visible notice, whatever the outcome of these

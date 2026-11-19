@@ -11,7 +11,13 @@ from llm_wire import FakeClock, Wire
 from llm_wire import settings as llm_settings
 
 from agent.llm.adapter import OpenAICompatibleModel
-from agent.llm.errors import AuthFailed, ModelError, ProviderUnavailable, QuotaExhausted
+from agent.llm.errors import (
+    AuthFailed,
+    ModelError,
+    ProviderUnavailable,
+    QuotaExhausted,
+    RateLimited,
+)
 from agent.llm.settings import ProviderChoice
 from agent.llm.types import Purpose
 
@@ -20,8 +26,10 @@ ALL = sorted(FIXTURES.rglob("*.json"))
 MESSAGES = [{"role": "user", "content": "Where is order ord_demo_1001?"}]
 # Error fixtures whose cause isn't in their kind: what each must classify as.
 ERRORS: dict[str, type[ModelError]] = {
-    "cerebras/gpt-oss-120b/error.json": QuotaExhausted,  # 402 payment required
-    "sambanova/gpt-oss-120b/error.json": AuthFailed,  # the configured key was refused
+    "sambanova/gemma-4-31B-it/error.json": QuotaExhausted,  # 402 payment method required
+    "sambanova/MiniMax-M3.1-Flash/error.json": QuotaExhausted,  # 402 payment method required
+    "sambanova/GLM-5.3/error.json": RateLimited,  # 429 "high demand", no quota marker
+    "sambanova/gpt-oss-120b/error.json": AuthFailed,  # the earlier key was refused
 }
 
 
@@ -102,3 +110,18 @@ async def test_cloudflares_number_pieces_are_a_provider_error_not_altered_text()
 
     with pytest.raises(ProviderUnavailable, match="non-text content"):
         await replay(fixture)
+
+
+@pytest.mark.parametrize("path", of_kind("tool_call"), ids=ids(of_kind("tool_call")))
+async def test_gemini_tool_calls_keep_their_thought_signature_others_carry_nothing(
+    path: Path,
+) -> None:
+    """Gemini refuses a second call without each call's signature (captured 400)."""
+    fixture = load(path)
+    call = (await replay(fixture)).tool_calls[0]
+
+    if fixture["provider"] == "gemini":
+        assert call.extra_content is not None
+        assert json.loads(call.extra_content)["google"]["thought_signature"]
+    else:
+        assert call.extra_content is None

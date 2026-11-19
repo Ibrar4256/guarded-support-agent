@@ -47,6 +47,10 @@ class ToolCall:
     id: str
     name: str
     arguments: str
+    # Opaque data the provider attached to this call and wants back with it in the next
+    # request, as JSON text (Gemini's ``extra_content`` carries its thought signature). Only
+    # ever sent back to the same provider: a turn never switches provider (ADR-023 Part 3).
+    extra_content: str | None = None
 
 
 @dataclass(frozen=True)

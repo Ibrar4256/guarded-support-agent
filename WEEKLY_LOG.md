@@ -1280,3 +1280,13 @@ hands back a lossy value, refusing beats repairing.
 **What's next:** the Gemini thought-signature decision; a SambaNova key; the record-and-replay
 runner; adversarial cases from this run (an injection-framed message got a full refund within
 policy).
+
+**Same day, Gemini (user's choice: carry provider data):** `ToolCall` gained an optional
+`extra_content` (JSON text): the assembler keeps what a provider attaches to a tool call, and the
+next assistant message sends it back unchanged. Gemini's second calls went from 400 to 200, and
+both Flash-Lite models now complete turns (~1.6K input tokens per two-call turn; 3.1 refused the
+injection, 3.5 proposed the full charge like Groq). 2 plants caught.
+
+**Same day, providers:** Cerebras dropped (host table, credential variable, fixtures). SambaNova
+accepts the replaced key, but every model now answers `402 PAYMENT_METHOD_REQUIRED` (balance 0),
+so it's out under S5 too; its captured 402s now pin the 402 → `QuotaExhausted` rule.
