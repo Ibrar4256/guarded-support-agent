@@ -1,7 +1,7 @@
 """Everything the worker process reads from its environment, validated together at startup."""
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Any
 
@@ -31,7 +31,7 @@ CONFIG_ERRORS: tuple[type[Exception], ...] = (
 
 @dataclass(frozen=True)
 class WorkerSettings:
-    db_url: str
+    db_url: str = field(repr=False)  # holds the runtime role's password
     pool_size: int
     # psycopg's ``prepare_threshold`` (ADR-005: a config value, because PgBouncer in
     # transaction mode breaks prepared statements). Empty: the driver's default.

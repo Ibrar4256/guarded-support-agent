@@ -34,6 +34,12 @@ class ContextTooLong(ModelError):
     pass
 
 
+class RequestTooLarge(ContextTooLong):
+    """A 413: more than the provider takes in one request at all (Groq: above its tokens a
+    minute). Waiting can't help and nothing was sent wrongly, so it's handled like a context
+    that's too long (no retry, no page), with its own outcome so it isn't mistaken for one."""
+
+
 class InputRejected(ModelError):
     """The provider's safety filter refused the input; driven by customer text, never a page."""
 
@@ -55,6 +61,7 @@ OUTCOMES: dict[type[ModelError], str] = {
     QuotaExhausted: "quota_exhausted",
     AuthFailed: "auth_failed",
     ContextTooLong: "context_too_long",
+    RequestTooLarge: "request_too_large",
     InputRejected: "input_rejected",
     InvalidRequest: "invalid_request",
 }

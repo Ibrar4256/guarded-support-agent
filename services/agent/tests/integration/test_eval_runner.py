@@ -17,7 +17,7 @@ from typing import Any
 import pytest
 import yaml
 from agent_testing.evals.cases import Case, load_suite
-from agent_testing.evals.databases import TEMPLATE, EvalDatabases
+from agent_testing.evals.databases import EvalDatabases
 from agent_testing.evals.invariant import timestamp_columns
 from agent_testing.evals.judges import check_args
 from agent_testing.evals.recording import Mode
@@ -35,6 +35,8 @@ MODEL = "groq:openai/gpt-oss-120b"
 ORDER = "ord_eval_1"
 BOUND = 120  # seconds for any one case run
 DELAY = 0.2  # the slow model's seconds per call
+# The model is a fake, so record mode needs no real key; never depend on the developer's .env.
+ENVIRON = {**os.environ, "GROQ_API_KEY": "fake-model-needs-no-key"}
 DELIVERED = {
     "id": ORDER,
     "charged_minor": 4000,
@@ -51,9 +53,10 @@ def databases() -> Iterator[EvalDatabases]:
     if not os.environ.get("POSTGRES_SUPERUSER"):
         pytest.fail("evals clone databases as the superuser: POSTGRES_SUPERUSER isn't set")
     found = EvalDatabases.from_env(os.environ)
-    found.create_template(os.environ)
-    yield found
-    found.drop(TEMPLATE)
+    with found.hold():
+        found.create_template(os.environ)
+        yield found
+        found.drop(found.template)
     assert found.clones() == [], "a case database was left behind"
 
 
@@ -144,7 +147,7 @@ async def run(
             case,
             1,
             config=config,
-            environ=os.environ,
+            environ=ENVIRON,
             databases=databases,
             recording_run="test",
             inner=inner,
@@ -223,7 +226,7 @@ async def test_negative_control_seeding_the_template_makes_the_second_run_collid
 
     class Shared:
         def __enter__(self) -> str:
-            return TEMPLATE
+            return databases.template
 
         def __exit__(self, *_: object) -> None:
             return None
@@ -242,7 +245,7 @@ def template_rows(databases: EvalDatabases) -> int:
     import psycopg
     from agent_testing.evals.databases import with_database
 
-    with psycopg.connect(with_database(databases.superuser_url, TEMPLATE)) as conn:
+    with psycopg.connect(with_database(databases.superuser_url, databases.template)) as conn:
         row = conn.execute(
             "SELECT (SELECT count(*) FROM runs) + (SELECT count(*) FROM customers)"
         ).fetchone()
@@ -388,7 +391,7 @@ async def test_a_case_recorded_here_replays_in_a_fresh_process(
         timeout=BOUND,
         check=False,
     )
-    databases.create_template(os.environ)  # the other process dropped it when it finished
+    assert databases.template in databases.eval_databases(), "the other runner dropped ours"
 
     assert done.returncode == 0, done.stdout + done.stderr
     assert "smoke: 1/1, 1/1" in done.stdout
@@ -557,7 +560,7 @@ def test_the_invariant_reads_every_timestamp_column_the_schema_declares(
         for column in table.columns
         if isinstance(column.type, DateTime)
     }
-    engine = create_engine(databases.owner(TEMPLATE))
+    engine = create_engine(databases.owner(databases.template))
     try:
         with engine.connect() as conn:
             found = {f"{t}.{c}" for t, c in timestamp_columns(conn)}

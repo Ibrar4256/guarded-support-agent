@@ -6,7 +6,7 @@ from profile import CLIENT_TIMEOUT_SECONDS, REFUND_API
 from typing import Any
 
 from conftest import E2E
-from harness import Postgres
+from harness import Postgres, RefundApi
 
 PRIVILEGES = """
 SELECT c.relname, p.privilege, has_table_privilege('agent_runtime', c.oid, p.privilege)
@@ -59,3 +59,20 @@ async def test_negative_control_without_the_reapplied_grants_anyone_may_connect(
     _, connect = await grants(e2e.postgres, bare)
     _, real = await grants(e2e.postgres, "agent")
     assert connect != real and (True, True) in connect, "PUBLIC can connect to the bare copy"
+
+
+def test_no_password_or_token_is_in_the_harness_reprs() -> None:
+    """A failing test prints its fixtures, and CI logs are public (found 2026-11-20 in the
+    agent's eval runner, which clones databases the same way)."""
+    postgres = Postgres(
+        superuser_url="postgresql://postgres:su-secret-1@localhost:5433/postgres",
+        agent_owner_url="postgresql://agent_owner:owner-secret-2@localhost:5433/agent",
+        agent_runtime_url="postgresql://agent_runtime:rt-secret-3@localhost:5433/agent",
+    )
+    refund_api = RefundApi(base_url="http://127.0.0.1:9", token="token-secret-4")
+
+    shown = repr(postgres) + repr(refund_api)
+
+    assert not [
+        s for s in ("su-secret-1", "owner-secret-2", "rt-secret-3", "token-secret-4") if s in shown
+    ]

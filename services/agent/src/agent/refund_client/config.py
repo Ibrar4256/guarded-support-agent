@@ -8,7 +8,7 @@ because then every retried refund would end in reconciliation.
 """
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 
 from agent.core.refund_outcome import RetryPolicy
@@ -31,7 +31,8 @@ class RefundClientConfigError(RuntimeError):
 @dataclass(frozen=True)
 class RefundClientSettings:
     base_url: str
-    token: str
+    # A secret: kept out of the repr, so a traceback or a test failure can't print it.
+    token: str = field(repr=False)
     policy: RetryPolicy
     max_provider_window: timedelta
     # ADR-016: refund-api's processing budget sizes the reconciler's quiet period, so a budget

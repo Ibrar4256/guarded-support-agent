@@ -20,6 +20,7 @@ from agent.llm.errors import (
     ProviderUnavailable,
     QuotaExhausted,
     RateLimited,
+    RequestTooLarge,
 )
 from agent.llm.providers import GENERIC_MARKERS, ErrorMarkers
 
@@ -50,6 +51,9 @@ def _classify_status(exc: openai.APIStatusError, markers: ErrorMarkers) -> Model
         # SambaNova was dropped). Stop using the provider; never something to retry or page
         # about (ADR-025 S5).
         return QuotaExhausted(message)
+    if status == 413:
+        # Content too large (captured from Groq: "Limit 8000, Requested 15648" tokens a minute).
+        return RequestTooLarge(message)
     if status == 429:
         if _matches(text, (*markers.quota, *GENERIC_MARKERS.quota)):
             return QuotaExhausted(message)

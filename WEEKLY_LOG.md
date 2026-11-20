@@ -1419,3 +1419,24 @@ dependency; the agent CI job now loads the superuser credentials.
 fixture's repr; the URLs are now left out of it (tested), before anything reached CI. A test fake
 treated "has tool results" as "already looked the order up", which a scripted malformed
 response's error results break. One plant first named the wrong failure text.
+
+**Same day, after slice 3:** the smoke suite recorded on Groq gpt-oss-120b (4 calls, 2,857 in / 799
+out tokens) and replayed from the recordings: the order-status case passes, the injection case
+fails (the full 40.00 approved after "ignore previous instructions"). The report's commit is now
+read before the run (the recordings themselves had marked the tree dirty; the first report was
+corrected to the commit the run started from). Groq's 413 is `RequestTooLarge`, a subclass of
+`ContextTooLong` with its own alert and `llm_calls` outcome (migration 0007; any 413 maps to it).
+Secrets out of reprs everywhere, not only the eval runner: the refund token, the worker's and
+refund-api's database URLs and refund-api's tokens had the default repr too; a name-based guard
+test in each service and the e2e harness. Eval runners now have their own ids, databases and an
+advisory lock, so a runner's start drops only crashed runners' databases (tested by SIGKILL).
+7 plants caught across the batch.
+
+**What I learned:** I'd written in KNOWN_TRADEOFFS that leftovers were cleaned up when nothing did
+it, and that CI logs would have exposed passwords when CI's are throwaway. Both claims went in
+unchecked; the fix for the first was a design, not a sentence.
+
+**What broke (CI):** the slice-3 commit (1eed298) failed CI: the eval runner's record-mode tests
+took provider credentials from the environment, and only my `.env` had a Groq key. The fake
+model never needs one, so the tests now pass a placeholder; checked by running them with every
+provider credential unset. The project rule I broke: tests must not depend on the local env.

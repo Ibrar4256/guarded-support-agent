@@ -9,6 +9,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 import pytest
+from conftest import run_alembic
 from sqlalchemy import Connection, Engine, delete, insert, select, text
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -150,3 +151,45 @@ def test_an_uncounted_failed_call_is_a_valid_row(runtime: Connection) -> None:
     )
 
     runtime.execute(insert(llm_calls).values(**failed.__dict__))
+
+
+def test_a_request_too_large_is_its_own_valid_outcome(runtime: Connection) -> None:
+    """Migration 0007: a provider's 413 isn't recorded as a context that's too long."""
+    refused = record(
+        outcome="request_too_large",
+        input_tokens=None,
+        output_tokens=None,
+        usage_completeness="none",
+        cost_usd=None,
+        price_version=None,
+        first_token_ms=None,
+    )
+
+    runtime.execute(insert(llm_calls).values(**refused.__dict__))
+
+
+def test_downgrading_0007_folds_request_too_large_into_context_too_long(
+    owner_engine: Engine, cleanup: list[uuid.UUID]
+) -> None:
+    refused = record(
+        outcome="request_too_large",
+        input_tokens=None,
+        output_tokens=None,
+        usage_completeness="none",
+        cost_usd=None,
+        price_version=None,
+        first_token_ms=None,
+    )
+    run = refused.run_id
+    assert run is not None
+    cleanup.append(run)
+    with owner_engine.begin() as owner:
+        owner.execute(insert(llm_calls).values(**refused.__dict__))
+
+    try:
+        down = run_alembic("downgrade", "0006")
+        assert down.returncode == 0, down.stderr
+        assert [r["outcome"] for r in rows(owner_engine, run)] == ["context_too_long"]
+    finally:
+        up = run_alembic("upgrade", "head")
+        assert up.returncode == 0, up.stderr

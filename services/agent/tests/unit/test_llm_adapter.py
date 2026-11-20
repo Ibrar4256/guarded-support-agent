@@ -33,6 +33,7 @@ from agent.llm.errors import (
     ProviderUnavailable,
     QuotaExhausted,
     RateLimited,
+    RequestTooLarge,
 )
 from agent.llm.types import FinishReason, ModelResponse, Purpose, UsageCompleteness
 
@@ -311,6 +312,9 @@ async def test_an_unknown_429_is_a_rate_limit_and_retried() -> None:
         (404, error_body("model not found"), InvalidRequest),
         (401, error_body("bad key"), AuthFailed),
         (403, error_body("forbidden"), AuthFailed),
+        # Any 413: more than the provider takes at all; its own class, never a page.
+        (413, error_body("Request too large", code="rate_limit_exceeded"), RequestTooLarge),
+        (413, {"weird": "shape"}, RequestTooLarge),
     ],
 )
 async def test_non_retryable_errors_are_classified_by_cause(

@@ -1,0 +1,29 @@
+{
+  "key": "160828df6ce86b936c77d20908a4321f947b7c12a71e5b3815c77d59707a7f5e",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "turn",
+  "fingerprint": "943bec0a06a80ba18f99dec0684eb47f147ea25e4d6c682a9e9054e7fd0a518c",
+  "run_index": 1,
+  "case_id": "smoke/order_status",
+  "recording_run": "232c11e92353",
+  "recorded_on": "2026-11-20",
+  "response": {
+    "text": "Your order **ord_demo_1001** is currently **shipped**. It’s on its way, but it looks like it hasn’t arrived yet. Let me know if you’d like me to check the expected delivery date or start a refund request.",
+    "tool_calls": [],
+    "finish_reason": "stop",
+    "usage": {
+      "input_tokens": 715,
+      "output_tokens": 163
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1139,
+    "output_chars": 204,
+    "first_token_seconds": 0.7791955060001783,
+    "latency_seconds": 1.0483886459996938
+  }
+}

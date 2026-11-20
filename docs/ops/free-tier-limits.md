@@ -101,7 +101,8 @@ day, synthetic data: inputs for sizing budgets, **not** quality or safety result
 - **Groq refuses a request above 8K tokens a minute with a 413** (captured 2026-11-20, `--kind
   too_large`, 16,031 bytes): "Limit 8000, Requested 15648", `retry-after: 58`, and the
   remaining-tokens header still 8000, so the refusal used no quota. Groq's "Requested" likely
-  includes the 1,024-token output cap.
+  includes the 1,024-token output cap. Any 413 is `RequestTooLarge` (try again, alert, never a
+  page).
 
 ## Data terms (ADR-025 S11)
 

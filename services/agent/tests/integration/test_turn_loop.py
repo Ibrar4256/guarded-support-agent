@@ -23,7 +23,7 @@ from agent.core.lifecycle import RunStatus
 from agent.core.replies import ReplyTemplate
 from agent.db import order_lookup as order_lookup_db
 from agent.db.clock import DATABASE_CLOCK
-from agent.llm.errors import ContextTooLong, InputRejected, ProviderUnavailable
+from agent.llm.errors import ContextTooLong, InputRejected, ProviderUnavailable, RequestTooLarge
 from agent.llm.recording import CallRecord
 from agent.llm.types import (
     ChatModel,
@@ -267,6 +267,11 @@ async def test_a_provider_failure_leaves_the_run_waiting_with_try_again(
             ContextTooLong("too long"),
             {"template": "try_again", "cause": "provider"},
             loop.CONTEXT_TOO_LONG_ALERT,
+        ),
+        (
+            RequestTooLarge("413: Request too large"),
+            {"template": "try_again", "cause": "provider"},
+            loop.REQUEST_TOO_LARGE_ALERT,
         ),
     ],
 )

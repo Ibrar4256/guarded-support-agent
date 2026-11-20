@@ -172,9 +172,10 @@ async def run_to_completion(
 
 @dataclass(frozen=True)
 class Postgres:
-    superuser_url: str  # libpq, database "postgres"
-    agent_owner_url: str  # libpq, database "agent"
-    agent_runtime_url: str
+    # Each URL holds a password, so none is in the repr (a failing test prints its fixtures).
+    superuser_url: str = field(repr=False)  # libpq, database "postgres"
+    agent_owner_url: str = field(repr=False)  # libpq, database "agent"
+    agent_runtime_url: str = field(repr=False)
 
     def superuser(self, database: str = "postgres") -> str:
         return with_database(self.superuser_url, database)
@@ -248,7 +249,7 @@ class Postgres:
 @dataclass
 class RefundApi:
     base_url: str
-    token: str
+    token: str = field(repr=False)
 
     def client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(

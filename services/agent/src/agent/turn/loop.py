@@ -31,7 +31,7 @@ from agent.core import escalations
 from agent.core.replies import ReplyTemplate
 from agent.db.clock import Clock
 from agent.db.order_lookup import was_looked_up
-from agent.llm.errors import ContextTooLong, InputRejected, ModelError
+from agent.llm.errors import ContextTooLong, InputRejected, ModelError, RequestTooLarge
 from agent.llm.types import ChatModel, FinishReason, ModelResponse, Purpose, ToolCall
 from agent.tools.contract import ToolArgs, ToolContext, canonical
 from agent.turn.finish import TryAgainCause
@@ -50,6 +50,7 @@ from agent.turn.tools import (
 logger = logging.getLogger(__name__)
 
 CONTEXT_TOO_LONG_ALERT = "turn_context_too_long"
+REQUEST_TOO_LARGE_ALERT = "turn_request_too_large"
 INPUT_REJECTED_ALERT = "turn_input_rejected"
 EMPTY_REPLY_NOTE = (
     "[automated] Your last response was empty. Reply to the customer, or call a tool."
@@ -108,6 +109,8 @@ def outcome_for(error: ModelError) -> Wait:
     """ADR-023 S1a. ``InvalidRequest`` pages through the provider pool; here it's a try-again."""
     if isinstance(error, InputRejected):
         return Wait(ReplyTemplate.REPHRASE, None, INPUT_REJECTED_ALERT)
+    if isinstance(error, RequestTooLarge):
+        return Wait(ReplyTemplate.TRY_AGAIN, TryAgainCause.PROVIDER, REQUEST_TOO_LARGE_ALERT)
     if isinstance(error, ContextTooLong):
         return Wait(ReplyTemplate.TRY_AGAIN, TryAgainCause.PROVIDER, CONTEXT_TOO_LONG_ALERT)
     return PROVIDER_FAILURE

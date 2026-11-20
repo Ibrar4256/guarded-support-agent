@@ -21,7 +21,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from agent_testing.evals.cases import load_suite
-from agent_testing.evals.databases import TEMPLATE, EvalDatabases
+from agent_testing.evals.databases import EvalDatabases
 from agent_testing.evals.judges import check_args
 from agent_testing.evals.recording import Mode, refuse_production
 from agent_testing.evals.report import render, report_path, summarize
@@ -58,23 +58,25 @@ def main(argv: Sequence[str], environ: Mapping[str, str]) -> int:
     for case in cases:
         check_args(case)
     databases = EvalDatabases.from_env(environ)
-    for leftover in databases.clones():  # a crashed run's; one runner at a time is assumed
-        databases.drop(leftover)
-    databases.create_template(environ)
     recording_run = uuid.uuid4().hex[:12]
-    try:
-        results = asyncio.run(
-            run_suite(
-                cases,
-                config=config,
-                environ=environ,
-                databases=databases,
-                recording_run=recording_run,
+    # Read before the run: a recording run's own files would mark the tree dirty afterwards.
+    commit = commit_sha()
+    with databases.hold():
+        databases.drop_abandoned()  # crashed runners' databases; live ones hold their lock
+        databases.create_template(environ)
+        try:
+            results = asyncio.run(
+                run_suite(
+                    cases,
+                    config=config,
+                    environ=environ,
+                    databases=databases,
+                    recording_run=recording_run,
+                )
             )
-        )
-    finally:
-        databases.drop(TEMPLATE)
-    summary = summarize(results, config=config, commit=commit_sha())
+        finally:
+            databases.drop(databases.template)
+    summary = summarize(results, config=config, commit=commit)
     print(render(summary))
     if config.mode is Mode.RECORD:
         path = report_path(EVALS / "reports", summary, recording_run)

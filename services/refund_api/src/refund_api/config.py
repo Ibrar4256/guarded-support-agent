@@ -9,7 +9,7 @@ Guards (the service refuses to start if any fails):
 """
 
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 
 MIN_TOKEN_LENGTH = 32
@@ -33,8 +33,9 @@ class ConfigError(RuntimeError):
 
 @dataclass(frozen=True)
 class Settings:
-    database_url: str
-    tokens: tuple[str, ...]
+    # Secrets, kept out of the repr so a traceback or a test failure can't print them.
+    database_url: str = field(repr=False)
+    tokens: tuple[str, ...] = field(repr=False)
     processing_budget: timedelta
     key_retention: timedelta
     max_retry_window: timedelta
