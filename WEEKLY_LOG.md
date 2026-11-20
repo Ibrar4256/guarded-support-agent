@@ -1391,3 +1391,11 @@ summary chunks with a per-conversation content-failure count; a window capped in
 channel and nothing else (pinned); OpenRouter's shared free pool refused the full ceiling
 capture (429), so ERNIE was measured on a smaller payload.
 
+**Follow-ups (2026-11-20):** settings refuse any OpenRouter model id without `:free` (a provider
+table field, so the capture and smoke tools are covered too); a `too_large` capture pinned Groq's
+413 for a request above its 8K tokens a minute ("Limit 8000, Requested 15648"), which today
+classifies as `InvalidRequest` and pages; reclassifying it is its own decision. The capture tool
+now also redacts account ids an error names (Groq's body names the organization). 5 plants
+caught; one first named the wrong failure text (the strict fake server's "unexpected request",
+the right failure, not "did not raise").
+

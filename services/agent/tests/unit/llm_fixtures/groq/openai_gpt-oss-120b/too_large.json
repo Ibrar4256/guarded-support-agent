@@ -1,0 +1,29 @@
+{
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "kind": "too_large",
+  "source": "captured",
+  "captured_on": "2026-11-20",
+  "response": {
+    "status": 413,
+    "content_type": "application/json",
+    "headers": {
+      "retry-after": "58",
+      "x-ratelimit-limit-requests": "1000",
+      "x-ratelimit-limit-tokens": "8000",
+      "x-ratelimit-remaining-requests": "1000",
+      "x-ratelimit-remaining-tokens": "8000",
+      "x-ratelimit-reset-requests": "1ms",
+      "x-ratelimit-reset-tokens": "1ms"
+    },
+    "body": "{\"error\":{\"message\":\"Request too large for model `openai/gpt-oss-120b` in organization `<redacted>` service tier `on_demand` on tokens per minute (TPM): Limit 8000, Requested 15648, please reduce your message size and try again. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing\",\"type\":\"tokens\",\"code\":\"rate_limit_exceeded\"}}\n"
+  },
+  "adapter": {
+    "error": "InvalidRequest"
+  },
+  "request": {
+    "messages": 1,
+    "chars": 4031,
+    "bytes": 16031
+  }
+}

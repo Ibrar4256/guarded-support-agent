@@ -1,7 +1,7 @@
 """``python -m agent_testing.capture``: real provider responses saved as fixtures (ADR-025 S4, S5).
 
     python -m agent_testing.capture --model groq:openai/gpt-oss-120b [--model ...] \\
-        --kind tool_call|auth|system_note|byte_ceiling --out tests/unit/llm_fixtures
+        --kind tool_call|auth|system_note|byte_ceiling|too_large --out tests/unit/llm_fixtures
 
 - ``tool_call``: one turn request (the real system prompt and turn tools, a synthetic customer
   asking about an order). The fixture's kind is what came back: ``tool_call``, or ``text`` when
@@ -13,6 +13,8 @@
 - ``byte_ceiling``: one customer message of 4-byte characters (no system prompt, no tools), to
   check ADR-028's ceiling of one token per UTF-8 byte against the provider's own count. The
   fixture records the request's content size in characters and bytes.
+- ``too_large``: the same message four times longer (~14K tokens), above Groq's 8K tokens a
+  minute, to pin the provider's "request too large" body (ADR-028, Consequences).
 
 One attempt per request (no retries), so the fixture is exactly one response. Only synthetic
 data is sent (S11). Refuses ``APP_ENV=production``. Never writes a key: the request isn't
@@ -47,9 +49,9 @@ from agent_testing.env import credentials, example_llm_env
 MESSAGE = "Hi, can you check on my order ord_demo_1001? It still hasn't arrived."
 INVALID_KEY = "invalid-key-for-fixture-capture"
 DEADLINE_SECONDS = 60
-KINDS = ("tool_call", "auth", "system_note", "byte_ceiling")
+KINDS = ("tool_call", "auth", "system_note", "byte_ceiling", "too_large")
 # Kinds named by what was sent, not by what came back.
-REQUEST_KINDS = ("system_note", "byte_ceiling")
+REQUEST_KINDS = ("system_note", "byte_ceiling", "too_large")
 SYSTEM_NOTE = (
     "Your last response was not run: unknown tool 'lookup_orders'. Nothing in it ran. "
     "Use only the tools offered."
@@ -59,6 +61,7 @@ CEILING_INSTRUCTION = "Reply with the single word OK. "
 # characters. Common ones may be single tokens; rare ones fall back to bytes (the worst case).
 CEILING_STARTS = (0x1F600, 0x20000, 0xF0000, 0xE0041)
 CEILING_PER_KIND = 250
+TOO_LARGE_PER_KIND = 4 * CEILING_PER_KIND
 
 
 def ceiling_payload(per_kind: int = CEILING_PER_KIND) -> str:
@@ -70,6 +73,8 @@ DROPPED_HEADERS = {"content-encoding", "content-length", "transfer-encoding", "s
 KEPT_HEADER = re.compile(r"(x-)?ratelimit-.*|retry-after", re.IGNORECASE)
 # A key echoed back masked, e.g. "Incorrect API key provided: ab12cd*****9f0e".
 MASKED_KEY = re.compile(r"[A-Za-z0-9_-]{2,}\*{3,}[A-Za-z0-9_-]{2,}")
+# An account id a provider names in an error, e.g. Groq's "in organization `org_01h...`".
+ACCOUNT_ID = re.compile(r"\borg_[A-Za-z0-9]{6,}")
 REDACTED = "<redacted>"
 
 
@@ -120,8 +125,9 @@ def request_for(
     kind: str, ceiling_per_kind: int = CEILING_PER_KIND
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """The messages and tools sent for ``kind``."""
-    if kind == "byte_ceiling":
-        content = CEILING_INSTRUCTION + ceiling_payload(ceiling_per_kind)
+    if kind in ("byte_ceiling", "too_large"):
+        per_kind = TOO_LARGE_PER_KIND if kind == "too_large" else ceiling_per_kind
+        content = CEILING_INSTRUCTION + ceiling_payload(per_kind)
         return [{"role": "user", "content": content}], []
     messages = turn_request()
     if kind == "system_note":
@@ -172,7 +178,7 @@ async def capture(
         raise CaptureRefused(f"expected one response, got {len(recorder.captured)}")
     got = recorder.captured[0]
     secrets = [value for value in credentials(environ).values() if len(value) >= 8]
-    facts = {"request": content_size(messages)} if kind == "byte_ceiling" else {}
+    facts = {"request": content_size(messages)} if kind in ("byte_ceiling", "too_large") else {}
     return {
         "provider": choice.provider,
         "model": choice.model,
@@ -191,10 +197,11 @@ async def capture(
 
 
 def redact(text: str, secrets: Sequence[str]) -> str:
-    """Providers may echo a key, masked or whole, in an auth error; neither is written."""
+    """Providers may echo a key, masked or whole, in an auth error, or name the account in a
+    limit error; none of them is written."""
     for secret in secrets:
         text = text.replace(secret, REDACTED)
-    return MASKED_KEY.sub(REDACTED, text)
+    return ACCOUNT_ID.sub(REDACTED, MASKED_KEY.sub(REDACTED, text))
 
 
 def fixture_kind(requested: str, response: ModelResponse | None) -> str:

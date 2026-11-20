@@ -127,6 +127,11 @@ def _choice(environ: Mapping[str, str], list_name: str, entry: str) -> ProviderC
         raise error(f"{list_name}: unknown provider {provider_name!r}; expected one of: {known}")
     if provider.local_only and is_production(environ):
         raise error(f"{list_name}: {provider_name} is for local use only, refused in production")
+    if provider.model_suffix is not None and not model.endswith(provider.model_suffix):
+        raise error(
+            f"{list_name}: {provider_name} models must end with {provider.model_suffix!r}; "
+            f"{model!r} is a paid model, and {provider_name} bills it even at a zero balance"
+        )
     api_key = NO_KEY
     if provider.key_var is not None:
         api_key = _credential(environ, provider.key_var, provider_name)

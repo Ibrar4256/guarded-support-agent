@@ -96,7 +96,12 @@ day, synthetic data: inputs for sizing budgets, **not** quality or safety result
 - **OpenRouter bills a paid model even at a $0 balance** (2026-11-19): one capture call to
   `openai/gpt-oss-120b` (not `:free`) was served by Amazon Bedrock and billed $0.0001233; the
   account's `total_credits` stayed 0 and `total_usage` became 0.0001233, so the balance is
-  negative. Use only `:free` model ids; never call a paid id to test a refusal.
+  negative. Settings now refuse any OpenRouter id without `:free` (the capture and smoke tools
+  load the same settings); never call a paid id to test a refusal.
+- **Groq refuses a request above 8K tokens a minute with a 413** (captured 2026-11-20, `--kind
+  too_large`, 16,031 bytes): "Limit 8000, Requested 15648", `retry-after: 58`, and the
+  remaining-tokens header still 8000, so the refusal used no quota. Groq's "Requested" likely
+  includes the 1,024-token output cap.
 
 ## Data terms (ADR-025 S11)
 

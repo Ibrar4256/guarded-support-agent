@@ -13,6 +13,7 @@ from llm_wire import settings as llm_settings
 from agent.llm.adapter import OpenAICompatibleModel
 from agent.llm.errors import (
     AuthFailed,
+    InvalidRequest,
     ModelError,
     ProviderUnavailable,
     QuotaExhausted,
@@ -203,3 +204,18 @@ async def test_input_tokens_stay_under_one_per_utf8_byte(path: Path) -> None:
     assert usage.input_tokens <= sent["bytes"]
     # More than one token per character: 3 characters per token undercounts by over 3 times.
     assert usage.input_tokens > sent["chars"]
+
+
+async def test_groqs_request_too_large_is_a_413_classified_as_invalid_request_today() -> None:
+    """Captured 2026-11-20: a request above Groq's 8K tokens a minute is a 413 that names both
+    numbers; waiting can't help it. Today it falls to InvalidRequest (a page). Classifying it
+    is a separate decision under ADR-023's one-provider-per-turn rule (KNOWN_TRADEOFFS); this
+    pins what the adapter does now, so that change shows up here."""
+    fixture = load(FIXTURES / "groq/openai_gpt-oss-120b/too_large.json")
+    body = json.loads(fixture["response"]["body"])["error"]
+
+    assert fixture["response"]["status"] == 413
+    assert (body["type"], body["code"]) == ("tokens", "rate_limit_exceeded")
+    assert "Limit 8000, Requested" in body["message"]
+    with pytest.raises(InvalidRequest):
+        await replay(fixture)

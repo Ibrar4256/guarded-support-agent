@@ -76,6 +76,8 @@ class Provider:
     url_from: Callable[[str], str] | None = None
     local_only: bool = False  # refused with APP_ENV=production
     markers: ErrorMarkers = field(default_factory=ErrorMarkers)
+    # Every model id must end with this: the provider's free tier (ADR-025 S5's zero spend).
+    model_suffix: str | None = None
 
 
 PROVIDERS: dict[str, Provider] = {
@@ -96,7 +98,13 @@ PROVIDERS: dict[str, Provider] = {
             url_var="CLOUDFLARE_ACCOUNT_ID",
             url_from=cloudflare_url,
         ),
-        Provider("openrouter", "https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
+        Provider(
+            "openrouter",
+            "https://openrouter.ai/api/v1",
+            "OPENROUTER_API_KEY",
+            # Measured 2026-11-19: a paid id is served and billed even at a $0 balance (no 402).
+            model_suffix=":free",
+        ),
         Provider(
             "ollama",
             None,

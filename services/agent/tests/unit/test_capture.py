@@ -20,6 +20,7 @@ from agent_testing.capture import (
 from llm_wire import error_body
 from test_tool_call_proofs import TEXT_BODY, TOOL_CALL_BODY, problem_with
 
+from agent.llm.settings import LLMSettingsError
 from agent.llm.verified import ToolCallProof
 
 KEY = "groq-secret-key-do-not-write"
@@ -155,6 +156,29 @@ async def test_a_smaller_byte_ceiling_payload_is_recorded_as_sent() -> None:
     content = sent(server)["messages"][0]["content"]
     assert len(content.encode()) - len(content) == 3 * 400  # 400 four-byte characters
     assert fixture["request"]["bytes"] == len(content.encode())
+
+
+async def test_an_account_id_named_in_an_error_is_redacted() -> None:
+    message = "Request too large in organization `org_01abcdefgh` on tokens per minute"
+    server = Server(httpx2.Response(413, json=error_body(message, code="rate_limit_exceeded")))
+    fixture = await run(server, kind="too_large")
+
+    assert "org_01abcdefgh" not in fixture["response"]["body"]
+    assert "organization `<redacted>`" in fixture["response"]["body"]
+    assert fixture["kind"] == "too_large" and fixture["request"]["bytes"] > 16_000
+
+
+async def test_a_paid_openrouter_model_is_refused_before_any_request() -> None:
+    server = Server()  # strict: any request fails the test
+
+    with pytest.raises(LLMSettingsError, match="must end with ':free'"):
+        await capture(
+            {"OPENROUTER_API_KEY": "k"},
+            "openrouter:openai/gpt-oss-120b",
+            "byte_ceiling",
+            transport=server.transport(),
+        )
+    assert server.requests == []
 
 
 async def test_one_request_only_even_for_a_retryable_error() -> None:

@@ -465,10 +465,12 @@ lives in `WEEKLY_LOG.md`.
   test fixtures that insert escalated runs directly use the same value. The reason is internal
   (operators, eval judges): no endpoint exposes it yet, and the chat API must not show it to the
   customer (ADR-009 non-disclosure).
-- **Groq's "request too large" isn't classified.** Groq refuses a request above its 8K tokens a
-  minute; no fixture pins the body, so it would fall to `InvalidRequest` (a page) rather than a
-  reply that moves the next turn to another provider. A long window can reach 8K even today.
-  Capture the body and classify it under ADR-023's rules (ADR-028, Consequences).
+- **Groq's "request too large" pages.** Groq refuses a request above its 8K tokens a minute with
+  a 413 (`type: tokens`, `code: rate_limit_exceeded`, "Limit 8000, Requested 15648"; captured
+  2026-11-20 and pinned), which classifies as `InvalidRequest` (a page) rather than a reply that
+  moves the next turn to another provider; waiting can't help it. A long window can reach 8K
+  even today. Its classification is a separate decision under ADR-023's one-provider-per-turn
+  rule (ADR-028, Consequences).
 - **Cloudflare's gpt-oss-20b answered a mid-conversation system note with its tool call in the
   reasoning channel** (no call, no text, k=1, pinned). The loop treats that as an empty reply;
   the adapter doesn't read calls out of reasoning.
@@ -495,11 +497,11 @@ lives in `WEEKLY_LOG.md`.
   `tests/unit/llm_fixtures_retired/` and replayed under its former host-table entry. No provider
   we use has answered 402 yet, so its body shape isn't pinned for any of them; the rule is by
   status, so any 402 classifies the same.
-- **Nothing in code keeps OpenRouter on `:free` models.** A paid model on the $0 free-tier
+- **OpenRouter's zero spend rests on a model-id suffix.** A paid model on the $0 free-tier
   account is served and billed, taking the balance negative (measured 2026-11-19: one capture
-  call, $0.0001233). ADR-025 S5's guard is the setup runbook plus the 402 classification, and
-  OpenRouter didn't answer 402. A settings check refusing OpenRouter models without `:free`
-  (and the same in the capture and smoke tools) would close it.
+  call, $0.0001233), so settings refuse any OpenRouter id without `:free` (the capture and smoke
+  tools load the same settings). It trusts OpenRouter's naming: a `:free` id that started
+  billing wouldn't be caught, and the account's balance isn't checked.
 - **OpenRouter's free models share an upstream pool**: 429s with `limit_source:
   upstream_provider_shared_pool` come at any volume (rate limits, retried), on top of the
   account's 50 requests a day. Fine for comparisons, too thin for a demo primary.

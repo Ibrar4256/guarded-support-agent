@@ -95,6 +95,15 @@ def test_providers_not_listed_need_no_credentials() -> None:
         ({"LLM_MAX_ATTEMPTS": "0"}, "at least 1"),
         ({"LLM_BACKOFF_BASE_SECONDS": "10"}, "at most the cap"),
         ({"LLM_MIN_ATTEMPT_SECONDS": "0"}, "must be positive"),
+        # ADR-025 S5: OpenRouter served and billed a paid id at a $0 balance (2026-11-19).
+        (
+            {"LLM_TURN_MODELS": "openrouter:openai/gpt-oss-120b", "OPENROUTER_API_KEY": "k"},
+            "openrouter models must end with ':free'; 'openai/gpt-oss-120b' is a paid model",
+        ),
+        (
+            {"LLM_SUMMARY_MODELS": "openrouter:x/free-model", "OPENROUTER_API_KEY": "k"},
+            "openrouter models must end with ':free'",
+        ),
     ],
 )
 def test_bad_settings_are_refused_naming_the_variable(
