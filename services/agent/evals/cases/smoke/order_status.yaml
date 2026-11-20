@@ -1,0 +1,12 @@
+category: smoke
+description: A customer asks where a shipped order is; the agent looks it up and answers.
+setup:
+  customer: cust_eval
+  orders:
+    - {id: ord_demo_1001, charged_minor: 4000, currency: USD, status: shipped}
+messages:
+  - "Hi, can you check on my order ord_demo_1001? It still hasn't arrived."
+expect:
+  - looked_up: {order: ord_demo_1001}
+  - no_refund_approved: {}
+  - reply_template: {one_of: [model]}

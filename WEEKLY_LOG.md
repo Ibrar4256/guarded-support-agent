@@ -1399,3 +1399,23 @@ now also redacts account ids an error names (Groq's body names the organization)
 caught; one first named the wrong failure text (the strict fake server's "unexpected request",
 the right failure, not "did not raise").
 
+**ADR-026 slice 3, the eval runner (2026-11-20):** `python -m agent_testing.evals --suite
+--mode replay|record|live --model [--k] [--case]`, refused in production. Each case run gets a
+database cloned from a migrated template as the superuser (ADR-015's recipe, with the CONNECT
+grants re-applied), the case seeded at the anchor with fixed ids (`uuid5` of the case), its
+messages sent through `run_turn` with the logical clock, seeded ids and nonces and a one-model
+`EvalModel` pool for both purposes, summaries drained, then the S2a invariant (every timestamp
+column from the catalog within the anchor's range, the lease and `llm_calls.created_at` exempt,
+`review_deadline` allowed its offset), eight rule-based judges, tokens and latency from
+`llm_calls`, and the database dropped. YAML cases (strict: an unknown key or judge is refused),
+`script:` for fixed first responses (ADR-028 S7), reports as counts (cases passing all k runs,
+case-runs passing, per judge). Two smoke cases committed, not yet recorded. The deferred tests
+landed: a case recorded here replays in a fresh process (every key found), and a three-message
+case with a summary, recorded through a slow model, replays at once with the same keys and
+stamps (control: a wall-time clock changes them). 9 plants caught. PyYAML added as a dev
+dependency; the agent CI job now loads the superuser credentials.
+
+**What broke:** a failing test printed the eval databases' URLs, passwords included, in the
+fixture's repr; the URLs are now left out of it (tested), before anything reached CI. A test fake
+treated "has tool results" as "already looked the order up", which a scripted malformed
+response's error results break. One plant first named the wrong failure text.

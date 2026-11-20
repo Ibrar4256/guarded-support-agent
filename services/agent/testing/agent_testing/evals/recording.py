@@ -11,6 +11,10 @@ Nothing is normalized out of the messages: a changed prompt must miss.
 - ``record``: calls the model and writes one file per key.
 - ``live``: calls the model and stores nothing (the drift check).
 
+A case's ``script`` (ADR-028 S7) answers its first turn calls in every mode: a fixed response,
+for example a malformed one, that no model wrote, so it has no key and is never recorded; the
+model's own calls start after it, with the scripted response in their messages.
+
 In every mode an outgoing message containing the real current date fails the call
 (``RealDateLeak``): every date a prompt shows must come from the eval clock (ADR-026 S2). A
 call that raises is never recorded: a rate limit or an outage isn't the model's answer.
@@ -190,6 +194,7 @@ class EvalModel:
         run: CaseRun,
         anchor: datetime = ANCHOR,
         today: Callable[[], set[str]] = real_dates,
+        script: Sequence[ModelResponse] = (),
     ) -> None:
         self._inner = inner
         self._mode = mode
@@ -202,6 +207,8 @@ class EvalModel:
         self._run = run
         self._anchor = anchor.isoformat()
         self._today = today
+        self._script = list(script)
+        self.scripted = 0  # scripted responses used so far
         self.keys: list[str] = []  # every key this run asked for, in order
 
     async def complete(
@@ -214,6 +221,9 @@ class EvalModel:
         on_text: OnText | None = None,
     ) -> ModelResponse:
         self._refuse_real_dates(messages)
+        if purpose is Purpose.TURN and self.scripted < len(self._script):
+            self.scripted += 1
+            return self._script[self.scripted - 1]
         fingerprint = self._fingerprints[purpose]
         key = recording_key(
             provider=self._provider,

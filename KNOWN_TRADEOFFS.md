@@ -578,3 +578,24 @@ lives in `WEEKLY_LOG.md`.
   webhooks) are not modeled.
 - **Free-tier models.** Results reflect open models on Groq/Gemini free tiers; tool-calling
   reliability differs from frontier models.
+
+## Eval runner (ADR-026, slice 3)
+
+- **Case runs are sequential.** One cloned database at a time; a suite of 30 cases at k=3 is 90
+  clones (clone plus drop measured at 0.13-0.38 s locally, the template build 0.75 s) plus every
+  model call. Parallel runs
+  would fit the design (each run has its own database) but would race free-tier rate limits.
+- **The template is rebuilt on every runner start** (drop, create, migrate; under a second), so
+  it's always the current schema, and the start drops any case databases a crashed run left.
+  That assumes one runner at a time on a database server: a second runner would drop the
+  first one's live case databases.
+- **Judges read the database and the turn ids, nothing else.** `reply_excludes` checks only text
+  the model wrote (template replies are fixed); `no_model_call_after` checks later messages on
+  the same run, since a call after a proposal within a turn can't happen in the loop's code.
+  An LLM judge (EVAL_PLAN categories 7-8) is a later decision.
+- **Scripted responses have no usage**: they're recorded in `llm_calls` (`usage_completeness:
+  none`) like any call, so a scripted case's call count includes them; token totals don't.
+- **Replay loads the model settings with placeholder credentials**: the settings refuse a
+  listed provider without them, and replay never makes a request (its inner model raises).
+- **The two smoke cases aren't recorded yet**, so `--mode replay` on them fails with the keys
+  it's missing; recording them spends free-tier quota and waits for a go-ahead.

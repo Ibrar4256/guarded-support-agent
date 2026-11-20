@@ -40,8 +40,8 @@ jobs:
           scripts/ci/write_test_env.sh
           docker compose up -d --wait postgres
 
-      - name: Load test database settings
-        run: grep -E '^(AGENT|REFUND)_DB_.*_URL=' .env >> "$GITHUB_ENV"
+      - name: Load test database settings (the superuser clones eval databases, ADR-026)
+        run: grep -E '^((AGENT|REFUND)_DB_.*_URL|POSTGRES_SUPERUSER(_PASSWORD)?)=' .env >> "$GITHUB_ENV"
 
       - name: Checks
         run: scripts/ci/service_checks.sh ${{ matrix.service }}
