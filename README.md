@@ -69,6 +69,10 @@ tools.
 | [021](docs/adr/021-refund-api-floor-and-demo-seed-split.md) | refund-api's key-retention floor set on every deployment by its own command and checked at startup; demo charges only on a demo |
 | [022](docs/adr/022-agent-turn.md) | The agent turn: the conversation lives in the event log and tool results are never replayed; call, malformed and time budgets; a provider failure means "try again", not escalation; untrusted text in a per-turn nonce fence; a proposal on an order not looked up in this run is sent back before policy |
 | [023](docs/adr/023-llm-provider-adapter.md) | The LLM adapter: `AsyncOpenAI` against OpenAI-compatible endpoints, always streaming, retries only inside the caller's deadline and never after text was shown, errors classified by cause so a customer's message can't page anyone, an optional fallback chosen per turn, and every call recorded with tokens and list-price cost |
+| [024](docs/adr/024-customer-lock-mode.md) | The customer lock is `FOR NO KEY UPDATE`, taken through one shared helper: limit checks on one customer still exclude each other, and foreign-key checks no longer wait on it |
+| [025](docs/adr/025-providers-models-and-eval-budget.md) | Free-tier providers behind one OpenAI-compatible adapter, an ordered model list per purpose with startup checks, record-and-replay evals and a token budget that protects the demo |
+| [026](docs/adr/026-eval-runner.md) | The eval runner: a fresh database per case, a logical clock at a fixed past anchor so recordings replay any day, one recording per key, YAML cases judged by rules on database state |
+| [028](docs/adr/028-turn-read-calls-and-summary-input-caps.md) | A context bound that holds: one token per UTF-8 byte as a ceiling checked per model, a per-turn read budget, one fixed-size note instead of echoing a malformed response, summary chunks |
 
 Every ADR records the rejected options and when each would have been the better choice.
 
