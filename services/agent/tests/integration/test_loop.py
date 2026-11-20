@@ -14,6 +14,7 @@ from worker_harness import TIMINGS, Harness, only
 from worker_world import World
 
 from agent.alerts import Severity
+from agent.core import escalations
 from agent.core.lifecycle import RefundOutcome, RunStatus
 from agent.core.policy import PresendInputs, PresendOutcome, RefundProposal, evaluate_presend
 from agent.core.refund_outcome import HttpResult, RetryPolicy
@@ -185,6 +186,7 @@ async def test_at_the_streak_limit_an_unsent_run_escalates(
     assert await process(h) is Ended.ESCALATED
     row = world.row(run)
     assert (row.status, row.refund_outcome) == (RunStatus.ESCALATED, RefundOutcome.NONE)
+    assert row.escalation_reason == escalations.RELEASE_STREAK
     assert only(world.events(run), "customer event").payload == {
         "template": ReplyTemplate.NEEDS_PERSON
     }

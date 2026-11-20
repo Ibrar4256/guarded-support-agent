@@ -38,6 +38,10 @@ class PresendOutcome(IntEnum):
     FAIL_CLOSED = 3
 
 
+# How a rule that raised is labelled in the decision log (and read by agent.core.escalations).
+FAIL_CLOSED_LABEL = "FAIL_CLOSED:"
+
+
 class RuleId(StrEnum):
     R01_AMOUNT_POSITIVE = "R01_AMOUNT_POSITIVE"
     R02_ORDER_PROVENANCE = "R02_ORDER_PROVENANCE"
@@ -201,7 +205,7 @@ class Fired:
     @property
     def label(self) -> str:
         """Decision-log label; a rule that raised is logged as FAIL_CLOSED:<rule>."""
-        return f"FAIL_CLOSED:{self.rule_id}" if self.error is not None else str(self.rule_id)
+        return f"{FAIL_CLOSED_LABEL}{self.rule_id}" if self.error is not None else str(self.rule_id)
 
 
 @dataclass(frozen=True, slots=True)

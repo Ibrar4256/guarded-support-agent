@@ -14,6 +14,7 @@ refund-api-type lookup failure) still gets the cooldown, so the run isn't reclai
 
 from enum import StrEnum
 
+from agent.core import escalations
 from agent.core.lifecycle import RunStatus
 from agent.db import claims
 from agent.db import presend as presend_db
@@ -41,7 +42,9 @@ async def release_with_cooldown(
             return Released.LOST
         at_limit = count_streak and held.release_streak + 1 >= ctx.timings.release_streak_limit
         if at_limit and held.status is RunStatus.APPROVED:
-            if not await presend_db.escalate_unsent(conn, claim, held.conversation_id):
+            if not await presend_db.escalate_unsent(
+                conn, claim, held.conversation_id, reason=escalations.RELEASE_STREAK
+            ):
                 return Released.LOST
             ctx.alerter.alert(
                 "release_streak_limit", run_id=claim.run_id, status="APPROVED", reason=reason

@@ -71,17 +71,17 @@ day, synthetic data: inputs for sizing budgets, **not** quality or safety result
 
 ## Measured: tokens per byte and a mid-conversation note (2026-11-19, ADR-028)
 
-`python -m agent_testing.capture --kind byte_ceiling|system_note`, one call each, free-tier ids.
+`python -m agent_testing.capture --kind byte_ceiling|system_note [--ceiling-per-kind N]`, one call each, free-tier ids.
 
 | Model | 1,031 chars / 4,031 bytes of 4-byte characters → input tokens | System note after the customer message |
 |---|---|---|
 | groq `openai/gpt-oss-120b` | 3,552 (0.88 per byte, 3.45 per char) | accepted; called `lookup_order` |
 | gemini `gemini-3.5-flash-lite` | 3,510 (0.87, 3.40) | accepted; called `lookup_order` (26.7 s) |
 | cloudflare `@cf/openai/gpt-oss-20b` | 3,550 (0.88, 3.44) | accepted; put the call in its reasoning, no call and no text |
-| openrouter `baidu/ernie-5.5-flash-preview:free` | 429 from the shared free pool (`tpm_rate_limit_exceeded`); not measured | accepted; called `lookup_order` |
+| openrouter `baidu/ernie-5.5-flash-preview:free` | first try: 429 from the shared free pool (`tpm_rate_limit_exceeded`); retried with 431 chars / 1,631 bytes: 1,424 (0.87, 3.30) | accepted; called `lookup_order` |
 
 - The 3-characters-per-token estimate predicts 344 tokens for that message: about ten times too
-  few. One token per UTF-8 byte held for all three measured models.
+  few. One token per UTF-8 byte held for all four models.
 - OpenRouter's free models still answer after the account's balance went to −$0.000123.
 
 ## Plans: zero spend (ADR-025 S5)

@@ -18,6 +18,7 @@ from worker_harness import READ_WINDOW_MS, RETRY, TIMINGS, Harness, Lookups
 from worker_world import World
 
 from agent.alerts import LogAlerter, Severity
+from agent.core import escalations
 from agent.core.capacity import RefundRecord, used_on_order
 from agent.core.lifecycle import WORKER_CLAIMABLE, RefundOutcome, RunStatus
 from agent.core.refund_outcome import HttpResult, LookupKind, LookupOutcome
@@ -417,6 +418,7 @@ async def test_not_found_after_the_quiet_period_rejects_and_frees_the_capacity(
     row = world.row(run)
     assert (row.status, row.refund_outcome) == (RunStatus.ESCALATED, RefundOutcome.REJECTED)
     assert row.escalated_at == escalated_at, "kept from when it first needed attention"
+    assert row.escalation_reason == escalations.NOT_CONFIRMED
     assert (row.worker_id, row.claim_version, row.release_streak) == (None, 2, 0)
     [event] = world.events(run)
     assert (event.kind, event.payload) == (
@@ -693,7 +695,12 @@ async def test_negative_control_a_streak_that_moved_the_run_breaks_adr008s_check
             await conn.execute(
                 update(runs)
                 .where(claims.fenced(claimed))
-                .values(status=RunStatus.ESCALATED, worker_id=None, lease_expires_at=None)
+                .values(
+                    status=RunStatus.ESCALATED,
+                    escalation_reason=escalations.NOT_CONFIRMED,  # break exactly one CHECK
+                    worker_id=None,
+                    lease_expires_at=None,
+                )
             )
     assert raised.value.orig.diag.constraint_name == "ck_runs_terminal_not_unknown"  # type: ignore[union-attr]
 

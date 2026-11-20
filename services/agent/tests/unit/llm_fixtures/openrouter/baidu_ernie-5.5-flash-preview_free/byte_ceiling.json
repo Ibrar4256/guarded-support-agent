@@ -1,0 +1,27 @@
+{
+  "provider": "openrouter",
+  "model": "baidu/ernie-5.5-flash-preview:free",
+  "kind": "byte_ceiling",
+  "source": "captured",
+  "captured_on": "2026-11-19",
+  "response": {
+    "status": 200,
+    "content_type": "text/event-stream",
+    "headers": {},
+    "body": "data: {\"id\":\"gen-1795109984-PNGBk8QiT1zgH8QEZZSR\",\"object\":\"chat.completion.chunk\",\"created\":1795109984,\"model\":\"baidu/ernie-5.5-flash-preview:free\",\"provider\":\"Baidu\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"\",\"role\":\"assistant\",\"reasoning\":\"We\",\"reasoning_details\":[{\"type\":\"reasoning.text\",\"text\":\"We\",\"format\":\"unknown\",\"index\":0}]},\"finish_reason\":null,\"native_finish_reason\":null}]}\n\ndata: {\"id\":\"gen-1795109984-PNGBk8QiT1zgH8QEZZSR\",\"object\":\"chat.completion.chunk\",\"created\":1795109984,\"model\":\"baidu/ernie-5.5-flash-preview:free\",\"provider\":\"Baidu\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"\",\"role\":\"assistant\",\"reasoning\":\" need answer user's request: \\\"Reply with the single word OK. \ud83d\ude00...\\\" They want single word OK. Need final only OK. Ensure no extra.\",\"reasoning_details\":[{\"type\":\"reasoning.text\",\"text\":\" need answer user's request: \\\"Reply with the single word OK. \ud83d\ude00...\\\" They want single word OK. Need final only OK. Ensure no extra.\",\"format\":\"unknown\",\"index\":0}]},\"finish_reason\":null,\"native_finish_reason\":null}]}\n\ndata: {\"id\":\"gen-1795109984-PNGBk8QiT1zgH8QEZZSR\",\"object\":\"chat.completion.chunk\",\"created\":1795109984,\"model\":\"baidu/ernie-5.5-flash-preview:free\",\"provider\":\"Baidu\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"OK\",\"role\":\"assistant\"},\"finish_reason\":null,\"native_finish_reason\":null}]}\n\ndata: {\"id\":\"gen-1795109984-PNGBk8QiT1zgH8QEZZSR\",\"object\":\"chat.completion.chunk\",\"created\":1795109984,\"model\":\"baidu/ernie-5.5-flash-preview:free\",\"provider\":\"Baidu\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"\",\"role\":\"assistant\",\"reasoning\":null},\"finish_reason\":\"stop\",\"native_finish_reason\":\"stop\"}]}\n\ndata: {\"id\":\"gen-1795109984-PNGBk8QiT1zgH8QEZZSR\",\"object\":\"chat.completion.chunk\",\"created\":1795109984,\"model\":\"baidu/ernie-5.5-flash-preview:free\",\"provider\":\"Baidu\",\"service_tier\":null,\"choices\":[{\"index\":0,\"delta\":{\"content\":\"\",\"role\":\"assistant\"},\"finish_reason\":\"stop\",\"native_finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":1424,\"completion_tokens\":36,\"total_tokens\":1460,\"cost\":0,\"is_byok\":false,\"prompt_tokens_details\":{\"cached_tokens\":0,\"cache_write_tokens\":0,\"audio_tokens\":0,\"video_tokens\":0},\"cost_details\":{\"upstream_inference_cost\":0,\"upstream_inference_prompt_cost\":0,\"upstream_inference_completions_cost\":0},\"completion_tokens_details\":{\"reasoning_tokens\":34,\"image_tokens\":0,\"audio_tokens\":0}}}\n\ndata: [DONE]\n\n"
+  },
+  "adapter": {
+    "tool_calls": [],
+    "finish_reason": "stop",
+    "usage": {
+      "input_tokens": 1424,
+      "output_tokens": 36
+    },
+    "latency_seconds": 3.833
+  },
+  "request": {
+    "messages": 1,
+    "chars": 431,
+    "bytes": 1631
+  }
+}

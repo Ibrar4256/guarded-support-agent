@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from turn_helpers import SETTINGS
 from worker_world import World
 
+from agent.core import escalations
 from agent.core.lifecycle import RunStatus
 from agent.core.replies import ReplyTemplate
 from agent.db.clock import DATABASE_CLOCK
@@ -47,6 +48,7 @@ async def test_c01_on_a_first_message_escalates_with_no_model_call(
     assert started.status is RunStatus.ESCALATED
     assert run.status == RunStatus.ESCALATED
     assert run.escalated_at is not None and run.c01_flagged_at is not None
+    assert run.escalation_reason == escalations.C01
     assert world.conversation(conversation).active_turn_id is None
     events = world.conversation_events(conversation)
     assert [e.kind for e in events] == ["customer_message", "reply"]

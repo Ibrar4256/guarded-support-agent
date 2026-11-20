@@ -23,6 +23,7 @@ from enum import StrEnum
 
 from sqlalchemy.exc import DBAPIError
 
+from agent.core import escalations
 from agent.core.policy import (
     POLICY_VERSION,
     MissingInputError,
@@ -156,7 +157,8 @@ async def _check_and_move(
                 raise _Lost
             return ApprovedResult(ApprovedStep.EXECUTING, provider)
         if result.outcome is PresendOutcome.OUT_OF_POLICY:
-            if not await db.escalate_unsent(conn, claim, run.conversation_id):
+            reason = escalations.presend_policy(result.rule_ids)
+            if not await db.escalate_unsent(conn, claim, run.conversation_id, reason=reason):
                 raise _Lost
             return ApprovedResult(ApprovedStep.ESCALATED)
         # HOLD: progress, so the streak resets; the run waits APPROVED for the hold to lift.
@@ -191,7 +193,8 @@ async def _record_fail_closed(
             )
             if attempts < ctx.timings.presend_max_attempts:
                 return None
-            if not await db.escalate_unsent(conn, claim, subject.conversation_id):
+            reason = escalations.presend_fail_closed(failed.rule_ids)
+            if not await db.escalate_unsent(conn, claim, subject.conversation_id, reason=reason):
                 raise _Lost
     except _Lost:
         return ApprovedResult(ApprovedStep.LOST)

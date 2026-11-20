@@ -55,11 +55,17 @@ SYSTEM_NOTE = (
     "Use only the tools offered."
 )
 CEILING_INSTRUCTION = "Reply with the single word OK. "
-# Four kinds of 4-byte characters, 250 each: emoji, CJK Extension B, plane-15 private use and
-# tag characters. Common ones may be single tokens; rare ones fall back to bytes (the worst case).
-CEILING_PAYLOAD = "".join(
-    chr(start + i) for start in (0x1F600, 0x20000, 0xF0000, 0xE0041) for i in range(250)
-)
+# Four kinds of 4-byte characters: emoji, CJK Extension B, plane-15 private use and tag
+# characters. Common ones may be single tokens; rare ones fall back to bytes (the worst case).
+CEILING_STARTS = (0x1F600, 0x20000, 0xF0000, 0xE0041)
+CEILING_PER_KIND = 250
+
+
+def ceiling_payload(per_kind: int = CEILING_PER_KIND) -> str:
+    return "".join(chr(start + i) for start in CEILING_STARTS for i in range(per_kind))
+
+
+CEILING_PAYLOAD = ceiling_payload()
 DROPPED_HEADERS = {"content-encoding", "content-length", "transfer-encoding", "set-cookie"}
 KEPT_HEADER = re.compile(r"(x-)?ratelimit-.*|retry-after", re.IGNORECASE)
 # A key echoed back masked, e.g. "Incorrect API key provided: ab12cd*****9f0e".
@@ -110,10 +116,13 @@ def turn_request() -> list[dict[str, Any]]:
     return build_messages(window(events, max_chars=24_000), nonce=new_nonce())
 
 
-def request_for(kind: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def request_for(
+    kind: str, ceiling_per_kind: int = CEILING_PER_KIND
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """The messages and tools sent for ``kind``."""
     if kind == "byte_ceiling":
-        return [{"role": "user", "content": CEILING_INSTRUCTION + CEILING_PAYLOAD}], []
+        content = CEILING_INSTRUCTION + ceiling_payload(ceiling_per_kind)
+        return [{"role": "user", "content": content}], []
     messages = turn_request()
     if kind == "system_note":
         messages.append({"role": "system", "content": SYSTEM_NOTE})
@@ -131,6 +140,7 @@ async def capture(
     kind: str,
     *,
     transport: httpx2.AsyncBaseTransport | None = None,
+    ceiling_per_kind: int = CEILING_PER_KIND,
 ) -> dict[str, Any]:
     """One request; returns the fixture (not yet written)."""
     if environ.get("APP_ENV") == "production":
@@ -142,7 +152,7 @@ async def capture(
     choice: ProviderChoice = settings.models[Purpose.TURN][0]
     if kind == "auth":
         choice = dataclasses.replace(choice, api_key=INVALID_KEY)
-    messages, tools = request_for(kind)
+    messages, tools = request_for(kind, ceiling_per_kind)
     recorder = RecordingTransport() if transport is None else RecordingTransport(inner=transport)
     async with httpx2.AsyncClient(transport=recorder) as client:
         adapter = OpenAICompatibleModel(choice, settings, http_client=client)
@@ -217,11 +227,19 @@ def main(argv: Sequence[str], environ: Mapping[str, str]) -> int:
     parser.add_argument("--model", action="append", required=True, help="provider:model")
     parser.add_argument("--kind", choices=KINDS, default="tool_call")
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument(
+        "--ceiling-per-kind",
+        type=int,
+        default=CEILING_PER_KIND,
+        help="byte_ceiling: characters of each of the four kinds (smaller for tight TPM limits)",
+    )
     args = parser.parse_args(argv)
     failed = 0
     for model in args.model:
         try:
-            fixture = asyncio.run(capture(environ, model, args.kind))
+            fixture = asyncio.run(
+                capture(environ, model, args.kind, ceiling_per_kind=args.ceiling_per_kind)
+            )
         except Exception as problem:  # report and go on to the next model
             print(f"{model}: {type(problem).__name__}: {problem}", file=sys.stderr)
             failed += 1

@@ -19,6 +19,7 @@ from worker_harness import BOUND, TIMINGS, Harness, only
 from worker_world import World
 
 from agent.alerts import Severity
+from agent.core import escalations
 from agent.core.lifecycle import RefundOutcome, RunStatus
 from agent.core.refund_outcome import ConfigRead, HttpResult, ProviderConfig, RetryPolicy
 from agent.core.replies import ReplyTemplate
@@ -150,6 +151,7 @@ async def test_a_business_error_rejects_and_frees_capacity(
     assert (await execute_run(h, claimed)).step is ExecutingStep.ESCALATED
     row = world.row(run)
     assert (row.status, row.refund_outcome) == (RunStatus.ESCALATED, RefundOutcome.REJECTED)
+    assert row.escalation_reason == escalations.REFUND_REJECTED
     event = only(world.events(run), "customer event")
     assert event.payload == {"template": ReplyTemplate.NEEDS_PERSON}
 

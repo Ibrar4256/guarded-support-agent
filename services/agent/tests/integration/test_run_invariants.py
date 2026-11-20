@@ -10,6 +10,7 @@ from conftest import T0, USER
 from sqlalchemy import Connection, Engine, insert, text, update
 from sqlalchemy.exc import IntegrityError
 
+from agent.core import escalations
 from agent.core.lifecycle import RefundOutcome, RunState, RunStatus, invariant_violations
 from agent.db.schema import conversations, customers, runs
 
@@ -50,8 +51,8 @@ def parity_mismatches(
         RunStatus, RefundOutcome, flags, (None, "w1"), flags, flags
     ):
         state = RunState(status, outcome, first_send, worker, deadline, escalated)
-        # Approval fields and the ADR-014 window snapshot are set consistently, so only the
-        # ADR-008 invariants vary here.
+        # Approval fields, the ADR-014 window snapshot and the escalation reason are set
+        # consistently, so only the ADR-008 invariants vary here.
         approved = status in APPROVED_OR_LATER or outcome is not RefundOutcome.NONE
         row = run_row(
             conversation,
@@ -62,6 +63,9 @@ def parity_mismatches(
             worker_id=worker,
             review_deadline=deadline,
             escalated_at=escalated,
+            # The reason column's own CHECK is an iff on the status, so filling it with the
+            # status keeps it out of ADR-008's invariants (see test_escalation_reason).
+            escalation_reason=escalations.UNRECORDED if status is RunStatus.ESCALATED else None,
             approval_source="policy" if approved else None,
             approved_at=T0 if approved else None,
         )

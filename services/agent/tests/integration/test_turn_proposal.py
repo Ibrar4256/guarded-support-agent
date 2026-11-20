@@ -24,6 +24,7 @@ from worker_harness import POLICY
 from worker_world import World
 
 from agent.alerts import Severity
+from agent.core import escalations
 from agent.core import policy as core_policy
 from agent.core.capacity import ApprovalSource
 from agent.core.lifecycle import RunStatus
@@ -193,6 +194,9 @@ async def test_an_out_of_policy_proposal_escalates_and_nothing_is_queued(
     assert result.outcome is TurnOutcome.ESCALATED
     row = world.row(result.ids.run_id)
     assert row.status == RunStatus.ESCALATED and row.escalated_at is not None
+    (decision,) = world.decisions(result.ids.run_id)
+    assert row.escalation_reason == escalations.policy(decision.rule_ids)
+    assert row.escalation_reason.startswith("policy:R")
     assert row.action_id is not None
     assert (row.order_id, row.amount_minor, row.idempotency_key) == (None, None, None)
     (decision,) = world.decisions(result.ids.run_id)
@@ -354,6 +358,7 @@ async def test_the_escalate_tool_escalates_with_the_needs_person_template(
     assert "reason_code" in last_tool_result(model, 1)["message"]
     row = world.row(result.ids.run_id)
     assert row.status == RunStatus.ESCALATED and row.action_id is None
+    assert row.escalation_reason == "escalate_tool:customer_requested_person"
     assert world.decisions(result.ids.run_id) == []
     assert replies(world, conversation) == [{"template": ReplyTemplate.NEEDS_PERSON.value}]
     model.assert_finished()
@@ -496,6 +501,7 @@ async def test_a_proposal_that_cannot_be_evaluated_fails_closed_in_a_separate_tr
     row = world.row(result.ids.run_id)
     assert row.status == RunStatus.ESCALATED and row.idempotency_key is None
     (decision,) = world.decisions(result.ids.run_id)
+    assert row.escalation_reason == escalations.fail_closed(decision.rule_ids)
     assert (decision.stage, decision.outcome) == ("proposal", "FAIL_CLOSED")
     assert reason in decision.input_snapshot["reason"]
     assert decision.action_id == row.action_id
@@ -522,6 +528,8 @@ async def test_a_rule_that_raises_fails_closed_and_the_other_fired_rules_are_sti
     (decision,) = world.decisions(result.ids.run_id)
     assert decision.outcome == "FAIL_CLOSED"
     assert set(decision.rule_ids) == {"FAIL_CLOSED:R09_ORDER_STATUS", "R07_AUTO_APPROVE_MAX"}
+    # The reason names the rule that raised; the one that fired normally is in the decision.
+    assert world.row(result.ids.run_id).escalation_reason == "fail_closed:R09_ORDER_STATUS"
 
 
 async def test_the_fail_closed_transaction_is_fenced_on_the_turn(

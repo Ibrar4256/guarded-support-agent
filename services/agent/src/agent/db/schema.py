@@ -33,6 +33,7 @@ from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 
 from agent.core.capacity import ApprovalSource
+from agent.core.escalations import REASON_PATTERN
 from agent.core.lifecycle import RefundOutcome, RunStatus
 from agent.core.policy import FulfillmentStatus
 from agent.llm.errors import CALL_OUTCOMES
@@ -153,6 +154,8 @@ runs = Table(
     Column("max_client_timeout_ms", BigInteger),
     # Attention (ADR-008, ADR-009).
     timestamp("escalated_at"),
+    # Why, for operators and eval judges; never shown to the customer (agent.core.escalations).
+    Column("escalation_reason", Text),
     timestamp("c01_flagged_at"),
     timestamp("escalation_resolved_at"),
     Column("escalation_resolved_by", Text),
@@ -201,6 +204,15 @@ runs = Table(
         "status <> 'AWAIT_APPROVAL' OR review_deadline IS NOT NULL", name="review_has_deadline"
     ),
     CheckConstraint("status <> 'ESCALATED' OR escalated_at IS NOT NULL", name="escalated_flagged"),
+    # --- Escalation reasons (migration 0006; not ADR-008 lifecycle invariants) ---
+    # An iff on the status alone, so it never overlaps ADR-008's escalated_flagged.
+    CheckConstraint(
+        "(status = 'ESCALATED') = (escalation_reason IS NOT NULL)", name="reason_iff_escalated"
+    ),
+    CheckConstraint(
+        f"escalation_reason IS NULL OR escalation_reason ~ '{REASON_PATTERN}'",
+        name="escalation_reason_format",
+    ),
     # --- ADR-009 approval invariants ---
     CheckConstraint(
         "approval_source IS DISTINCT FROM 'reviewer' OR approved_by IS NOT NULL",

@@ -458,8 +458,16 @@ lives in `WEEKLY_LOG.md`.
 - **Characters per token is a fixed 3** until measured tokens replace it, and per-message
   overhead (role markers, tool-call framing) isn't counted. Measured 2026-11-19: text of 4-byte
   characters is ~3.4 tokens per character on Groq, Gemini and Cloudflare, ten times the estimate;
-  ADR-028 (proposed) replaces it with one token per UTF-8 byte. ERNIE's ratio isn't measured
-  (its capture hit OpenRouter's shared-pool limit).
+  ADR-028 (proposed) replaces it with one token per UTF-8 byte; ERNIE measured 0.87 tokens per
+  byte on a smaller payload after its first capture hit OpenRouter's shared-pool limit.
+- **Escalation reasons start at migration 0006.** Runs escalated before it are `unrecorded`;
+  test fixtures that insert escalated runs directly use the same value. The reason is internal
+  (operators, eval judges): no endpoint exposes it yet, and the chat API must not show it to the
+  customer (ADR-009 non-disclosure).
+- **Groq's "request too large" isn't classified.** Groq refuses a request above its 8K tokens a
+  minute; no fixture pins the body, so it would fall to `InvalidRequest` (a page) rather than a
+  reply that moves the next turn to another provider. A long window can reach 8K even today.
+  Capture the body and classify it under ADR-023's rules (ADR-028, Consequences).
 - **Cloudflare's gpt-oss-20b answered a mid-conversation system note with its tool call in the
   reasoning channel** (no call, no text, k=1, pinned). The loop treats that as an empty reply;
   the adapter doesn't read calls out of reasoning.

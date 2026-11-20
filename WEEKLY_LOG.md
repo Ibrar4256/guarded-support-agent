@@ -1359,3 +1359,20 @@ OpenRouter models on `:free`.
 
 **What I learned:** "no payment method" isn't "can't be billed": test a spending assumption
 with a read (the price list, the account's balance policy), never with the call itself.
+
+**Same day, escalation reasons:** migration 0006 adds `runs.escalation_reason`, so ADR-026's
+`escalated` judge can read why a run went to a person from the database. Every path that
+escalates now stores a reason from `agent.core.escalations`: `escalate_tool:<code>`,
+`malformed_budget`, `step_budget`, `c01`, `policy:<rules>`, `fail_closed:<rules that raised>`,
+`presend_policy:<rules>`, `presend_fail_closed:<rules>`, `release_streak`, `refund_rejected`,
+`not_confirmed`; earlier escalated runs become `unrecorded`. Two CHECKs: an iff between ESCALATED
+and having a reason, and the reason's shape (the migration copies the pattern; a unit test keeps
+them equal). 7 plants caught. Agent 1265, refund_api 255, e2e 18.
+
+**What broke:** my first pair of CHECKs (ESCALATED needs a reason; a reason needs `escalated_at`)
+together implied ADR-008's `escalated_flagged`, and the parity test's negative control caught it:
+dropping that check no longer changed anything. One iff on the status alone doesn't overlap.
+Editing the uncommitted migration after applying it broke its own downgrade (the old constraint
+names); repaired by hand on the dev database and the round trip re-checked. Fail-closed rule ids
+carry a `FAIL_CLOSED:` prefix, so a reason names only the rules that raised.
+

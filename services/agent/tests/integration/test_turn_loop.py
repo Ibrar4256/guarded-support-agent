@@ -18,6 +18,7 @@ from turn_helpers import SETTINGS, turn_deps
 from worker_world import World
 
 from agent.alerts import Severity
+from agent.core import escalations
 from agent.core.lifecycle import RunStatus
 from agent.core.replies import ReplyTemplate
 from agent.db import order_lookup as order_lookup_db
@@ -224,6 +225,7 @@ async def test_the_malformed_budget_plus_one_escalates(
     assert result.outcome is TurnOutcome.ESCALATED
     assert len(model.calls) == SETTINGS.max_malformed + 1
     assert world.row(result.ids.run_id).status == RunStatus.ESCALATED
+    assert world.row(result.ids.run_id).escalation_reason == escalations.MALFORMED_BUDGET
     assert replies(world, conversation) == [{"template": "needs_person"}]  # no reason disclosed
 
 
@@ -237,6 +239,7 @@ async def test_the_step_budget_is_exactly_the_configured_calls_then_escalates(
 
     assert result.outcome is TurnOutcome.ESCALATED
     assert len(model.calls) == SETTINGS.max_model_calls
+    assert world.row(result.ids.run_id).escalation_reason == escalations.STEP_BUDGET
 
 
 # --- Provider failures (Part 2, ADR-023 S1a) ---------------------------------------------

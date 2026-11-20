@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy import Select, func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from agent.core import escalations
 from agent.core.capacity import ApprovalSource, RefundRecord, used_by_customer, used_on_order
 from agent.core.lifecycle import RefundOutcome, RunStatus
 from agent.core.policy import (
@@ -286,7 +287,9 @@ async def move_to_executing(conn: AsyncConnection, claim: Claim, window: timedel
     return result.rowcount == 1
 
 
-async def escalate_unsent(conn: AsyncConnection, claim: Claim, conversation_id: uuid.UUID) -> bool:
+async def escalate_unsent(
+    conn: AsyncConnection, claim: Claim, conversation_id: uuid.UUID, *, reason: str
+) -> bool:
     """``APPROVED → ESCALATED`` with nothing sent (ADR-005/008/009, ADR-014 S12): the flag, a
     customer-facing event, and the claim cleared with the version bumped (S9). The event names
     only the template, never why (ADR-009 non-disclosure); the why is in the decision log or
@@ -297,6 +300,7 @@ async def escalate_unsent(conn: AsyncConnection, claim: Claim, conversation_id: 
         .values(
             status=RunStatus.ESCALATED,
             escalated_at=func.now(),
+            escalation_reason=escalations.checked(reason),
             worker_id=None,
             lease_expires_at=None,
             claim_version=runs.c.claim_version + 1,

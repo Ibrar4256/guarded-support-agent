@@ -81,7 +81,7 @@ async def escalate_and_reply(
         if not await turns.hold_turn(conn, ids.conversation_id, ids.turn_id):
             raise LostTurn(f"turn {ids.turn_id} lost conversation {ids.conversation_id}")
         at = clock.stamp()
-        await turns.escalate_run(conn, ids.run_id, at=at)
+        await turns.escalate_run(conn, ids.run_id, reason=reason, at=at)
         await turns.append_event(
             conn,
             ids.conversation_id,

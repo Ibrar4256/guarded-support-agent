@@ -146,6 +146,17 @@ async def test_a_byte_ceiling_capture_sends_one_message_of_4_byte_characters_and
     }
 
 
+async def test_a_smaller_byte_ceiling_payload_is_recorded_as_sent() -> None:
+    server = Server(streamed(TEXT_BODY))
+    fixture = await capture(
+        ENV, MODEL, "byte_ceiling", transport=server.transport(), ceiling_per_kind=100
+    )
+
+    content = sent(server)["messages"][0]["content"]
+    assert len(content.encode()) - len(content) == 3 * 400  # 400 four-byte characters
+    assert fixture["request"]["bytes"] == len(content.encode())
+
+
 async def test_one_request_only_even_for_a_retryable_error() -> None:
     server = Server(
         httpx2.Response(429, json=error_body("Rate limit reached"), headers={"retry-after": "1"})

@@ -25,6 +25,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from agent.alerts import Alerter
+from agent.core import escalations
 from agent.core.policy import (
     POLICY_VERSION,
     MissingInputError,
@@ -168,7 +169,13 @@ async def _evaluate_and_move(ctx: ProposalContext, proposal: RefundProposal) -> 
                 at=at,
             )
         else:
-            await db.escalate_proposal(conn, ids.run_id, proposal.action_id, at=at)
+            await db.escalate_proposal(
+                conn,
+                ids.run_id,
+                proposal.action_id,
+                reason=escalations.policy(result.rule_ids),
+                at=at,
+            )
         tripped = result.trip_breaker and await db.trip_breaker(conn, at=at)
         if tripped:
             await db.insert_decision(
@@ -216,7 +223,13 @@ async def _fail_closed(
             if not await turns.hold_turn(conn, ids.conversation_id, ids.turn_id):
                 raise LostTurn(f"turn {ids.turn_id} lost conversation {ids.conversation_id}")
             at = ctx.clock.stamp()
-            await db.escalate_proposal(conn, ids.run_id, proposal.action_id, at=at)
+            await db.escalate_proposal(
+                conn,
+                ids.run_id,
+                proposal.action_id,
+                reason=escalations.fail_closed(failed.rule_ids),
+                at=at,
+            )
             await db.insert_decision(
                 conn,
                 run_id=ids.run_id,

@@ -27,6 +27,7 @@ from typing import Any
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from agent.core import escalations
 from agent.core.replies import ReplyTemplate
 from agent.db.clock import Clock
 from agent.db.order_lookup import was_looked_up
@@ -205,7 +206,7 @@ async def leave_with(ctx: LoopContext, write: WriteCall) -> LoopOutcome:
             raise Malformed(NOT_LOOKED_UP)
         return Propose(write.args)
     if isinstance(write.args, EscalateArgs):
-        return Escalate(f"escalate_tool:{write.args.reason_code}")
+        return Escalate(escalations.escalate_tool(write.args.reason_code))
     raise TypeError(f"no handler for write tool {write.tool.name}")
 
 
@@ -242,13 +243,13 @@ async def run_loop(ctx: LoopContext, messages: list[dict[str, Any]]) -> LoopOutc
             malformed += 1
             logger.info("turn %s: malformed response %d: %s", ctx.ids.turn_id, malformed, problem)
             if malformed > ctx.settings.max_malformed:
-                return Escalate("malformed_budget")
+                return Escalate(escalations.MALFORMED_BUDGET)
             messages.extend(correction(response, str(problem)))
             continue
         messages.append(assistant_message(response))
         for call, tool, args in calls:
             messages.append(tool_message(call, await run_read_tool(ctx, tool, args)))
-    return Escalate("step_budget")
+    return Escalate(escalations.STEP_BUDGET)
 
 
 def correction(response: ModelResponse, problem: str) -> list[dict[str, Any]]:

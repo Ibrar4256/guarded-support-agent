@@ -17,6 +17,7 @@ from typing import Any
 from sqlalchemy import exists, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from agent.core import escalations
 from agent.core.capacity import (
     ApprovalSource,
     is_live_policy_approved,
@@ -324,12 +325,19 @@ async def await_review(
 
 
 async def escalate_proposal(
-    conn: AsyncConnection, run_id: uuid.UUID, action_id: str, *, at: datetime | None
+    conn: AsyncConnection, run_id: uuid.UUID, action_id: str, *, reason: str, at: datetime | None
 ) -> None:
     """``AGENT_STEP → ESCALATED``, nothing sent. Only the ``action_id`` goes on the run: the
     proposal itself is in the decision row's snapshot, and an amount R01 refused (≤ 0) would
     break the run's own CHECK and with it the escalation."""
-    await _move(conn, run_id, RunStatus.ESCALATED, action_id=action_id, escalated_at=stamped(at))
+    await _move(
+        conn,
+        run_id,
+        RunStatus.ESCALATED,
+        action_id=action_id,
+        escalated_at=stamped(at),
+        escalation_reason=escalations.checked(reason),
+    )
 
 
 def breaker_trip_snapshot(inputs: ProposalInputs, config: PolicyConfig) -> dict[str, Any]:

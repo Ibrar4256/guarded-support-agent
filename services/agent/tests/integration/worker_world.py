@@ -19,6 +19,7 @@ from typing import Any
 from conftest import T0
 from sqlalchemy import Connection, Engine, Row, delete, func, insert, select, text, update
 
+from agent.core import escalations
 from agent.core.capacity import ApprovalSource
 from agent.core.lifecycle import RefundOutcome, RunStatus
 from agent.core.policy import FulfillmentStatus
@@ -86,6 +87,8 @@ class World:
             )
         if status in {RunStatus.NEEDS_RECONCILIATION, RunStatus.ESCALATED}:
             values["escalated_at"] = approved_at
+        if status is RunStatus.ESCALATED:
+            values["escalation_reason"] = escalations.UNRECORDED
         if status is RunStatus.AWAIT_APPROVAL:
             values["review_deadline"] = approved_at + timedelta(days=1)
         values.update(extra)

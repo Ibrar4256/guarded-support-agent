@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy import func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from agent.core import escalations
 from agent.core.lifecycle import RefundOutcome, RunStatus
 from agent.core.replies import ReplyTemplate
 from agent.db.claims import Claim, fenced
@@ -213,6 +214,7 @@ async def reject(conn: AsyncConnection, claim: Claim, conversation_id: uuid.UUID
         status=RunStatus.ESCALATED,
         refund_outcome=RefundOutcome.REJECTED,
         escalated_at=func.now(),
+        escalation_reason=escalations.REFUND_REJECTED,
         release_streak=0,
     ):
         return False
@@ -234,6 +236,7 @@ async def reject_unconfirmed(
         status=RunStatus.ESCALATED,
         refund_outcome=RefundOutcome.REJECTED,
         escalated_at=func.coalesce(runs.c.escalated_at, func.now()),
+        escalation_reason=escalations.NOT_CONFIRMED,
         release_streak=0,
     ):
         return False

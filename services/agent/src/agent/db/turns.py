@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy import func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from agent.core import escalations
 from agent.core.c01 import C01_VERSION
 from agent.core.c01 import RULE_ID as C01_RULE_ID
 from agent.core.lifecycle import TERMINAL_STATUSES, RunStatus, require_transition
@@ -172,7 +173,12 @@ async def escalate_for_c01(
     result = await conn.execute(
         update(runs)
         .where(runs.c.id == run_id, runs.c.status == RunStatus.AGENT_STEP)
-        .values(status=RunStatus.ESCALATED, escalated_at=stamped(at), c01_flagged_at=stamped(at))
+        .values(
+            status=RunStatus.ESCALATED,
+            escalated_at=stamped(at),
+            c01_flagged_at=stamped(at),
+            escalation_reason=escalations.C01,
+        )
         .returning(runs.c.id)
     )
     if result.one_or_none() is None:
@@ -267,13 +273,20 @@ async def trailing_provider_failures(
     return count
 
 
-async def escalate_run(conn: AsyncConnection, run_id: uuid.UUID, *, at: datetime | None) -> None:
-    """``AGENT_STEP → ESCALATED`` when the turn's step or malformed budget runs out (ADR-008)."""
+async def escalate_run(
+    conn: AsyncConnection, run_id: uuid.UUID, *, reason: str, at: datetime | None
+) -> None:
+    """``AGENT_STEP → ESCALATED`` from the loop: the escalate tool, or the step or malformed
+    budget ran out (ADR-008); ``reason`` from ``agent.core.escalations``."""
     require_transition(RunStatus.AGENT_STEP, RunStatus.ESCALATED)
     result = await conn.execute(
         update(runs)
         .where(runs.c.id == run_id, runs.c.status == RunStatus.AGENT_STEP)
-        .values(status=RunStatus.ESCALATED, escalated_at=stamped(at))
+        .values(
+            status=RunStatus.ESCALATED,
+            escalated_at=stamped(at),
+            escalation_reason=escalations.checked(reason),
+        )
         .returning(runs.c.id)
     )
     if result.one_or_none() is None:

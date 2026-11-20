@@ -21,6 +21,7 @@ from worker_harness import Harness as BaseHarness
 from worker_world import World
 
 from agent.alerts import Severity
+from agent.core import escalations
 from agent.core.lifecycle import RefundOutcome, RunStatus
 from agent.core.policy import (
     Fired,
@@ -109,6 +110,8 @@ async def test_out_of_policy_escalates_with_a_customer_event_and_nothing_sent(
     assert (row.worker_id, row.claim_version) == (None, claimed.claim_version + 1)
     event = only(world.events(run), "customer event")
     assert (event.kind, event.payload) == ("escalated", {"template": ReplyTemplate.NEEDS_PERSON})
+    assert row.escalation_reason == escalations.presend_policy(world.decisions(run)[-1].rule_ids)
+    assert rule.value in row.escalation_reason
     decision = only(world.decisions(run), "decision row")
     assert decision.outcome == "OUT_OF_POLICY" and str(rule) in decision.rule_ids
     assert harness.client.sent == []
@@ -153,6 +156,10 @@ async def test_fail_closed_is_counted_retried_then_escalated(
     assert (await harness.run(claimed)).step is ApprovedStep.ESCALATED
     row = world.row(run)
     assert (row.status, row.presend_attempts) == (RunStatus.ESCALATED, 3)
+    assert row.escalation_reason == escalations.presend_fail_closed(
+        world.decisions(run)[-1].rule_ids
+    )
+    assert row.escalation_reason.startswith("presend_fail_closed")
     assert row.first_send_started_at is None
     outcomes = [(d.outcome, d.rule_ids) for d in world.decisions(run)]
     assert outcomes == [("FAIL_CLOSED", ["FAIL_CLOSED:R05_ORDER_CHARGED_CAP"])] * 3
@@ -170,6 +177,9 @@ async def test_a_missing_input_fails_closed_and_still_logs(
     decisions = world.decisions(run)
     assert [d.outcome for d in decisions] == ["FAIL_CLOSED"] * 3
     assert "missing input" in decisions[0].input_snapshot["reason"]
+    assert world.row(run).escalation_reason == escalations.presend_fail_closed(
+        decisions[-1].rule_ids
+    )
 
 
 class SerializationFailure(Exception):
@@ -190,6 +200,9 @@ async def test_another_database_error_fails_closed_not_as_a_lock_wait(
     assert (await harness.run(claimed)).step is ApprovedStep.ESCALATED
     row = world.row(run)
     assert (row.presend_attempts, row.claimable_after) == (3, None)
+    assert row.escalation_reason == escalations.presend_fail_closed(
+        world.decisions(run)[-1].rule_ids
+    )
 
 
 async def test_negative_control_every_error_as_a_lock_wait_retries_a_real_failure(
@@ -247,6 +260,7 @@ async def test_at_the_streak_limit_an_unsent_run_escalates_instead(
     claimed = await harness.claim()
     assert (await run_with_customer_locked(world, harness, claimed)).step is ApprovedStep.ESCALATED
     row = world.row(run)
+    assert row.escalation_reason == escalations.RELEASE_STREAK
     assert (row.status, row.refund_outcome, row.worker_id) == (
         RunStatus.ESCALATED,
         RefundOutcome.NONE,
