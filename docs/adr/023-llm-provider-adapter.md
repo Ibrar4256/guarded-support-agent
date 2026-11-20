@@ -17,6 +17,9 @@ per provider and an ordered `provider:model` list per purpose (`LLM_TURN_MODELS`
 evals" becomes a production startup check against `verified_models.json`, tied to a prompt
 fingerprint. Everything else here stands.
 
+**Superseded in part by [ADR-028](028-turn-read-calls-and-summary-input-caps.md):** `LLM_MAX_OUTPUT_CHARS` becomes `LLM_MAX_OUTPUT_BYTES`, and a
+`ContextTooLong` is a bound violation that alerts on both the turn and the summary path.
+
 **Precedence:** fills in ADR-005's "port Project 1's provider, retry and telemetry pieces to
 `AsyncOpenAI`" and ADR-022 S8 (what the turn needs from the provider). ADR-006 (ScriptedLLM, the
 contract test, real-provider fixtures, the production gate) applies unchanged: the adapter is

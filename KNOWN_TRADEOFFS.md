@@ -453,12 +453,13 @@ lives in `WEEKLY_LOG.md`.
   model's own earlier responses at the output cap, and the summary's input as when summaries
   keep up. Not bounded: several `lookup_order` calls in one response (each adds a result),
   corrections echoing the model's own tool names, and the summary's input growing while
-  summaries keep failing. A follow-up ADR should cap read calls per response and the summary
-  job's size; until then a long-tail turn can still hit `ContextTooLong` (try again, alert).
+  summaries keep failing. ADR-028 (locked 2026-11-20) closes these: a read budget per turn, one
+  fixed-size note instead of the echo, summary chunks, a window capped in messages; until it's
+  built a long-tail turn can still hit `ContextTooLong` (try again, alert).
 - **Characters per token is a fixed 3** until measured tokens replace it, and per-message
   overhead (role markers, tool-call framing) isn't counted. Measured 2026-11-19: text of 4-byte
   characters is ~3.4 tokens per character on Groq, Gemini and Cloudflare, ten times the estimate;
-  ADR-028 (proposed) replaces it with one token per UTF-8 byte; ERNIE measured 0.87 tokens per
+  ADR-028 (locked) replaces it with one token per UTF-8 byte (not built yet); ERNIE measured 0.87 tokens per
   byte on a smaller payload after its first capture hit OpenRouter's shared-pool limit.
 - **Escalation reasons start at migration 0006.** Runs escalated before it are `unrecorded`;
   test fixtures that insert escalated runs directly use the same value. The reason is internal

@@ -11,6 +11,13 @@ in the window (S6); the smaller decisions numbered in order.
 **Locked 2026-11-14.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Superseded in part by [ADR-028](028-turn-read-calls-and-summary-input-caps.md):** S1's malformed rule (a malformed response is no longer echoed
+with an error for every call: one fixed-size note, model text escaped and cut to 64 characters;
+a spent read budget withdraws the read tools and is its own outcome, not malformed); S2/S9's
+`CUSTOMER_MESSAGE_MAX_CHARS` and `PROMPT_WINDOW_MAX_CHARS` (now in bytes, with the window also
+capped in messages); S6's summary job (the oldest `SUMMARY_MAX_MESSAGES` uncovered messages, a
+chunk skipped with a marker after repeated content failures). Everything else here stands.
+
 **Filled in by [ADR-023](023-llm-provider-adapter.md):** Part 2's provider failures also
 include auth failures and a context that's too long (`try_again`); an input the provider's
 filter rejects gets a `rephrase` reply instead, and the run stays in `AGENT_STEP`.

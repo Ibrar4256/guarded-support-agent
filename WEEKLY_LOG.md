@@ -1376,3 +1376,18 @@ Editing the uncommitted migration after applying it broke its own downgrade (the
 names); repaired by hand on the dev database and the round trip re-checked. Fail-closed rule ids
 carry a `FAIL_CLOSED:` prefix, so a reason names only the rules that raised.
 
+**ADR-028 locked (2026-11-20) after two outside reviews:** a context bound that holds. Measured
+first: a 9,543-character malformed response becomes a 415,128-character correction (each call's
+error repeats a model-written tool name), so the echo is quadratic; free captures showed text of
+4-byte characters costs ~0.87–0.88 tokens per byte on Groq, Gemini, Cloudflare and ERNIE, ten
+times the 3-characters-per-token estimate, and all four providers accept a mid-conversation
+system note. Chosen: one token per UTF-8 byte as a ceiling, checked per model by a fixture, with
+byte caps on text that crosses between models; a per-turn read budget that withdraws the read
+tools when spent (its own outcome, not malformed); one fixed-size note instead of the echo;
+summary chunks with a per-conversation content-failure count; a window capped in messages;
+`ContextTooLong` after this is a bound violation that alerts; retired setting names refused.
+
+**What broke:** Cloudflare's gpt-oss-20b answered the note with its call inside the reasoning
+channel and nothing else (pinned); OpenRouter's shared free pool refused the full ceiling
+capture (429), so ERNIE was measured on a smaller payload.
+

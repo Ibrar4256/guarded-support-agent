@@ -8,6 +8,10 @@ through `COALESCE`, and a fixed past anchor recorded in every recording.
 **Locked 2026-11-19.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Extended by [ADR-028](028-turn-read-calls-and-summary-input-caps.md) (S7):** a case's `script:` field fixes its first model responses (for
+example a malformed one), injected through the recording wrapper, and the real model answers
+from there.
+
 **Fills in:** ADR-025 S6 (record-and-replay, deterministic eval prompts) and S7 (budget,
 schedule, merge gate), and EVAL_PLAN's LLM suites. ADR-025's recording key, modes
 (`replay`, `record`, `live`), budget variables and reporting rules apply unchanged; the key's
