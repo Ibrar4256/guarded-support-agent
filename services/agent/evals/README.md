@@ -19,6 +19,25 @@ PYTHONPATH=testing .venv/bin/python -m agent_testing.evals \
 - Exit code 1 means a run errored (a missing recording, another anchor, a real date in a prompt,
   a timestamp outside the anchor's range). Judges' verdicts are results, reported as counts.
 
+## Recording runs: budget and resume (ADR-026 S6)
+
+A `record` run needs its provider in both `EVAL_PROVIDER_DAILY_TOKENS` and
+`EVAL_DEMO_RESERVE_TOKENS` (`provider:tokens,...`, see `.env.example`). Its budget is daily
+minus reserve; it refuses to start (exit 2) if that isn't positive.
+
+- Progress lives in `progress/<key>.json` (gitignored), keyed by the suite, model, k, each case
+  file's bytes and the prompt fingerprints. It's saved after every case run.
+- Before each case run, if the tokens charged on the current UTC day have reached the budget,
+  the run stops with exit 3. A case run with a call the provider didn't fully count (usage
+  `none` or `partial`) also stops it, after saving. Scripted responses don't count. A case run
+  with a failed provider call (a rate limit, an outage) is charged but stays unfinished, and the
+  run stops; the resume runs it again.
+- Run **the same command** to resume: finished case runs are skipped, the day's counter
+  resets on a new UTC day, and the recording-run id stays the same. The report is written once
+  every case run has finished, and the progress file is then removed.
+- Editing a case or a prompt starts a new run. A second runner on the same progress file is
+  refused.
+
 ## A case
 
 `cases/<suite>/<id>.yaml`; dates are relative to the anchor, amounts in minor units.

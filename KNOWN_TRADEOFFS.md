@@ -606,3 +606,47 @@ lives in `WEEKLY_LOG.md`.
   `*_url` for databases) is in its repr. A secret in a field with another name isn't caught.
   CI's database passwords are random per run for a throwaway container, so what a CI log
   could have shown was short-lived; local runs use the real `.env`.
+
+## Eval budget and resume (ADR-026 slice 4)
+
+- **The budget is in tokens; only Groq publishes a daily token limit.** Gemini's Flash-Lite and
+  OpenRouter's `:free` models limit requests a day, Cloudflare counts neurons, so their
+  `EVAL_PROVIDER_DAILY_TOKENS` entries are proxies set by hand. A requests-per-day budget beside
+  the token one is a follow-up; until then a recording run on those providers can still hit the
+  provider's own daily limit first (which stops it: see the uncounted-call rule).
+- **Checked between case runs, so a run can overshoot by one case run.** Tokens are known only
+  after a call, so the runner stops before starting a case run once the day's charged tokens
+  reach the budget, not before a call that would cross it. A two-call turn measured about 1.4K
+  input and about 0.2K output tokens (2026-11-19); a multi-message case is more. The reserve
+  absorbs it.
+- **The ledger is per recording run, not per provider account.** Two different recording runs
+  on the same provider on the same day each get the full budget, and the deployed demo's own
+  traffic on that account isn't counted. Run one recording at a time; the reserve is the margin
+  for the demo.
+- **A call the provider didn't fully count stops the run (fail closed).** A call with usage
+  `none` or `partial` has unknown tokens, so the run saves its progress and stops after that
+  case run (exit 3); the counted part is still charged. A provider that never reports usage
+  can't be recorded without a change here; every recorded Groq call so far reported full usage.
+  Scripted responses (`script:`) carry no usage and are subtracted, since they cost nothing.
+- **A failed provider call leaves its case run unfinished.** A rate limit or outage that
+  survives the adapter's retries ends the turn with `try_again`, which isn't the model's answer,
+  so the case run is charged what it spent, kept pending, and the run stops; the same command
+  runs it again. A provider that keeps failing makes no progress until it recovers.
+- **Pacing is the provider's 429 plus the adapter's retries, nothing more.** Groq allows 8K
+  tokens a minute and a case run spends ~1.6K in a couple of seconds, so a long recording run
+  will meet that limit; each time it does past the retries, the run stops and has to be
+  restarted. A pause between case runs is a follow-up (slice 5's recording plan).
+- **An errored case run counts as finished.** A runner error (a missing recording, a real date in
+  a prompt, an invariant violation) is in the report and its tokens are charged; a resume
+  doesn't retry it. To retry, finish the run and record the case again.
+- **What starts a new run, and what doesn't.** The progress file is keyed by the suite, model, k,
+  each case file's bytes and the prompt fingerprints, so editing a case or a prompt mid-run
+  starts a fresh run (the old progress file stays in the gitignored folder). A code change that
+  isn't in a fingerprint (policy, judges) resumes the same run; the report then names every
+  commit the run was resumed at, comma-separated.
+- **The day is the UTC day.** The counter resets at UTC midnight. If a provider counts a rolling
+  24 hours or resets at another hour, a run resumed just after midnight can meet the provider's
+  real limit before its own; not checked against any provider's docs yet.
+- **One runner per progress file, on one machine.** An OS file lock (`flock`) refuses a second
+  runner on the same file and is released if the process dies; two machines sharing a checkout
+  over a network file system aren't covered.

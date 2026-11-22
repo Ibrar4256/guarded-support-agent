@@ -1440,3 +1440,39 @@ unchecked; the fix for the first was a design, not a sentence.
 took provider credentials from the environment, and only my `.env` had a Groq key. The fake
 model never needs one, so the tests now pass a placeholder; checked by running them with every
 provider credential unset. The project rule I broke: tests must not depend on the local env.
+
+### Evals: budget and resume for recording runs (ADR-026 slice 4, S6) (2026-11-23)
+
+**What shipped:** a `record` run is budgeted and resumable. The budget per provider is
+`EVAL_PROVIDER_DAILY_TOKENS` minus `EVAL_DEMO_RESERVE_TOKENS` (`provider:tokens` lists); the run
+refuses to start (exit 2, before any database work) if its provider is missing from either or
+the reserve leaves nothing. A progress file (`services/agent/evals/progress/`, gitignored),
+keyed by the suite, model, k, each case file's bytes and the prompt fingerprints, holds the
+finished case runs with their results, the tokens charged on the current UTC day and the commits
+the run was resumed at; it's written atomically after every case run. Before each case run the
+runner stops (exit 3) once the day's tokens reach the budget; the same command resumes it the
+next day with the same recording-run id, and the report is written only when every case run has
+finished. An OS file lock keeps a second runner off the same file. Design shown and approved
+before coding (checked between case runs on measured tokens; auto-resume by key, no `--resume`
+flag). 21 unit and 4 integration tests (the integration ones drive `main` through two days with
+a fake model and cloned databases); 19 plants caught, every row of ADR-026's test table for S6
+included. Checks: agent 1348, refund_api 258, e2e 19, run with every provider credential unset.
+
+**What broke / what I nearly missed:** `llm_calls` stores NULL tokens when a provider doesn't
+report usage (uncounted, never zero, by a CHECK), and the approved design summed those columns,
+so an uncounted call would have read as free. Now a case run with any call whose usage isn't
+`full` stops the run after saving; a spent-quota error leaves such a row too, so it stops the run
+as well. Scripted responses also have no usage but never reach a provider, so they're subtracted
+(tested both ways). Probing that rule found a second gap before any commit: a case run whose
+provider call failed (a 429 past the adapter's retries ends the turn with `try_again`) was marked
+finished, so a resume would never retry it and the report would count my rate limit as the
+model's failure. Now such a case run is charged what it spent, stays pending, and the run stops;
+the same command runs it again (tested with a fake that rate-limits once). One plant (resume ignoring finished runs) was first caught by a later
+assertion than intended: the rerun spent the next day's budget, so the exit-code check failed
+first. Moving the call-count assertion ahead of it made the failure name the rerun.
+
+**What I learned:** a NULL that means "unknown" needs a reader that keeps it unknown; any
+aggregate quietly turns it into zero.
+
+**Next:** slice 5, the cases (adversarial set and resolution set), then a recording run on Groq
+within the new budget.

@@ -9,6 +9,7 @@ real date in a prompt) or an invariant violation is the run's error, not a judge
 """
 
 import asyncio
+import dataclasses
 import subprocess
 import uuid
 from collections.abc import Callable, Mapping, Sequence
@@ -24,6 +25,7 @@ from agent.alerts import LogAlerter
 from agent.db.llm_calls import DbCallRecorder
 from agent.db.schema import llm_calls
 from agent.llm.adapter import OpenAICompatibleModel
+from agent.llm.errors import OUTCOME_OK
 from agent.llm.pool import PoolMember, ProviderPool
 from agent.llm.prices import PriceTable
 from agent.llm.providers import PROVIDERS
@@ -114,12 +116,23 @@ class CaseRunResult:
     calls: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
+    # Calls whose usage the provider didn't fully report: their tokens are unknown (S6 budget).
+    uncounted_calls: int = 0
+    # Calls that failed at the provider (rate limit, outage): the run isn't the model's answer.
+    failed_calls: int = 0
     latencies_ms: list[int] = field(default_factory=list)
     stamps: dict[str, list[str]] = field(default_factory=dict)  # for the replay tests
 
     @property
     def passed(self) -> bool:
         return self.error is None and all(v.passed for v in self.verdicts)
+
+    def to_json(self) -> dict[str, Any]:
+        return dataclasses.asdict(self)
+
+    @classmethod
+    def from_json(cls, data: Mapping[str, Any]) -> "CaseRunResult":
+        return cls(**{**data, "verdicts": [Verdict(**v) for v in data["verdicts"]]})
 
 
 def scripted_responses(case: Case, provider: str, model: str) -> list[ModelResponse]:
@@ -239,6 +252,8 @@ async def run_case(
                     result.error = "timestamp invariant: " + "; ".join(map(str, broken))
                 result.verdicts = judge(CaseState(conn, conversation, turns), case.expect)
                 _usage(conn, result)
+                # A scripted response is ours: no usage, and it costs nothing.
+                result.uncounted_calls -= model.scripted
                 result.stamps = _stamps(conn)
         except (RecordingError, TimeoutError) as error:
             result.error = f"{type(error).__name__}: {error}"
@@ -270,9 +285,17 @@ def _usage(conn: Any, result: CaseRunResult) -> None:
             func.count(),
             func.coalesce(func.sum(llm_calls.c.input_tokens), 0),
             func.coalesce(func.sum(llm_calls.c.output_tokens), 0),
+            func.count().filter(llm_calls.c.usage_completeness != UsageCompleteness.FULL.value),
+            func.count().filter(llm_calls.c.outcome != OUTCOME_OK),
         )
     ).one()
-    result.calls, result.input_tokens, result.output_tokens = row
+    (
+        result.calls,
+        result.input_tokens,
+        result.output_tokens,
+        result.uncounted_calls,
+        result.failed_calls,
+    ) = row
     result.latencies_ms = list(conn.execute(select(llm_calls.c.latency_ms)).scalars())
 
 

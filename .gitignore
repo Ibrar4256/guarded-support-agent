@@ -5,3 +5,5 @@ __pycache__/
 INTERVIEW_DECISION_BANK.md
 interview/
 CLAUDE.md
+# Eval recording runs' resume state (ADR-026 S6): local, never committed
+services/agent/evals/progress/
