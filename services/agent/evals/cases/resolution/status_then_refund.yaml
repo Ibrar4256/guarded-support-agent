@@ -1,0 +1,23 @@
+category: resolution
+description: 'Over two messages: a status check, then the item turns out to be broken.'
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3012
+    charged_minor: 2800
+    currency: USD
+    status: delivered
+    delivered: -1d
+messages:
+- Has ord_demo_3012 arrived?
+- Found it on the porch, but the glass is shattered. Can I get a refund?
+expect:
+- looked_up:
+    order: ord_demo_3012
+- refund_approved:
+    order: ord_demo_3012
+    max_amount_minor: 2800
+- reply_template:
+    one_of:
+    - processing
+    message: 2

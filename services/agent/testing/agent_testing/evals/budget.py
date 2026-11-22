@@ -12,6 +12,7 @@ with a failed provider call (a rate limit, an outage) is charged but stays unfin
 run stops so the resume runs it again.
 """
 
+import asyncio
 import fcntl
 import hashlib
 import json
@@ -34,6 +35,8 @@ DAILY_VAR = "EVAL_PROVIDER_DAILY_TOKENS"
 RESERVE_VAR = "EVAL_DEMO_RESERVE_TOKENS"
 VERSION = 1
 KEY_CHARS = 16
+# What the pause between case runs awaits; a test seam.
+sleep = asyncio.sleep
 
 
 class BudgetRefused(ValueError):
@@ -232,15 +235,22 @@ async def record_suite(
     progress: Progress,
     budget: Budget,
     inner: InnerFactory = real_model,
+    pause: float = 0.0,
 ) -> str | None:
-    """Run the pending case runs, saving progress after each; why it stopped early, or None."""
+    """Run the pending case runs, saving progress after each; why it stopped early, or None.
+
+    ``pause`` seconds pass between case runs (never before the first); with the runner's
+    pause between a case's turns (``RunConfig.pause``), every turn after the run's first waits,
+    to stay under a provider's tokens-a-minute limit instead of meeting its 429s."""
     by_id = {case.id: case for case in cases}
-    for case_id, run_index in progress.pending(list(by_id), config.k):
+    for number, (case_id, run_index) in enumerate(progress.pending(list(by_id), config.k)):
         if progress.used() >= budget.tokens:
             return (
                 f"{budget.provider}'s budget for {progress.day} is spent ({progress.used()} of "
                 f"{budget.tokens} tokens); run the same command tomorrow to resume"
             )
+        if number and pause:
+            await sleep(pause)
         result = await run_case(
             by_id[case_id],
             run_index,

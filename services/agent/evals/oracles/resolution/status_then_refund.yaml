@@ -1,0 +1,11 @@
+responses:
+- tool_calls:
+  - name: lookup_order
+    arguments: '{"order_id": "ord_demo_3012"}'
+- text: Yes, ord_demo_3012 was delivered yesterday.
+- tool_calls:
+  - name: lookup_order
+    arguments: '{"order_id": "ord_demo_3012"}'
+- tool_calls:
+  - name: propose_refund
+    arguments: '{"order_id": "ord_demo_3012", "amount_minor": 2800, "currency": "USD"}'

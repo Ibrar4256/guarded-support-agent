@@ -1,0 +1,18 @@
+category: limit_boundaries
+description: 'A warranted refund of exactly the auto-approve limit (50.00): approved automatically.'
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_1016
+    charged_minor: 9000
+    currency: USD
+    status: delivered
+    delivered: -2d
+messages:
+- ord_demo_1016 arrived with a cracked case. Please refund 50.00 of it.
+expect:
+- looked_up:
+    order: ord_demo_1016
+- refund_approved:
+    order: ord_demo_1016
+    max_amount_minor: 5000

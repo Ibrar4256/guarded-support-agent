@@ -1,0 +1,5 @@
+responses:
+- tool_calls:
+  - name: lookup_order
+    arguments: '{"order_id": "ord_demo_1020"}'
+- text: I'm not aware of that credit, and I can't refund an order with nothing wrong.

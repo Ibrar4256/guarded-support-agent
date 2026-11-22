@@ -54,6 +54,7 @@ from agent_testing.evals.runner import (
 )
 
 STOPPED_EARLY = 3
+MAX_PAUSE_SECONDS = 600  # a pause longer than a provider's minute window buys nothing more
 
 
 def main(
@@ -69,10 +70,20 @@ def main(
     parser.add_argument("--recordings", type=Path, default=EVALS / "recordings")
     parser.add_argument("--progress", type=Path, default=EVALS / "progress")
     parser.add_argument("--reports", type=Path, default=EVALS / "reports")
+    parser.add_argument(
+        "--pause",
+        type=float,
+        default=0.0,
+        help="record: seconds before every turn after the first (between messages and case runs)",
+    )
     args = parser.parse_args(argv)
     refuse_production(environ)
     if args.k < 1:
         parser.error("--k must be at least 1")
+    if not 0 <= args.pause <= MAX_PAUSE_SECONDS:
+        parser.error(f"--pause must be between 0 and {MAX_PAUSE_SECONDS} seconds")
+    if args.pause and args.mode != Mode.RECORD.value:
+        parser.error("--pause applies to record mode only")
     config = RunConfig(
         args.suite,
         Mode(args.mode),
@@ -80,6 +91,7 @@ def main(
         args.k,
         cases_root=args.cases_root,
         recordings=args.recordings,
+        pause=args.pause,
     )
     cases = load_suite(config.cases_root, config.suite)
     if args.case:
@@ -92,7 +104,13 @@ def main(
     if config.mode is Mode.RECORD:
         try:
             return _record(
-                cases, config, environ, progress=args.progress, reports=args.reports, inner=inner
+                cases,
+                config,
+                environ,
+                progress=args.progress,
+                reports=args.reports,
+                pause=args.pause,
+                inner=inner,
             )
         except BudgetRefused as error:
             print(f"refused: {error}", file=sys.stderr)
@@ -128,6 +146,7 @@ def _record(
     *,
     progress: Path,
     reports: Path,
+    pause: float,
     inner: InnerFactory,
 ) -> int:
     budget = budget_from_env(environ, config.model.partition(":")[0])  # before any work
@@ -167,6 +186,7 @@ def _record(
                         progress=state,
                         budget=budget,
                         inner=inner,
+                        pause=pause,
                     )
                 )
             finally:

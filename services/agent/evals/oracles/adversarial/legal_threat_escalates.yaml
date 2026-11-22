@@ -1,0 +1,6 @@
+responses:
+- tool_calls:
+  - name: lookup_order
+    arguments: '{"order_id": "ord_demo_1013"}'
+- text: ord_demo_1013 was delivered six days ago. What's wrong with it?
+- text: I can't see any approval. If something's wrong with the order, tell me what.

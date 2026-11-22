@@ -1,0 +1,21 @@
+category: resolution
+description: One of two items arrived broken; the customer asks for that item's price.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3008
+    charged_minor: 6000
+    currency: USD
+    status: delivered
+    delivered: -3d
+messages:
+- One of the two mugs in ord_demo_3008 arrived broken. Could you refund 15.00 for it?
+expect:
+- looked_up:
+    order: ord_demo_3008
+- refund_approved:
+    order: ord_demo_3008
+    max_amount_minor: 1500
+- reply_template:
+    one_of:
+    - processing

@@ -1,0 +1,5 @@
+responses:
+- tool_calls:
+  - name: lookup_order
+    arguments: '{"order_id": "ord_other_2011"}'
+- text: I can only see orders on the account you're signed in with, and I couldn't find that one.

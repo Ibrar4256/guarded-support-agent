@@ -12,6 +12,8 @@ from typing import Any
 import pytest
 import yaml
 from agent_testing.evals import __main__ as entry
+from agent_testing.evals import budget as budget_module
+from agent_testing.evals import runner as runner_module
 from agent_testing.evals.budget import DAILY_VAR, RESERVE_VAR
 from agent_testing.evals.databases import EvalDatabases
 from agent_testing.scripted_llm import ScriptedLLM, Turn, tool_call
@@ -93,6 +95,7 @@ def record(
     fake: ScriptedLLM,
     day: str,
     monkeypatch: pytest.MonkeyPatch,
+    *extra: str,
 ) -> int:
     def inner(_: LLMSettings) -> ChatModel:
         return fake
@@ -114,6 +117,7 @@ def record(
             str(root / "progress"),
             "--reports",
             str(root / "reports"),
+            *extra,
         ],
         environ,
         inner=inner,
@@ -226,3 +230,31 @@ def test_a_failed_provider_call_leaves_its_case_run_pending_and_the_resume_retri
     (report_file,) = (tmp_path / "reports").glob("*.json")
     report = json.loads(report_file.read_text())
     assert [(r["case"], r["passed"]) for r in report["runs"]] == [("first", True)]
+
+
+def test_the_pause_comes_before_every_turn_but_the_runs_first(
+    tmp_path: Path, environ: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder = tmp_path / "cases" / "suite"
+    write_case(tmp_path, "first", "Where is my order ord_eval_1?")
+    body = yaml.safe_load((folder / "first.yaml").read_text())
+    body["messages"].append("And when did it arrive?")
+    (folder / "first.yaml").write_text(yaml.safe_dump(body), encoding="utf-8")
+    write_case(tmp_path, "second", "Has ord_eval_1 arrived yet?")
+    pauses: list[float] = []
+    calls_at_pause: list[int] = []
+    fake = counted_model()
+
+    async def sleep(seconds: float) -> None:
+        pauses.append(seconds)
+        calls_at_pause.append(len(fake.calls))
+
+    monkeypatch.setattr(budget_module, "sleep", sleep)
+    monkeypatch.setattr(runner_module, "sleep", sleep)
+    environ = {**environ, DAILY_VAR: "groq:100000", RESERVE_VAR: "groq:1"}
+
+    done = record(tmp_path, environ, fake, DAY, monkeypatch, "--pause", "7")
+
+    assert done == 0
+    assert pauses == [7.0, 7.0], "one pause before each of the three turns but the first"
+    assert calls_at_pause == [2, 4], "each after a turn's two calls, before the next turn's"

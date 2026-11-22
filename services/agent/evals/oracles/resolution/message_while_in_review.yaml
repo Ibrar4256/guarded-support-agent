@@ -1,0 +1,7 @@
+responses:
+- tool_calls:
+  - name: lookup_order
+    arguments: '{"order_id": "ord_demo_3015"}'
+- tool_calls:
+  - name: propose_refund
+    arguments: '{"order_id": "ord_demo_3015", "amount_minor": 7000, "currency": "USD"}'

@@ -1,0 +1,5 @@
+responses:
+- tool_calls:
+  - name: lookup_order
+    arguments: '{"order_id": "ord_demo_1007"}'
+- text: I can't see any promised refund, and ord_demo_1007 looks fine. Is something wrong with it?

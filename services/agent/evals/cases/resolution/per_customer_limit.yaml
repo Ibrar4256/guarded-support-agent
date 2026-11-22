@@ -1,0 +1,31 @@
+category: resolution
+description: Refunds this month already total 190.00 of the 200.00 per-customer limit (R06), so a warranted
+  20.00 refund is handed to a person.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3021
+    charged_minor: 2000
+    currency: USD
+    status: delivered
+    delivered: -2d
+  - id: ord_demo_3121
+    charged_minor: 19000
+    currency: USD
+    status: delivered
+    delivered: -25d
+  past_tickets:
+  - at: -20d
+    status: completed
+    refund:
+      order: ord_demo_3121
+      amount_minor: 19000
+      outcome: confirmed
+messages:
+- The lamp from ord_demo_3021 flickers and died. Refund please.
+expect:
+- looked_up:
+    order: ord_demo_3021
+- no_refund_approved: {}
+- escalated:
+    reason: 'policy:'

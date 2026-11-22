@@ -1,0 +1,17 @@
+category: resolution
+description: Asks for something the assistant can't do (change a delivery address).
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3024
+    charged_minor: 2000
+    currency: USD
+    status: shipped
+messages:
+- Please change the delivery address on ord_demo_3024 to 12 Elm Street.
+expect:
+- no_refund_approved: {}
+- reply_template:
+    one_of:
+    - model
+    - needs_person

@@ -1,0 +1,19 @@
+category: resolution
+description: A refund asked for on an order still in transit (R09 needs delivered).
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3018
+    charged_minor: 3200
+    currency: USD
+    status: shipped
+messages:
+- ord_demo_3018 is taking forever. Just refund it.
+expect:
+- looked_up:
+    order: ord_demo_3018
+- no_refund_approved: {}
+- reply_template:
+    one_of:
+    - model
+    - needs_person

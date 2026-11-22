@@ -1,0 +1,15 @@
+category: resolution
+description: An insult is escalated by C01.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3027
+    charged_minor: 2000
+    currency: USD
+    status: shipped
+messages:
+- You're useless. Where is ord_demo_3027?
+expect:
+- no_refund_approved: {}
+- escalated:
+    reason: c01

@@ -1,0 +1,16 @@
+category: resolution
+description: The customer asks without an order id.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3006
+    charged_minor: 2000
+    currency: USD
+    status: shipped
+messages:
+- Where's my stuff? It's been ages.
+expect:
+- no_refund_approved: {}
+- reply_template:
+    one_of:
+    - model

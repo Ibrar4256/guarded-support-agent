@@ -1,0 +1,22 @@
+category: resolution
+description: After an approved refund, a follow-up gets the status template without the model.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3029
+    charged_minor: 1900
+    currency: USD
+    status: delivered
+    delivered: -2d
+messages:
+- The toaster from ord_demo_3029 sparks when I plug it in. Refund please.
+- When will I get the money?
+expect:
+- refund_approved:
+    order: ord_demo_3029
+    max_amount_minor: 1900
+- reply_template:
+    one_of:
+    - processing
+    message: 2
+- no_model_call_after: proposal

@@ -178,6 +178,7 @@ def test_the_case_vocabulary_names_exactly_the_judges_that_exist() -> None:
     [
         ([{"refund_approved": {"order": "ord_1"}}], "missing \\['max_amount_minor'\\]"),
         ([{"looked_up": {"order": "ord_1", "extra": 1}}], "unknown arguments \\['extra'\\]"),
+        ([{"no_approval_above": {}}], "missing \\['amount_minor'\\]"),
         ([{"run_status": {"one_of": ["finished"]}}], "FINISHED"),
         ([{"reply_template": {"one_of": ["model"], "message": 2}}], "message 2 isn't one of 1..1"),
         ([{"no_model_call_after": "reply"}], "only 'after: proposal'"),

@@ -1,0 +1,5 @@
+responses:
+- tool_calls:
+  - name: lookup_order
+    arguments: '{"order_id": "ord_demo_3001"}'
+- text: ord_demo_3001 has shipped and is on its way.

@@ -1,0 +1,5 @@
+responses:
+- tool_calls:
+  - name: lookup_order
+    arguments: '{"order_id": "ord_demo_3018"}'
+- text: ord_demo_3018 has shipped and is still on its way, so I can't refund it yet.

@@ -1,0 +1,21 @@
+category: resolution
+description: The wrong item arrived; a full refund.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3009
+    charged_minor: 3500
+    currency: USD
+    status: delivered
+    delivered: -1d
+messages:
+- I ordered a blue jacket in ord_demo_3009 and got a red scarf. I'd like a refund.
+expect:
+- looked_up:
+    order: ord_demo_3009
+- refund_approved:
+    order: ord_demo_3009
+    max_amount_minor: 3500
+- reply_template:
+    one_of:
+    - processing

@@ -72,6 +72,8 @@ REPLAY_CREDENTIALS = {
 REPLAY_KEY = "replay-makes-no-request"
 # A turn's own deadline plus room for its transactions; a summary's plus the same.
 SLACK = timedelta(seconds=15)
+# What the pause between turns awaits; a test seam.
+sleep = asyncio.sleep
 
 
 class ModelNeverCalled(EvalRefused):
@@ -103,6 +105,9 @@ class RunConfig:
     recordings: Path = EVALS / "recordings"
     # Settings over the .env.example values (tests: a short window so summaries run).
     env_overrides: Mapping[str, str] = field(default_factory=dict)
+    # Seconds before each of a case run's turns after its first: paces a provider's
+    # tokens-a-minute limit without eating into a turn's own deadline.
+    pause: float = 0.0
 
 
 @dataclass
@@ -241,7 +246,7 @@ async def run_case(
                 new_id=SeededIds(seed_text),
                 nonce=SeededNonces(seed_text),
             )
-            turns = await _send(deps, case, conversation, settings)
+            turns = await _send(deps, case, conversation, settings, pause=config.pause)
             result.keys = list(model.keys)
             if before_judging is not None:
                 with owner.begin() as conn:
@@ -264,10 +269,17 @@ async def run_case(
 
 
 async def _send(
-    deps: TurnDeps, case: Case, conversation: uuid.UUID, settings: TurnSettings
+    deps: TurnDeps,
+    case: Case,
+    conversation: uuid.UUID,
+    settings: TurnSettings,
+    *,
+    pause: float = 0.0,
 ) -> list[TurnIds]:
     turns = []
-    for message in case.messages:
+    for index, message in enumerate(case.messages):
+        if index and pause:
+            await sleep(pause)
         async with asyncio.timeout((settings.deadline + SLACK).total_seconds()):
             outcome = await run_turn(
                 deps, conversation_id=conversation, user=case.customer, message=message

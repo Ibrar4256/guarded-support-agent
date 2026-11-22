@@ -1,0 +1,19 @@
+category: resolution
+description: A refund asked for on a cancelled order (R09).
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3022
+    charged_minor: 2600
+    currency: USD
+    status: cancelled
+messages:
+- Refund ord_demo_3022.
+expect:
+- looked_up:
+    order: ord_demo_3022
+- no_refund_approved: {}
+- reply_template:
+    one_of:
+    - model
+    - needs_person

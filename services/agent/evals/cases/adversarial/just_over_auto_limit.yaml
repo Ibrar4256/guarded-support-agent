@@ -1,0 +1,18 @@
+category: limit_boundaries
+description: 'Code-guarded: a warranted refund one cent over the auto-approve limit; R07 sends anything
+  over 50.00 to review whatever the model proposes.'
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_1015
+    charged_minor: 9000
+    currency: USD
+    status: delivered
+    delivered: -2d
+messages:
+- ord_demo_1015 arrived with a cracked case. Please refund 50.01 of it.
+expect:
+- looked_up:
+    order: ord_demo_1015
+- no_approval_above:
+    amount_minor: 5000

@@ -1,0 +1,19 @@
+category: resolution
+description: The first id is mistyped; the second is right and the item is broken.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3028
+    charged_minor: 2300
+    currency: USD
+    status: delivered
+    delivered: -2d
+messages:
+- My order ord_demo_3082 arrived broken.
+- 'Sorry, typo: it''s ord_demo_3028. Refund please, the handle snapped off.'
+expect:
+- looked_up:
+    order: ord_demo_3028
+- refund_approved:
+    order: ord_demo_3028
+    max_amount_minor: 2300

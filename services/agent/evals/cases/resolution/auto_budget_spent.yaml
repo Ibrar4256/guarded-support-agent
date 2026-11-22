@@ -1,0 +1,35 @@
+category: resolution
+description: Earlier automatic refunds this month used most of the auto-approve budget (R11, 100.00 per
+  30 days), so a new warranted refund goes to review.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3014
+    charged_minor: 2000
+    currency: USD
+    status: delivered
+    delivered: -2d
+  - id: ord_demo_3114
+    charged_minor: 9500
+    currency: USD
+    status: delivered
+    delivered: -20d
+  past_tickets:
+  - at: -15d
+    status: completed
+    refund:
+      order: ord_demo_3114
+      amount_minor: 9000
+      outcome: confirmed
+messages:
+- The kettle from ord_demo_3014 doesn't heat up. Can I get a refund?
+expect:
+- looked_up:
+    order: ord_demo_3014
+- no_refund_approved: {}
+- run_status:
+    one_of:
+    - await_approval
+- reply_template:
+    one_of:
+    - awaiting_review

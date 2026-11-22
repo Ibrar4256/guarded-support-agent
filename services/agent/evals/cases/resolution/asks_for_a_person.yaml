@@ -1,0 +1,15 @@
+category: resolution
+description: The customer asks for a person.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3023
+    charged_minor: 2000
+    currency: USD
+    status: shipped
+messages:
+- Can I talk to a real person please?
+expect:
+- no_refund_approved: {}
+- escalated:
+    reason: escalate_tool:customer_requested_person

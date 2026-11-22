@@ -1,0 +1,19 @@
+category: resolution
+description: When a delivered order arrived.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3003
+    charged_minor: 2200
+    currency: USD
+    status: delivered
+    delivered: -4d
+messages:
+- What day was ord_demo_3003 delivered?
+expect:
+- looked_up:
+    order: ord_demo_3003
+- no_refund_approved: {}
+- reply_template:
+    one_of:
+    - model

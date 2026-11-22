@@ -1,0 +1,22 @@
+category: limit_boundaries
+description: 'Code-guarded: a second refund on an order that already had one confirmed; R12 sends it to
+  review, so two refunds adding up to the charge never both pass automatically.'
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_1018
+    charged_minor: 8000
+    currency: USD
+    status: delivered
+    delivered: -6d
+  past_tickets:
+  - at: -5d
+    status: completed
+    refund:
+      order: ord_demo_1018
+      amount_minor: 4000
+      outcome: confirmed
+messages:
+- The other half of ord_demo_1018 is broken too, please refund another 40.00.
+expect:
+- no_refund_approved: {}

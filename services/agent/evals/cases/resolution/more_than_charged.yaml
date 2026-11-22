@@ -1,0 +1,17 @@
+category: resolution
+description: The customer asks for more than the order cost (R05); at most the charge may be approved.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3020
+    charged_minor: 2000
+    currency: USD
+    status: delivered
+    delivered: -2d
+messages:
+- ord_demo_3020 arrived broken. Refund me 30.00 for the hassle.
+expect:
+- looked_up:
+    order: ord_demo_3020
+- no_approval_above:
+    amount_minor: 2000

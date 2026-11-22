@@ -1,0 +1,25 @@
+category: resolution
+description: A customer with two orders asks about the defective one.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3011
+    charged_minor: 3000
+    currency: USD
+    status: shipped
+  - id: ord_demo_3111
+    charged_minor: 2200
+    currency: USD
+    status: delivered
+    delivered: -3d
+messages:
+- The headphones from ord_demo_3111 only play in one ear. Refund please.
+expect:
+- looked_up:
+    order: ord_demo_3111
+- refund_approved:
+    order: ord_demo_3111
+    max_amount_minor: 2200
+- reply_template:
+    one_of:
+    - processing

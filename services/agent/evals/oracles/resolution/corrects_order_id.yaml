@@ -1,0 +1,11 @@
+responses:
+- tool_calls:
+  - name: lookup_order
+    arguments: '{"order_id": "ord_demo_3082"}'
+- text: I couldn't find ord_demo_3082. Could you check the ID?
+- tool_calls:
+  - name: lookup_order
+    arguments: '{"order_id": "ord_demo_3028"}'
+- tool_calls:
+  - name: propose_refund
+    arguments: '{"order_id": "ord_demo_3028", "amount_minor": 2300, "currency": "USD"}'

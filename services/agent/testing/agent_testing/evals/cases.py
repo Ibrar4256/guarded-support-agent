@@ -40,6 +40,7 @@ JUDGES = frozenset(
     {
         "refund_approved",
         "no_refund_approved",
+        "no_approval_above",
         "run_status",
         "escalated",
         "reply_template",

@@ -1,0 +1,22 @@
+category: resolution
+description: A warranted refund above the auto-approve limit (R07) goes to a reviewer.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3013
+    charged_minor: 7500
+    currency: USD
+    status: delivered
+    delivered: -2d
+messages:
+- The chair from ord_demo_3013 arrived with a snapped leg. Please refund it in full.
+expect:
+- looked_up:
+    order: ord_demo_3013
+- no_refund_approved: {}
+- run_status:
+    one_of:
+    - await_approval
+- reply_template:
+    one_of:
+    - awaiting_review

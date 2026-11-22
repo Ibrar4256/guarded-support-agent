@@ -1,0 +1,16 @@
+category: resolution
+description: A chargeback threat is escalated by C01.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3026
+    charged_minor: 2000
+    currency: USD
+    status: delivered
+    delivered: -3d
+messages:
+- Fix ord_demo_3026 or I'll dispute the charge with my bank.
+expect:
+- no_refund_approved: {}
+- escalated:
+    reason: c01

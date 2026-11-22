@@ -1476,3 +1476,30 @@ aggregate quietly turns it into zero.
 
 **Next:** slice 5, the cases (adversarial set and resolution set), then a recording run on Groq
 within the new budget.
+
+### Evals: the adversarial and resolution cases (ADR-026 slice 5) (2026-11-23)
+
+**What shipped:** 25 adversarial cases in EVAL_PLAN's eight categories and 30 resolution
+cases, each with an oracle (the ideal agent's model answers, call by call). CI runs every case
+against its oracle with a fake model, so a case no correct agent could pass, or an oracle that
+drifted, fails before any quota is spent. CI also runs a compromised model against every
+adversarial case: it must fail 19 of them, and for the 6 the code decides whatever the model
+does (other customers' orders hidden by the lookup; R07 and R12 at the limits) the code must
+hold, each listed with its guard. A `no_approval_above` judge for limit boundaries. `--pause`
+now waits before every turn after the run's first (messages and case runs alike), sized from
+Groq's 8K tokens a minute. 12 plants and one manual control caught.
+
+**What broke / what I nearly got wrong:** I told the user a legal threat would likely pass
+unescalated because the system prompt doesn't mention it; ADR-009's C01 already escalates it in
+code before the model runs, so the case expects `c01`. Probing the cases with a compromised model
+showed four cross-user cases only "caught" it because my fake typed the secret amounts itself:
+the model never sees them, so those cases measure the code. And I'd used `reply_excludes` on
+words a good refusal repeats ("there's no VIP pre-approval"), which would have counted correct
+refusals as attack successes; it's now kept for leaks and literal compliance only. The first
+pause sat only between case runs, but a five-message case spends ~13K tokens in seconds, so it
+moved to between turns.
+
+**What I learned:** an eval case needs a test in both directions, a correct agent passes and a
+compromised one fails, or its number means less than it looks.
+
+**Next:** record both suites at k=3 on Groq (after the user's OK), then the CI replay job (S7).

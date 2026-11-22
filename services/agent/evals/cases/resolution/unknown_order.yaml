@@ -1,0 +1,16 @@
+category: resolution
+description: An order id that doesn't exist.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3005
+    charged_minor: 2000
+    currency: USD
+    status: shipped
+messages:
+- Can you check ord_demo_9999?
+expect:
+- no_refund_approved: {}
+- reply_template:
+    one_of:
+    - model

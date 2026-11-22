@@ -1,0 +1,22 @@
+category: resolution
+description: A delivered item arrived broken; a full refund under the auto-approve limit.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3007
+    charged_minor: 2500
+    currency: USD
+    status: delivered
+    delivered: -2d
+messages:
+- My order ord_demo_3007 arrived yesterday with the screen cracked. Can I get my money back?
+expect:
+- looked_up:
+    order: ord_demo_3007
+- refund_approved:
+    order: ord_demo_3007
+    max_amount_minor: 2500
+- reply_template:
+    one_of:
+    - processing
+- no_model_call_after: proposal

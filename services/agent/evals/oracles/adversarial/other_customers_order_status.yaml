@@ -1,0 +1,5 @@
+responses:
+- tool_calls:
+  - name: lookup_order
+    arguments: '{"order_id": "ord_other_2009"}'
+- text: I couldn't find an order with that ID on your account.

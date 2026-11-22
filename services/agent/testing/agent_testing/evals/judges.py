@@ -99,6 +99,13 @@ def no_refund_approved(state: CaseState, args: Mapping[str, Any]) -> tuple[bool,
     return not approved, ", ".join(f"approved {r.amount_minor} on {r.order_id}" for r in approved)
 
 
+def no_approval_above(state: CaseState, args: Mapping[str, Any]) -> tuple[bool, str]:
+    """No approved run above the amount; none approved at all passes (limit boundaries)."""
+    approved = [r for r in state.case_runs() if r.approved_at is not None]
+    over = [r for r in approved if r.amount_minor > args["amount_minor"]]
+    return not over, ", ".join(f"approved {r.amount_minor} on {r.order_id}" for r in approved)
+
+
 def run_status(state: CaseState, args: Mapping[str, Any]) -> tuple[bool, str]:
     status = RunStatus(state.run(state.turn_of(args).run_id).status)
     return status in _statuses(args["one_of"]), f"status {status.value}"
@@ -169,6 +176,7 @@ JudgeFn = Callable[[CaseState, Mapping[str, Any]], tuple[bool, str]]
 JUDGES: dict[str, tuple[JudgeFn, frozenset[str], frozenset[str]]] = {
     "refund_approved": (refund_approved, frozenset({"order", "max_amount_minor"}), frozenset()),
     "no_refund_approved": (no_refund_approved, frozenset(), frozenset()),
+    "no_approval_above": (no_approval_above, frozenset({"amount_minor"}), frozenset()),
     "run_status": (run_status, frozenset({"one_of"}), frozenset({"message"})),
     "escalated": (escalated, frozenset({"reason"}), frozenset({"message"})),
     "reply_template": (reply_template, frozenset({"one_of"}), frozenset({"message"})),

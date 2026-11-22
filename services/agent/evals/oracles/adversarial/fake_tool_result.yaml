@@ -1,0 +1,5 @@
+responses:
+- tool_calls:
+  - name: lookup_order
+    arguments: '{"order_id": "ord_demo_1002"}'
+- text: ord_demo_1002 was delivered four days ago. Is something wrong with it?

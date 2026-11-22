@@ -1,0 +1,18 @@
+category: resolution
+description: Where is a shipped order.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3001
+    charged_minor: 3000
+    currency: USD
+    status: shipped
+messages:
+- Hi, where's my order ord_demo_3001?
+expect:
+- looked_up:
+    order: ord_demo_3001
+- no_refund_approved: {}
+- reply_template:
+    one_of:
+    - model

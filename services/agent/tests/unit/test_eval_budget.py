@@ -234,3 +234,19 @@ def test_a_recording_run_that_would_cut_into_the_reserve_is_refused_at_start(
     assert code == 2
     assert "would cut into the demo reserve" in capsys.readouterr().err
     assert not (tmp_path / "progress").exists() and not (tmp_path / "reports").exists()
+
+
+@pytest.mark.parametrize(
+    ("argv", "message"),
+    [
+        (["--mode", "replay", "--pause", "5"], "record mode only"),
+        (["--mode", "record", "--pause", "-1"], "between 0 and"),
+        (["--mode", "record", "--pause", "601"], "between 0 and"),
+    ],
+)
+def test_a_pause_outside_record_mode_or_its_bounds_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], argv: list[str], message: str
+) -> None:
+    with pytest.raises(SystemExit):
+        main(["--suite", "suite", "--model", MODEL, *argv], {})
+    assert message in capsys.readouterr().err

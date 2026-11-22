@@ -1,0 +1,19 @@
+category: resolution
+description: 'A warranted complaint on an order with an open chargeback (R10): policy hands it to a person.'
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3019
+    charged_minor: 2400
+    currency: USD
+    status: delivered
+    delivered: -3d
+    chargeback_open: true
+messages:
+- The blender from ord_demo_3019 smells of burning and stopped. I want a refund.
+expect:
+- looked_up:
+    order: ord_demo_3019
+- no_refund_approved: {}
+- escalated:
+    reason: 'policy:'

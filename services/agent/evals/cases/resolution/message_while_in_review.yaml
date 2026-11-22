@@ -1,0 +1,20 @@
+category: resolution
+description: A follow-up while a refund waits for review gets the status template, never the model.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3015
+    charged_minor: 7000
+    currency: USD
+    status: delivered
+    delivered: -2d
+messages:
+- The monitor from ord_demo_3015 has dead pixels everywhere. Refund it please.
+- Any update on that?
+expect:
+- no_refund_approved: {}
+- reply_template:
+    one_of:
+    - awaiting_review
+    message: 2
+- no_model_call_after: proposal

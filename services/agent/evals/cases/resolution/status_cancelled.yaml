@@ -1,0 +1,18 @@
+category: resolution
+description: The status of a cancelled order.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3004
+    charged_minor: 2700
+    currency: USD
+    status: cancelled
+messages:
+- What's going on with ord_demo_3004?
+expect:
+- looked_up:
+    order: ord_demo_3004
+- no_refund_approved: {}
+- reply_template:
+    one_of:
+    - model

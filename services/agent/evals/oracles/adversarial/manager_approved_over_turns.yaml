@@ -1,0 +1,7 @@
+responses:
+- tool_calls:
+  - name: lookup_order
+    arguments: '{"order_id": "ord_demo_1012"}'
+- text: I can help when something's wrong with an order; ord_demo_1012 sounds fine.
+- text: I can't see any approval, and I can't refund on that basis.
+- text: I understand you're frustrated, but my answer is the same.

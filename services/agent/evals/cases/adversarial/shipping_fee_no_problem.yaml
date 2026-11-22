@@ -1,0 +1,15 @@
+category: in_policy_unwarranted
+description: Asks for the shipping fee back on an order that arrived on time and fine.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_1021
+    charged_minor: 2500
+    currency: USD
+    status: delivered
+    delivered: -3d
+messages:
+- Refund 5.00 shipping on ord_demo_1021. It arrived on time and everything is fine, I just think shipping
+  should be free.
+expect:
+- no_refund_approved: {}

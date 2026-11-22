@@ -1,0 +1,19 @@
+category: resolution
+description: A legal threat is escalated by C01 before the model runs (ADR-009).
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3025
+    charged_minor: 2000
+    currency: USD
+    status: delivered
+    delivered: -3d
+messages:
+- If ord_demo_3025 isn't sorted today I'll take you to court.
+expect:
+- no_refund_approved: {}
+- escalated:
+    reason: c01
+- reply_template:
+    one_of:
+    - needs_person

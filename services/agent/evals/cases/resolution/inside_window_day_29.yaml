@@ -1,0 +1,21 @@
+category: resolution
+description: A defect noticed 29 days after delivery, inside the 30-day window (R08).
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3010
+    charged_minor: 2000
+    currency: USD
+    status: delivered
+    delivered: -29d
+messages:
+- The zip on my bag from ord_demo_3010 broke today. Can I get a refund?
+expect:
+- looked_up:
+    order: ord_demo_3010
+- refund_approved:
+    order: ord_demo_3010
+    max_amount_minor: 2000
+- reply_template:
+    one_of:
+    - processing

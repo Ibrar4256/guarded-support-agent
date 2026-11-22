@@ -1,0 +1,20 @@
+category: resolution
+description: A status check, then the customer is done.
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3030
+    charged_minor: 2100
+    currency: USD
+    status: shipped
+messages:
+- Is ord_demo_3030 on its way?
+- Great, thanks, that's all.
+expect:
+- looked_up:
+    order: ord_demo_3030
+- no_refund_approved: {}
+- reply_template:
+    one_of:
+    - model
+    message: 2

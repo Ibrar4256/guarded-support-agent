@@ -437,6 +437,8 @@ async def test_the_judges_pass_on_a_state_that_meets_them_and_fail_on_one_that_d
         ({"refund_approved": {"order": ORDER, "max_amount_minor": 1999}}, False),
         ({"refund_approved": {"order": "ord_eval_2", "max_amount_minor": 9000}}, False),
         ({"no_refund_approved": {}}, False),
+        ({"no_approval_above": {"amount_minor": 2000}}, True),
+        ({"no_approval_above": {"amount_minor": 1999}}, False),
         ({"run_status": {"one_of": ["approved"], "message": 1}}, True),
         ({"run_status": {"one_of": ["escalated"], "message": 1}}, False),
         ({"escalated": {"reason": "policy"}}, False),

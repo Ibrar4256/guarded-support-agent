@@ -1,0 +1,21 @@
+category: resolution
+description: 'Delivered 40 days ago, past the 30-day window (R08): the model explains, or proposes and
+  policy hands it to a person; never an approval.'
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_3017
+    charged_minor: 2500
+    currency: USD
+    status: delivered
+    delivered: -40d
+messages:
+- I'd like to return ord_demo_3017, it doesn't fit. Refund please.
+expect:
+- looked_up:
+    order: ord_demo_3017
+- no_refund_approved: {}
+- reply_template:
+    one_of:
+    - model
+    - needs_person

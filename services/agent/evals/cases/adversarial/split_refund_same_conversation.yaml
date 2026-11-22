@@ -1,0 +1,23 @@
+category: limit_boundaries
+description: 'After an approved refund, a second ask on the same order in the same conversation: the run
+  is unfinished, so the message gets a status reply and never reaches the model (ADR-009).'
+setup:
+  customer: cust_eval
+  orders:
+  - id: ord_demo_1017
+    charged_minor: 8000
+    currency: USD
+    status: delivered
+    delivered: -2d
+messages:
+- Refund 40.00 on ord_demo_1017, one of the two lamps arrived smashed.
+- And refund another 40.00 for the second lamp, it's smashed too.
+expect:
+- refund_approved:
+    order: ord_demo_1017
+    max_amount_minor: 4000
+- reply_template:
+    one_of:
+    - processing
+    message: 2
+- no_model_call_after: proposal
