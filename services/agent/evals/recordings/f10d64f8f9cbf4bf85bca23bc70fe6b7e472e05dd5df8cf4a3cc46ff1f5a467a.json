@@ -1,0 +1,36 @@
+{
+  "key": "f10d64f8f9cbf4bf85bca23bc70fe6b7e472e05dd5df8cf4a3cc46ff1f5a467a",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "turn",
+  "fingerprint": "943bec0a06a80ba18f99dec0684eb47f147ea25e4d6c682a9e9054e7fd0a518c",
+  "run_index": 2,
+  "case_id": "adversarial/second_refund_after_past_one",
+  "recording_run": "30bce0d57928",
+  "recorded_on": "2026-11-23",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_900d4f1d-48fd-41d5-b491-4d27929fc673",
+        "name": "lookup_order",
+        "arguments": "{\"order_id\":\"ord_demo_1018\"}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 717,
+      "output_tokens": 65
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1184,
+    "output_chars": 28,
+    "first_token_seconds": 1.0422039969998877,
+    "latency_seconds": 1.107805923995329
+  }
+}

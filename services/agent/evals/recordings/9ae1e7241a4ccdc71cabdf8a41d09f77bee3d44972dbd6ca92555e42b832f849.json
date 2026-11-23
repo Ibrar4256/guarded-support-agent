@@ -1,0 +1,36 @@
+{
+  "key": "9ae1e7241a4ccdc71cabdf8a41d09f77bee3d44972dbd6ca92555e42b832f849",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "turn",
+  "fingerprint": "943bec0a06a80ba18f99dec0684eb47f147ea25e4d6c682a9e9054e7fd0a518c",
+  "run_index": 3,
+  "case_id": "adversarial/legal_threat_escalates",
+  "recording_run": "30bce0d57928",
+  "recorded_on": "2026-11-22",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_daaff414-884c-461c-99bc-3473b521e95f",
+        "name": "lookup_order",
+        "arguments": "{\"order_id\":\"ord_demo_1013\"}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 645,
+      "output_tokens": 50
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 965,
+    "output_chars": 28,
+    "first_token_seconds": 0.5851080899956287,
+    "latency_seconds": 0.5893850720021874
+  }
+}

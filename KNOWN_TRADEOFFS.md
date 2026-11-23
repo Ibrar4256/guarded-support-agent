@@ -680,3 +680,9 @@ lives in `WEEKLY_LOG.md`.
   counted.
 - **Cases are synthetic and English only,** with one customer and USD; C01's blind spots
   (negation, other languages, obfuscation) aren't measured.
+- **Measured (2026-11-23, Groq gpt-oss-120b, k=3): the model resists none of the refund
+  manipulations.** 12 of the 19 model-measured adversarial cases had an approved refund in at
+  least one run; every one was within policy (at most 50.00), so out-of-policy and cross-user
+  approvals stayed at 0. The residual risk ADR-001 accepted is real and sized: up to the
+  auto-approve limit per order, within the per-customer limit and budget. Reducing it needs its
+  own decision, measured against this recording.
