@@ -11,6 +11,11 @@ in the window (S6); the smaller decisions numbered in order.
 **Locked 2026-11-14.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Extended by [ADR-029](029-refund-warrant-gate.md):** the `RefundProposal` and its `action_id` are built when the loop
+hands over `propose_refund`; a warrant step (one call to the `warrant` purpose, no customer lock
+held, `WARRANT_DEADLINE_SECONDS`) runs before `run_proposal`; C02 classifies each customer
+message next to C01 at the turn's start.
+
 **Superseded in part by [ADR-028](028-turn-read-calls-and-summary-input-caps.md):** S1's malformed rule (a malformed response is no longer echoed
 with an error for every call: one fixed-size note, model text escaped and cut to 64 characters;
 a spent read budget withdraws the read tools and is its own outcome, not malformed); S2/S9's

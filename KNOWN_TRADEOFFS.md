@@ -686,3 +686,6 @@ lives in `WEEKLY_LOG.md`.
   approvals stayed at 0. The residual risk ADR-001 accepted is real and sized: up to the
   auto-approve limit per order, within the per-customer limit and budget. Reducing it needs its
   own decision, measured against this recording.
+- **ADR-029's warrant gate is decided, not built.** Until it is, the measured in-policy
+  manipulation stands. Once built, it still won't stop a customer who adds one false complaint
+  sentence to a social attack; the eval reports those as converted, not stopped.

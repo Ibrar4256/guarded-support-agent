@@ -73,6 +73,7 @@ tools.
 | [025](docs/adr/025-providers-models-and-eval-budget.md) | Free-tier providers behind one OpenAI-compatible adapter, an ordered model list per purpose with startup checks, record-and-replay evals and a token budget that protects the demo |
 | [026](docs/adr/026-eval-runner.md) | The eval runner: a fresh database per case, a logical clock at a fixed past anchor so recordings replay any day, one recording per key, YAML cases judged by rules on database state |
 | [028](docs/adr/028-turn-read-calls-and-summary-input-caps.md) | A context bound that holds: one token per UTF-8 byte as a ceiling checked per model, a per-turn read budget, one fixed-size note instead of echoing a malformed response, summary chunks |
+| [029](docs/adr/029-refund-warrant-gate.md) | A warrant gate: automatic refunds also need a complaint about this order in the customer's own words, checked outside the agent's context (deterministic injection signals, an independent warrant model, "not received" against delivery), review-only |
 
 Every ADR records the rejected options and when each would have been the better choice.
 

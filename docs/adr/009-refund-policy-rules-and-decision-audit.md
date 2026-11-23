@@ -11,6 +11,12 @@ switch vs. breaker scope, fenced failure transactions, `AGENT_STEP` resumption).
 **Locked 2026-10-08.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Extended by [ADR-029](029-refund-warrant-gate.md):** three review-only rules under the asymmetry principle: C02
+(injection signals stored with each customer message, counted for `POLICY_PER_CUSTOMER_WINDOW`
+on the injected clock), W01 (an independent warrant verdict bound to the proposal's
+`action_id`, order and amount) and W02 ("not received" on a delivered order). Their reviews go
+through phase 2 (R16, R19) like any other.
+
 **Filled in by [ADR-022](022-agent-turn.md):** the turn bounces a `propose_refund` on an order
 this run hasn't looked up back to the model before evaluation (R02 itself unchanged); the
 proposal-time "please try again" reply records its cause.

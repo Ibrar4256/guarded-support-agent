@@ -10,6 +10,10 @@ per turn. Revised 2026-10-08: the canonical run statuses and transitions are def
 and tests, or recorded in a new ADR that supersedes this one. Where this ADR and ADR-008
 disagree, ADR-008 wins.
 
+**Narrowed by [ADR-029](029-refund-warrant-gate.md):** the in-policy residual risk in Consequences. An automatic approval also
+needs a complaint about this order in the customer's own words (C02, W01, W02, review-only); a
+customer who lies about a problem is still approved, which ADR-029's evals report as converted.
+
 **Filled in by [ADR-022](022-agent-turn.md):** the `AGENT_STEP` turn step by step, its call,
 malformed and time budgets, and how untrusted tool output is fenced in the prompt.
 

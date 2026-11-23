@@ -1532,3 +1532,31 @@ against this baseline), not a quick prompt fix.
 
 **Next:** the resolution suite on a later UTC day (one recording run per day keeps Groq under its
 real limit), then the CI replay job (S7), then the injection decision.
+
+### Decision: a warrant gate for automatic refunds (ADR-029, locked) (2026-11-23)
+
+**What shipped:** ADR-029, locked after two outside reviews. The adversarial recording showed the
+gap is structural: policy checks whether a refund is allowed, and only the manipulated model
+decides whether it's earned. Chosen: a layered gate in code, review-only under ADR-009's
+asymmetry principle. C02 flags known injection forms in each customer message when it arrives
+(counted for 30 days on the injected clock); W01 is one call to a separate `warrant` model,
+before the customer lock, that sees only what the customer wrote and the conversation's looked-up
+orders and must name this order, a problem category and a quote that code finds in the
+customer's messages; W02 sends "not received" on a delivered order to review. Rejected: prompt
+hardening alone (later, measured separately), either layer alone, a structured reason on
+`propose_refund`, an input classifier, removing auto-approval, data-verified complaints only.
+
+**What the reviews caught:** the first draft read as if it stopped the attacks; one false
+sentence ("it arrived damaged") passes both layers, so the gate converts manipulation into a
+false claim on the record and the eval now measures that bypass as "converted". W01 had no
+order id (a complaint about one order could warrant a refund on another) and was asked to judge
+amounts with no line items to judge them by. My table summed to 18 cases, not 19. C02 would
+have tainted a conversation forever and missed Cyrillic look-alikes; NFKC would have turned
+"5µm" into a mixed-script word. The verdict needed binding to the proposal's `action_id`, which
+`run_proposal` creates too late, and C02's window needed the injected clock.
+
+**What I learned:** describing a control by what it converts, not what it blocks, is both more
+honest and the stronger argument.
+
+**Next:** S0, the resolution baseline recording (from 21:30 UTC), then S5's new cases with their
+expected results, then S1-S4.

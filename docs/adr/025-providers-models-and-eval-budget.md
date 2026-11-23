@@ -8,6 +8,10 @@ free tiers (S11).
 **Locked 2026-11-17.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Extended by [ADR-029](029-refund-warrant-gate.md):** a third purpose, `warrant` (`LLM_WARRANT_MODELS`, verified, context
+fit and tool-call proof like the others; two providers recommended); S11's data terms apply to
+its provider.
+
 **Amended by [ADR-028](028-turn-read-calls-and-summary-input-caps.md):** S12's bound counts one token per UTF-8 byte, a ceiling checked per model
 by a captured `byte_ceiling` fixture instead of 3 characters per token; next to S4's tool-call
 proof, a model is listable only with that fixture and a context of at least the larger purpose

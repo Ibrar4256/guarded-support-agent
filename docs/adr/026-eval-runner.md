@@ -8,6 +8,10 @@ through `COALESCE`, and a fixed past anchor recorded in every recording.
 **Locked 2026-11-19.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Extended by [ADR-029](029-refund-warrant-gate.md) (S4):** `--warrant-model`, a `record-missing` mode that fails on a
+missing `turn` key, per-provider charging, and reports split four ways (stopped by C02, by
+W01/W02, converted, still approved).
+
 **Extended by [ADR-028](028-turn-read-calls-and-summary-input-caps.md) (S7):** a case's `script:` field fixes its first model responses (for
 example a malformed one), injected through the recording wrapper, and the real model answers
 from there.
