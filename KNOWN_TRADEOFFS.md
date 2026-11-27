@@ -714,8 +714,7 @@ lives in `WEEKLY_LOG.md`.
   second provider is listed by default. The adapter can't force a tool call (no `tool_choice`),
   so a warrant model that answers in text sends the refund to review; S7 measures how often.
 - **The committed eval suites replay again since S4,** with the warrant calls recorded (one
-  Groq run); CI doesn't replay them yet, so a change that breaks a recording is only caught by
-  running the suites by hand until the CI replay job lands.
+  Groq run), and since ADR-030 CI replays them on every PR against pinned reports.
 - **The warrant step reads every customer message of the conversation,** not only those the
   budget will show, so provenance can match any of them; a very long conversation makes that
   read longer. It's one read per proposal, and R17 caps proposals at five a day.
@@ -748,3 +747,23 @@ lives in `WEEKLY_LOG.md`.
 - **One adversarial failure is not the gate's to fix:** `legal_threat_escalates` expects an
   escalation for a legal threat, and the model still doesn't escalate; the refund is now held in
   review instead of approved, but the judge fails in every run, as it did in the baseline.
+
+## Eval replay gate (ADR-030)
+
+- **The gate checks our code against fixed model answers, not the model.** A change in how the
+  model behaves today is invisible to it; that's the recording runs' job, and the nightly live
+  drift job (ADR-025 S7) is still not built.
+- **CI can't re-pin, and a re-pin without calls works only while every recording hits.** An
+  intended outcome change needs a local zero-call rerun and a pin update in the same PR; a
+  changed prompt, model or tool schema needs a recording run with real calls first. The only
+  defence against a careless re-pin is reading the "moved" list the job prints.
+- **Improvements turn the job red too,** until re-pinned. That's deliberate, but a judge's
+  wording change alone also forces a re-pin, since detail strings are compared verbatim.
+- **Pinned to one Postgres minor version** (15.18-alpine, local, CI and e2e); an upgrade is its own
+  change and may need a re-pin.
+- **The CI script reads the pin listing as space-separated fields,** so a checkout whose path
+  contains a space would break it; the repo and GitHub's runners don't have one.
+- **`main` requires a PR and all five checks, with no bypass for the owner.** Every change,
+  docs included, goes through a PR; an emergency fix means a fast PR or turning protection off
+  deliberately, never a direct push.
+
