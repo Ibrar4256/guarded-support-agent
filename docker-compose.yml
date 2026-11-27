@@ -2,7 +2,7 @@
 # an owner role and a runtime role per database. Credentials come from .env.
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15.18-alpine  # pinned: eval replays are compared exactly (ADR-030)
     environment:
       POSTGRES_USER: ${POSTGRES_SUPERUSER:?set in .env}
       POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set in .env}
