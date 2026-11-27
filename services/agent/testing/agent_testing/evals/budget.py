@@ -2,14 +2,17 @@
 
 The budget for a provider is ``EVAL_PROVIDER_DAILY_TOKENS - EVAL_DEMO_RESERVE_TOKENS`` (each a
 comma-separated ``provider:tokens`` list); a run refuses to start when that is not positive, or
-when the run's provider has no entry. The progress file, keyed by everything that decides the
-run's results (suite, model, k, the case files' contents, the prompt fingerprints), records the
-finished case runs and the tokens charged to each provider on the current UTC day. Re-running
-the same command resumes it: finished case runs are skipped, the counter resets when the day
-changes, and the run stops between case runs once the day's budget is spent. A case run with a
-call the provider didn't fully count can't be charged honestly, so the run stops after it; one
-with a failed provider call (a rate limit, an outage) is charged but stays unfinished, and the
-run stops so the resume runs it again.
+when a provider it may call live has no entry (ADR-029 S4: the turn's and the warrant model's in
+record mode, those of the recorded purposes in record-missing). The progress file, keyed by
+everything that decides the run's results (suite, model, warrant model, mode, recorded purposes,
+k, the case files' contents, the prompt fingerprints), records the finished case runs and the
+tokens charged to each provider on the current UTC day: what each case run spent live with it
+(the ``EvalModel``'s tally; a replayed call costs nothing). Re-running the same command resumes
+it: finished case runs are skipped, the counter resets when the day changes, and the run stops
+between case runs once any provider's budget for the day is spent. A case run with a call the
+provider didn't fully count can't be charged honestly, so the run stops after it; one with a
+failed provider call (a rate limit, an outage) is charged but stays unfinished, and the run
+stops so the resume runs it again.
 """
 
 import asyncio
@@ -26,14 +29,15 @@ from pathlib import Path
 from typing import Any
 
 from agent.llm.providers import PROVIDERS
+from agent.llm.types import Purpose
 from agent_testing.evals.cases import Case
 from agent_testing.evals.databases import EvalDatabases
-from agent_testing.evals.recording import canonical
+from agent_testing.evals.recording import Mode, canonical
 from agent_testing.evals.runner import CaseRunResult, InnerFactory, RunConfig, real_model, run_case
 
 DAILY_VAR = "EVAL_PROVIDER_DAILY_TOKENS"
 RESERVE_VAR = "EVAL_DEMO_RESERVE_TOKENS"
-VERSION = 1
+VERSION = 2  # 2: charged per provider from the live tally (ADR-029 S4)
 KEY_CHARS = 16
 # What the pause between case runs awaits; a test seam.
 sleep = asyncio.sleep
@@ -88,6 +92,26 @@ def budget_from_env(environ: Mapping[str, str], provider: str) -> Budget:
     return budget
 
 
+def budgets_from_env(environ: Mapping[str, str], providers: Sequence[str]) -> dict[str, Budget]:
+    return {provider: budget_from_env(environ, provider) for provider in providers}
+
+
+def live_providers(config: RunConfig) -> tuple[str, ...]:
+    """Every provider the run may call live, sorted; each needs a budget."""
+    by_purpose = {
+        Purpose.TURN: config.model,
+        Purpose.SUMMARY: config.model,
+        Purpose.WARRANT: config.warrant,
+    }
+    if config.mode is Mode.RECORD_MISSING:
+        labels = {by_purpose[purpose] for purpose in config.record_purposes}
+    elif config.mode is Mode.REPLAY:
+        labels = set()
+    else:
+        labels = set(by_purpose.values())
+    return tuple(sorted({label.partition(":")[0] for label in labels}))
+
+
 def today() -> str:
     return datetime.now(UTC).date().isoformat()
 
@@ -99,11 +123,17 @@ def run_identity(
     k: int,
     case_files: Mapping[str, bytes],
     fingerprints: Mapping[str, str],
+    warrant_model: str,
+    mode: str,
+    record_purposes: Sequence[str],
 ) -> dict[str, Any]:
     """What decides a recording run's results; a change starts a new run, never a mixed one."""
     return {
         "suite": suite,
         "model": model,
+        "warrant_model": warrant_model,
+        "mode": mode,
+        "record_purposes": sorted(record_purposes),
         "k": k,
         "cases": {
             case_id: hashlib.sha256(data).hexdigest()
@@ -121,7 +151,7 @@ def progress_key(identity: Mapping[str, Any]) -> str:
 class Progress:
     path: Path
     identity: dict[str, Any]
-    provider: str
+    providers: tuple[str, ...]  # the budgeted ones
     recording_run: str
     day: str
     tokens_used_today: dict[str, int] = field(default_factory=dict)
@@ -132,8 +162,18 @@ class Progress:
     def finished(self) -> set[tuple[str, int]]:
         return {(r.case_id, r.run_index) for r in self.results}
 
-    def used(self) -> int:
-        return self.tokens_used_today.get(self.provider, 0)
+    def used(self, provider: str) -> int:
+        return self.tokens_used_today.get(provider, 0)
+
+    def exhausted(self, budgets: Mapping[str, Budget]) -> str | None:
+        """Why the run must stop for the day, or None while every budget has tokens left."""
+        for provider, budget in sorted(budgets.items()):
+            if self.used(provider) >= budget.tokens:
+                return (
+                    f"{provider}'s budget for {self.day} is spent ({self.used(provider)} of "
+                    f"{budget.tokens} tokens); run the same command tomorrow to resume"
+                )
+        return None
 
     def roll_day(self, day: str) -> None:
         if day != self.day:
@@ -141,8 +181,8 @@ class Progress:
             self.tokens_used_today = {}
 
     def charge(self, result: CaseRunResult) -> None:
-        spent = result.input_tokens + result.output_tokens
-        self.tokens_used_today[self.provider] = self.used() + spent
+        for provider, spent in result.spent.items():
+            self.tokens_used_today[provider] = self.used(provider) + spent
 
     def record(self, result: CaseRunResult) -> None:
         """A finished case run: charged, and skipped from now on."""
@@ -161,7 +201,7 @@ class Progress:
         return {
             "version": VERSION,
             "identity": self.identity,
-            "provider": self.provider,
+            "providers": list(self.providers),
             "recording_run": self.recording_run,
             "day": self.day,
             "tokens_used_today": self.tokens_used_today,
@@ -180,19 +220,20 @@ class Progress:
 
 
 def load_or_start(
-    root: Path, identity: dict[str, Any], provider: str, day: str
+    root: Path, identity: dict[str, Any], providers: Sequence[str], day: str
 ) -> tuple[Progress, bool]:
     """The run's progress (resumed: True) or a new one with a fresh recording run id."""
+    providers = tuple(providers)
     path = root / f"{progress_key(identity)}.json"
     if not path.is_file():
-        progress = Progress(path, identity, provider, uuid.uuid4().hex[:12], day)
+        progress = Progress(path, identity, providers, uuid.uuid4().hex[:12], day)
         return progress, False
     data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("version") != VERSION:
         raise BudgetRefused(
             f"{path}: progress file version {data.get('version')!r} isn't {VERSION}"
         )
-    if data["identity"] != identity or data["provider"] != provider:
+    if data["identity"] != identity or tuple(data["providers"]) != providers:
         raise BudgetRefused(f"{path} belongs to another run; move it aside to start this one")
     results = [CaseRunResult.from_json(item) for item in data["results"]]
     if sorted([r.case_id, r.run_index] for r in results) != data["finished"]:
@@ -200,7 +241,7 @@ def load_or_start(
     progress = Progress(
         path,
         identity,
-        provider,
+        providers,
         data["recording_run"],
         data["day"],
         {name: int(tokens) for name, tokens in data["tokens_used_today"].items()},
@@ -233,7 +274,7 @@ async def record_suite(
     environ: Mapping[str, str],
     databases: EvalDatabases,
     progress: Progress,
-    budget: Budget,
+    budgets: Mapping[str, Budget],
     inner: InnerFactory = real_model,
     pause: float = 0.0,
 ) -> str | None:
@@ -244,11 +285,9 @@ async def record_suite(
     to stay under a provider's tokens-a-minute limit instead of meeting its 429s."""
     by_id = {case.id: case for case in cases}
     for number, (case_id, run_index) in enumerate(progress.pending(list(by_id), config.k)):
-        if progress.used() >= budget.tokens:
-            return (
-                f"{budget.provider}'s budget for {progress.day} is spent ({progress.used()} of "
-                f"{budget.tokens} tokens); run the same command tomorrow to resume"
-            )
+        stop = progress.exhausted(budgets)
+        if stop is not None:
+            return stop
         if number and pause:
             await sleep(pause)
         result = await run_case(

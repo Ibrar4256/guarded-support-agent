@@ -1,7 +1,8 @@
 """``python -m agent_testing.evals``: run a suite of eval cases (ADR-026 S1).
 
-    python -m agent_testing.evals --suite smoke --mode replay|record|live \\
-        --model groq:openai/gpt-oss-120b [--k 3] [--case <id> ...]
+    python -m agent_testing.evals --suite smoke --mode replay|record|live|record-missing \\
+        --model groq:openai/gpt-oss-120b [--warrant-model provider:model] \\
+        [--record-purposes warrant,summary] [--k 3] [--case <id> ...]
 
 Needs the agent database settings and the Postgres superuser (it clones a database per case
 run); ``record`` and ``live`` need the provider's key, ``replay`` makes no request. Refuses
@@ -15,6 +16,12 @@ A recording run is budgeted and resumable (ADR-026 S6): it needs its provider in
 ``services/agent/evals/progress``, and exits 3 when it stops early (the day's budget is spent, or
 a call went uncounted); the same command resumes it, and the report is written once every case
 run has finished.
+
+``--warrant-model`` gives the warrant check its own model (default: ``--model``). A
+``record-missing`` run (ADR-029 S4) is budgeted and resumable like a recording run: it replays
+every key it has and calls live only for missing keys of ``--record-purposes`` (default
+``warrant,summary``; never ``turn``, so a changed turn prompt fails as in replay). Every provider
+it may call live needs its budget entry.
 """
 
 import argparse
@@ -30,8 +37,9 @@ from agent.llm.types import Purpose
 from agent.turn.fingerprint import fingerprint
 from agent_testing.evals.budget import (
     BudgetRefused,
-    budget_from_env,
+    budgets_from_env,
     exclusive,
+    live_providers,
     load_or_start,
     progress_key,
     record_suite,
@@ -55,6 +63,8 @@ from agent_testing.evals.runner import (
 
 STOPPED_EARLY = 3
 MAX_PAUSE_SECONDS = 600  # a pause longer than a provider's minute window buys nothing more
+RECORDING_MODES = (Mode.RECORD, Mode.RECORD_MISSING)
+DEFAULT_RECORD_PURPOSES = frozenset({Purpose.WARRANT, Purpose.SUMMARY})
 
 
 def main(
@@ -63,7 +73,14 @@ def main(
     parser = argparse.ArgumentParser(prog="python -m agent_testing.evals")
     parser.add_argument("--suite", required=True)
     parser.add_argument("--mode", choices=[m.value for m in Mode], required=True)
-    parser.add_argument("--model", required=True, help="provider:model, for both purposes")
+    parser.add_argument("--model", required=True, help="provider:model, the turn and summaries")
+    parser.add_argument(
+        "--warrant-model", help="provider:model for the warrant check (default: --model)"
+    )
+    parser.add_argument(
+        "--record-purposes",
+        help="record-missing: comma-separated purposes to record (default: warrant,summary)",
+    )
     parser.add_argument("--k", type=int, default=1)
     parser.add_argument("--case", action="append", help="only these case ids")
     parser.add_argument("--cases-root", type=Path, default=EVALS / "cases")
@@ -74,7 +91,7 @@ def main(
         "--pause",
         type=float,
         default=0.0,
-        help="record: seconds before every turn after the first (between messages and case runs)",
+        help="record, record-missing: seconds before every turn after the first",
     )
     args = parser.parse_args(argv)
     refuse_production(environ)
@@ -82,16 +99,28 @@ def main(
         parser.error("--k must be at least 1")
     if not 0 <= args.pause <= MAX_PAUSE_SECONDS:
         parser.error(f"--pause must be between 0 and {MAX_PAUSE_SECONDS} seconds")
-    if args.pause and args.mode != Mode.RECORD.value:
-        parser.error("--pause applies to record mode only")
+    mode = Mode(args.mode)
+    if args.pause and mode not in RECORDING_MODES:
+        parser.error("--pause applies to record and record-missing only")
+    if args.record_purposes is not None and mode is not Mode.RECORD_MISSING:
+        parser.error("--record-purposes applies to record-missing mode only")
+    record_purposes = frozenset[Purpose]()
+    if mode is Mode.RECORD_MISSING:
+        record_purposes = (
+            DEFAULT_RECORD_PURPOSES
+            if args.record_purposes is None
+            else _purposes(parser, args.record_purposes)
+        )
     config = RunConfig(
         args.suite,
-        Mode(args.mode),
+        mode,
         args.model,
         args.k,
         cases_root=args.cases_root,
         recordings=args.recordings,
         pause=args.pause,
+        warrant_model=args.warrant_model,
+        record_purposes=record_purposes,
     )
     cases = load_suite(config.cases_root, config.suite)
     if args.case:
@@ -101,7 +130,7 @@ def main(
         cases = [case for case in cases if case.id in args.case]
     for case in cases:
         check_args(case)
-    if config.mode is Mode.RECORD:
+    if config.mode in RECORDING_MODES:
         try:
             return _record(
                 cases,
@@ -149,7 +178,7 @@ def _record(
     pause: float,
     inner: InnerFactory,
 ) -> int:
-    budget = budget_from_env(environ, config.model.partition(":")[0])  # before any work
+    budgets = budgets_from_env(environ, live_providers(config))  # before any work
     identity = run_identity(
         suite=config.suite,
         model=config.model,
@@ -159,18 +188,24 @@ def _record(
             for case in cases
         },
         fingerprints={purpose.value: fingerprint(purpose) for purpose in Purpose},
+        warrant_model=config.warrant,
+        mode=config.mode.value,
+        record_purposes=[purpose.value for purpose in config.record_purposes],
     )
     # Read before the run: a recording run's own files would mark the tree dirty afterwards.
     commit = commit_sha()
     with exclusive(progress / f"{progress_key(identity)}.json"):
-        state, resumed = load_or_start(progress, identity, budget.provider, today())
+        state, resumed = load_or_start(progress, identity, tuple(budgets), today())
         state.resumed_at(commit)
         pending = state.pending([case.id for case in cases], config.k)
+        used = "; ".join(
+            f"{name} has used {state.used(name)} of {budget.tokens} tokens (daily "
+            f"{budget.daily}, reserve {budget.reserve})"
+            for name, budget in budgets.items()
+        )
         print(
             f"recording run {state.recording_run} ({'resumed' if resumed else 'new'}): "
-            f"{len(pending)} case runs to go; {budget.provider} has used {state.used()} of "
-            f"{budget.tokens} tokens on {state.day} (daily {budget.daily}, reserve "
-            f"{budget.reserve})"
+            f"{len(pending)} case runs to go; on {state.day} {used}"
         )
         databases = EvalDatabases.from_env(environ)
         with databases.hold():
@@ -184,7 +219,7 @@ def _record(
                         environ=environ,
                         databases=databases,
                         progress=state,
-                        budget=budget,
+                        budgets=budgets,
                         inner=inner,
                         pause=pause,
                     )
@@ -204,6 +239,21 @@ def _record(
         print(f"report: {path}")
         state.path.unlink()  # finished: the report is the record now
     return 1 if summary["errors"] else 0
+
+
+def _purposes(parser: argparse.ArgumentParser, raw: str) -> frozenset[Purpose]:
+    known = {purpose.value: purpose for purpose in Purpose}
+    chosen = set()
+    for name in (item.strip() for item in raw.split(",")):
+        if name not in known:
+            parser.error(f"--record-purposes: unknown purpose {name!r} (known: {sorted(known)})")
+        chosen.add(known[name])
+    if Purpose.TURN in chosen:
+        parser.error(
+            "--record-purposes: turn calls are never recorded by record-missing; a changed turn "
+            "prompt must fail as in replay (use record mode to re-record)"
+        )
+    return frozenset(chosen)
 
 
 def _in_case_order(results: Sequence[CaseRunResult], cases: Sequence[Case]) -> list[CaseRunResult]:

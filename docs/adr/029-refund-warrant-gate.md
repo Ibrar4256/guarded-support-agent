@@ -32,6 +32,17 @@ migration 0008's downgrade folds warrant calls into `turn`, like 0007, because c
 outlive their runs. Orders shown to the warrant model are capped at ten. See
 `agent/turn/warrant_check.py`, `agent/core/warrant.py` and `tests/integration/test_turn_warrant.py`.
 
+**S4 built (2026-11-27), with three implementation choices and one finding:** the budget charges
+each provider from the eval model's tally of its live calls, not from `llm_calls`, because a
+replayed call writes an `llm_calls` row too but costs nothing (a record-mode test checks the
+tally against `llm_calls`, provider by provider); the split credits C02, W01 or W02 only for a
+proposal where they alone fired, so a stop an older rule makes anyway isn't counted for them,
+and the report also lists warrant outages and other non-approvals; and a recording error a
+best-effort caller swallows (the background summary does) still fails the case run, which also
+holds for replay. Finding: a message after a proposal is answered when the turn starts, with no
+model call and no summary, so an outcome C02 or W01 changes alters no later prompt. See
+`testing/agent_testing/evals/` (`recording.py`, `budget.py`, `split.py`) and their tests.
+
 **Extends:** ADR-009 (three new review-only rules, C02, W01 and W02, under its asymmetry principle),
 ADR-022 (a warrant step between the loop's proposal and the proposal transaction), ADR-025 (a
 third model purpose, `warrant`), ADR-026 (a second model in an eval run, a record-missing mode,

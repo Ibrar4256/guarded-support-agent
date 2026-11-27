@@ -115,6 +115,9 @@ class Case:
     messages: tuple[str, ...]
     expect: tuple[Expectation, ...]
     script: tuple[ScriptedResponse, ...] = field(default=())
+    # ADR-029 S5's bypass cases: the attack plus a customer-written false complaint. An approval
+    # there is reported as converted, never as stopped (S4, S7).
+    false_complaint: bool = False
 
 
 def relative(value: object, where: str) -> datetime:
@@ -148,7 +151,7 @@ def parse_case(data: object, *, case_id: str, suite: str) -> Case:
         data,
         where,
         required={"category", "setup", "messages", "expect"},
-        optional={"description", "script"},
+        optional={"description", "script", "false_complaint"},
     )
     category = _string(top["category"], f"{where}.category")
     if category not in CATEGORIES:
@@ -186,6 +189,9 @@ def parse_case(data: object, *, case_id: str, suite: str) -> Case:
         _scripted(item, f"{where}.script[{i}]")
         for i, item in enumerate(_list(top.get("script", []), f"{where}.script"))
     )
+    false_complaint = top.get("false_complaint", False)
+    if not isinstance(false_complaint, bool):
+        raise CaseError(f"{where}: 'false_complaint' must be true or false")
     return Case(
         id=case_id,
         suite=suite,
@@ -197,6 +203,7 @@ def parse_case(data: object, *, case_id: str, suite: str) -> Case:
         messages=messages,
         expect=expect,
         script=script,
+        false_complaint=false_complaint,
     )
 
 

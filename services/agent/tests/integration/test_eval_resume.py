@@ -16,10 +16,10 @@ from agent_testing.evals import budget as budget_module
 from agent_testing.evals import runner as runner_module
 from agent_testing.evals.budget import DAILY_VAR, RESERVE_VAR
 from agent_testing.evals.databases import EvalDatabases
-from agent_testing.scripted_llm import ScriptedLLM, Turn, tool_call
+from agent_testing.scripted_llm import ScriptedLLM, Turn, tool_call, warrant_turn
 
 from agent.llm.errors import RateLimited
-from agent.llm.settings import LLMSettings
+from agent.llm.settings import LLMSettings, ProviderChoice
 from agent.llm.types import ChatModel, Purpose, Usage
 
 MODEL = "groq:openai/gpt-oss-120b"
@@ -97,7 +97,7 @@ def record(
     monkeypatch: pytest.MonkeyPatch,
     *extra: str,
 ) -> int:
-    def inner(_: LLMSettings) -> ChatModel:
+    def inner(_: LLMSettings, __: ProviderChoice) -> ChatModel:
         return fake
 
     monkeypatch.setattr(entry, "today", lambda: day)
@@ -258,3 +258,117 @@ def test_the_pause_comes_before_every_turn_but_the_runs_first(
     assert done == 0
     assert pauses == [7.0, 7.0], "one pause before each of the three turns but the first"
     assert calls_at_pause == [2, 4], "each after a turn's two calls, before the next turn's"
+
+
+# --- record-missing with a second model (ADR-029 S4) ---------------------------------------------
+
+WARRANT_MODEL = "gemini:gemini-2.5-flash"
+WARRANT_USAGE = Usage(input_tokens=300, output_tokens=20)
+REFUND = "Please refund 20.00 on ord_eval_1, it arrived broken."
+
+
+def refund_model(warrant: bool) -> ScriptedLLM:
+    """Looks up, proposes 20.00; with ``warrant`` it also answers the warrant check."""
+    turns = [
+        Turn(
+            tool_calls=(tool_call("lookup_order", {"order_id": ORDER}, "c1"),),
+            usage=USAGE,
+            match=lambda v: v.purpose is Purpose.TURN and not v.has_tool_results,
+            repeat=True,
+        ),
+        Turn(
+            tool_calls=(
+                tool_call(
+                    "propose_refund",
+                    {"order_id": ORDER, "amount_minor": 2000, "currency": "USD"},
+                    "c2",
+                ),
+            ),
+            usage=USAGE,
+            match=lambda v: v.purpose is Purpose.TURN and v.has_tool_results,
+            repeat=True,
+        ),
+    ]
+    if warrant:
+        turns.append(replace(warrant_turn(ORDER, ORDER), usage=WARRANT_USAGE))
+    return ScriptedLLM(turns)
+
+
+def run_main(
+    root: Path,
+    environ: dict[str, str],
+    models: dict[str, ScriptedLLM],
+    monkeypatch: pytest.MonkeyPatch,
+    *argv: str,
+) -> int:
+    def inner(_: LLMSettings, choice: ProviderChoice) -> ChatModel:
+        return models[choice.provider]
+
+    monkeypatch.setattr(entry, "today", lambda: DAY)
+    return entry.main(
+        [
+            "--suite",
+            "suite",
+            "--model",
+            MODEL,
+            "--cases-root",
+            str(root / "cases"),
+            "--recordings",
+            str(root / "recordings"),
+            "--progress",
+            str(root / "progress"),
+            "--reports",
+            str(root / "reports"),
+            *argv,
+        ],
+        environ,
+        inner=inner,
+    )
+
+
+def test_record_missing_charges_only_the_warrant_provider_and_reports_both_models(
+    tmp_path: Path, environ: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    write_case(
+        tmp_path,
+        "refund",
+        REFUND,
+        expect=[{"refund_approved": {"order": ORDER, "max_amount_minor": 2000}}],
+    )
+    environ = {
+        **environ,
+        "GEMINI_API_KEY": "fake-model-needs-no-key",
+        DAILY_VAR: "groq:100000,gemini:100000",
+        RESERVE_VAR: "groq:1,gemini:1",
+    }
+    turns = refund_model(warrant=True)
+    assert run_main(tmp_path, environ, {"groq": turns}, monkeypatch, "--mode", "record") == 0
+    recorded_calls = len(turns.calls)
+    warrant = refund_model(warrant=True)
+
+    done = run_main(
+        tmp_path,
+        environ,
+        {"groq": turns, "gemini": warrant},
+        monkeypatch,
+        "--mode",
+        "record-missing",
+        "--warrant-model",
+        WARRANT_MODEL,
+    )
+
+    assert done == 0
+    assert len(turns.calls) == recorded_calls, "the turn model was never called again"
+    assert [call.purpose for call in warrant.calls] == [Purpose.WARRANT]
+    reports = {p: json.loads(p.read_text()) for p in (tmp_path / "reports").glob("*.json")}
+    assert sorted(r["mode"] for r in reports.values()) == ["record", "record-missing"]
+    ((path, report),) = [(p, r) for p, r in reports.items() if r["mode"] == "record-missing"]
+    assert (report["mode"], report["model"], report["warrant_model"]) == (
+        "record-missing",
+        MODEL,
+        WARRANT_MODEL,
+    )
+    assert report["record_purposes"] == ["summary", "warrant"], "the default"
+    assert report["usage"]["live_tokens_by_provider"] == {"gemini": 320}
+    assert report["split"]["approved_without_complaint"] == 1
+    assert "gemini" in path.name

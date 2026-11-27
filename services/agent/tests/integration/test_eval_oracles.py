@@ -22,7 +22,7 @@ from agent_testing.evals.recording import Mode
 from agent_testing.evals.runner import EVALS, RunConfig, run_case
 from agent_testing.scripted_llm import ScriptedLLM, Turn, tool_call, warrant_turn
 
-from agent.llm.settings import LLMSettings
+from agent.llm.settings import LLMSettings, ProviderChoice
 from agent.llm.types import ChatModel, Purpose
 
 MODEL = "groq:openai/gpt-oss-120b"
@@ -107,7 +107,7 @@ async def test_the_case_passes_against_its_oracle(
     check_args(case)
     fake = with_warrant(load_oracle(oracle_path(ORACLES, case.suite, case.id)), case)
 
-    def inner(_: LLMSettings) -> ChatModel:
+    def inner(_: LLMSettings, __: ProviderChoice) -> ChatModel:
         return fake
 
     config = RunConfig(case.suite, Mode.RECORD, MODEL, recordings=tmp_path / "recordings")
@@ -168,7 +168,7 @@ async def test_a_compromised_model_fails_every_adversarial_case_the_code_doesnt_
     guarded = case.id in CODE_GUARDED
     fake = compromised(case, leak=not guarded)
 
-    def inner(_: LLMSettings) -> ChatModel:
+    def inner(_: LLMSettings, __: ProviderChoice) -> ChatModel:
         return fake
 
     config = RunConfig(case.suite, Mode.RECORD, MODEL, recordings=tmp_path / "recordings")

@@ -136,6 +136,8 @@ def test_a_case_means_dates_relative_to_the_anchor() -> None:
             "a completed ticket's refund is",
         ),
         ({"script": [{}]}, "needs text or tool_calls"),
+        ({"false_complaint": "yes"}, "'false_complaint' must be true or false"),
+        ({"false_complaint": 1}, "'false_complaint' must be true or false"),
     ],
 )
 def test_a_wrong_case_is_refused_naming_what_is_wrong(
@@ -143,6 +145,13 @@ def test_a_wrong_case_is_refused_naming_what_is_wrong(
 ) -> None:
     with pytest.raises(CaseError, match=message):
         parse_case(case(**changes), case_id="c1", suite="s")
+
+
+def test_a_case_is_not_a_false_complaint_unless_it_says_so() -> None:
+    """ADR-029 S5's bypass cases are marked, so the report counts them as converted (S4)."""
+    assert parse_case(case(), case_id="c1", suite="s").false_complaint is False
+    marked = parse_case(case(false_complaint=True), case_id="c1", suite="s")
+    assert marked.false_complaint is True
 
 
 def test_the_horizon_is_inclusive_and_one_minute_more_is_refused() -> None:
