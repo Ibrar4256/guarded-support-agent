@@ -1701,3 +1701,34 @@ cases behind a total before believing it.
 
 **Next:** a CI replay job for the committed suites, then S5's cases (the bypass measured, the
 complaint corpus), then the chat API and UI.
+
+### CI: the eval replay gate, and the first PR (ADR-030) (2026-11-27)
+
+**What shipped:** a CI job, `eval replay`, replays every committed eval suite with no provider
+key and compares it with a pinned report, case-run by case-run (pass, split bucket, every
+judge's verdict and detail) and in the totals; it exits 1 on a recording error and 4 on any
+difference, each listed as `case run N: old → new`. `evals/pinned.json` names the pinned reports
+and is validated both ways against the suite folders; a change to the pin prints the case-runs it
+moved; Postgres is pinned to 15.18-alpine. The smoke suite got its missing warrant recording
+first (one Groq call, 829 tokens): it couldn't replay, and nothing had noticed. ADR-030 was
+written with six options, revised after one outside review (the totals are compared too, the
+pin is checked both ways), and locked. agent 1,744 tests; seven planted regressions caught.
+
+**Measured:** replay is deterministic: two zero-call passes gave identical results for all 165
+adversarial and resolution case-runs, detail strings included, and the PR's CI run reproduced
+all three pins on GitHub's runner (the acceptance check). The gate replays everything in about
+72 seconds.
+
+**What broke:** nothing in CI; the useful failures were planted. Loosening W01 to pass every
+verdict turned the job red with exactly the regression it exists for (`incremental_ask run 1:
+bucket stopped_by_warrant → approved_without_complaint`), and a summing bug in the split was
+caught on the totals alone, with every case-run equal. Checking whether CI could block anything
+turned up the real gap: `main` had no protection and the repo had never had a PR, so the gate
+could only raise an alarm after a regression landed. This work became PR #1, and `main` now
+requires a PR and all five checks, with no bypass.
+
+**What I learned:** an errors-only gate checks the recordings, not the code that judges them;
+when the inputs are fixed and replay is exact, pin the outputs. And a gate is only a gate if
+the branch it protects can't be pushed to around it.
+
+**Next:** S5's cases (the bypass measured, the complaint corpus), then the chat API and UI.
