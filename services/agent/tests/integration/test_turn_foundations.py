@@ -34,6 +34,7 @@ from agent.turn.start import (
 from agent.turn.toolconn import tool_connection
 
 BOUND = 10
+CLEAN = {"c02": [], "c02_version": "c02-v1"}  # a message with no C02 match (ADR-029 S1)
 
 
 async def start(
@@ -67,7 +68,9 @@ async def test_a_first_message_creates_a_run_and_holds_the_lease(
     assert started.status is RunStatus.AGENT_STEP and started.answered is None
     assert world.row(started.ids.run_id).status == RunStatus.AGENT_STEP
     assert world.conversation(conversation).active_turn_id == started.ids.turn_id
-    assert kinds(world, conversation) == [("customer_message", {"text": "where is my order?"})]
+    assert kinds(world, conversation) == [
+        ("customer_message", {"text": "where is my order?", **CLEAN})
+    ]
 
 
 async def test_two_messages_at_once_get_one_turn_and_one_conflict(
@@ -144,7 +147,7 @@ async def test_a_message_while_a_proposal_is_pending_gets_a_status_template(
 
     assert started.answered is template and started.ids.run_id == run
     assert kinds(world, conversation)[-2:] == [
-        ("customer_message", {"text": "any news?"}),
+        ("customer_message", {"text": "any news?", **CLEAN}),
         ("reply", {"template": template.value}),
     ]
     assert world.conversation(conversation).active_turn_id is None  # handed straight back

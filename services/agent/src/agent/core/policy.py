@@ -17,7 +17,7 @@ from agent.core.capacity import (
     used_on_order,
 )
 
-POLICY_VERSION = "1.0.0"
+POLICY_VERSION = "1.1.0"
 
 
 class Outcome(IntEnum):
@@ -62,6 +62,7 @@ class RuleId(StrEnum):
     R17_DAILY_PROPOSAL_CAP = "R17_DAILY_PROPOSAL_CAP"
     R18_STICKY_ESCALATION = "R18_STICKY_ESCALATION"
     R19_GLOBAL_REVIEW_QUEUE_CAP = "R19_GLOBAL_REVIEW_QUEUE_CAP"
+    C02_INJECTION_SIGNAL = "C02_INJECTION_SIGNAL"
 
 
 class FulfillmentStatus(StrEnum):
@@ -164,6 +165,14 @@ class PolicyControls:
 
 
 @dataclass(frozen=True, slots=True)
+class InjectionSignals:
+    """C02 ids stored with the conversation's customer messages in the window (ADR-029 S1)."""
+
+    pattern_ids: tuple[str, ...]
+    versions: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class ProposalInputs:
     """Everything proposal-time rules read. Counts are computed by the database."""
 
@@ -179,6 +188,7 @@ class ProposalInputs:
     global_policy_approved_in_breaker_window_minor: int
     global_pending_reviews: int
     controls: PolicyControls
+    injection_signals: InjectionSignals
     now: datetime
 
 
@@ -418,6 +428,11 @@ def evaluate_proposal(inputs: ProposalInputs, config: PolicyConfig) -> ProposalR
             Outcome.OUT_OF_POLICY,
         ),
         (RuleId.R18_STICKY_ESCALATION, sticky, Outcome.REVIEW),
+        (
+            RuleId.C02_INJECTION_SIGNAL,
+            lambda: not inputs.injection_signals.pattern_ids,
+            Outcome.REVIEW,
+        ),
     ]
     phase1.fired = _run_checks(checks, Outcome.FAIL_CLOSED)
     outcome = _most_severe(phase1.fired, Outcome.AUTO)

@@ -27,6 +27,7 @@ from agent.core.capacity import (
 )
 from agent.core.lifecycle import RunStatus, require_transition
 from agent.core.policy import (
+    InjectionSignals,
     PolicyConfig,
     ProposalInputs,
     RefundProposal,
@@ -46,6 +47,7 @@ from agent.db.presend import (
     record_of,
 )
 from agent.db.schema import decisions, events, policy_controls, runs
+from agent.db.turns import CUSTOMER_MESSAGE
 from agent.refund_client.payload import canonical_payload
 
 PROPOSAL_STAGE = "proposal"
@@ -88,6 +90,7 @@ async def load_proposal_inputs(
     user: str,
     proposal: RefundProposal,
     breaker_window: timedelta,
+    signal_window: timedelta,
     at: datetime | None,
 ) -> ProposalInputs:
     """Database reads only, under the customer lock. Raises ``MissingInputError`` (fail closed).
@@ -108,8 +111,32 @@ async def load_proposal_inputs(
         ),
         global_pending_reviews=await _count_reviews(conn, None),
         controls=await load_controls(conn),
+        injection_signals=await load_injection_signals(conn, run_id, now, signal_window),
         now=now,
     )
+
+
+async def load_injection_signals(
+    conn: AsyncConnection, run_id: uuid.UUID, now: datetime, window: timedelta
+) -> InjectionSignals:
+    """C02 (ADR-029 S1): the ids stored with this conversation's customer messages from the last
+    ``window``, measured from the policy's ``now`` so the eval clock applies. Messages stored
+    before C02 have no ids and count as unmatched."""
+    conversation = select(runs.c.conversation_id).where(runs.c.id == run_id).scalar_subquery()
+    rows = await conn.execute(
+        select(events.c.payload["c02"], events.c.payload["c02_version"]).where(
+            events.c.conversation_id == conversation,
+            events.c.kind == CUSTOMER_MESSAGE,
+            events.c.created_at >= now - window,
+        )
+    )
+    pattern_ids: set[str] = set()
+    versions: set[str] = set()
+    for ids, version in rows:
+        if ids:
+            pattern_ids.update(ids)
+            versions.add(version)
+    return InjectionSignals(tuple(sorted(pattern_ids)), tuple(sorted(versions)))
 
 
 async def _declines_on_order(conn: AsyncConnection, order_id: str) -> list[ReviewDecline]:
@@ -208,6 +235,7 @@ def snapshots(
         ),
         "global_pending_reviews": inputs.global_pending_reviews,
         "controls": asdict(inputs.controls),
+        "injection_signals": asdict(inputs.injection_signals),
         "now": now,
     }
     return jsonable(asdict(config)), jsonable(input_snapshot)

@@ -24,6 +24,9 @@ ALLOWED_MODULES = frozenset(
         # C01's deterministic patterns (ADR-009): pure, no I/O, no clock.
         "re",
         "unicodedata",
+        # C02's encoded-payload detector (ADR-029 S1): decoding only, pure.
+        "base64",
+        "binascii",
     }
 )
 BANNED_CALL_NAMES = frozenset({"__import__", "eval", "exec", "compile"})

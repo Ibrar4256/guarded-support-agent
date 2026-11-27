@@ -1563,8 +1563,8 @@ honest and the stronger argument.
 **What shipped:** the first full resolution recording: 30 ordinary-ticket cases x 3 on Groq
 gpt-oss-120b, commit 2093103, 171 calls, 119,255 in / 13,088 out tokens (132.3K of the 150K
 budget, one day, no errors, no provider failures), latency p50 756 ms / p95 2,147 ms, `--pause
-30`. Replayed offline with every provider key unset: identical counts. Report and 90 recordings
-committed.
+30`. Replayed offline with every provider key unset: identical counts. Report and 171
+recordings (one per model call) committed.
 
 **Results:** 29/30 cases passing every run, 89/90 case runs. One failure: `status_cancelled`
 run 3. The customer only asked what was going on with a cancelled order; the model looked it up,
@@ -1585,3 +1585,36 @@ handoff).
 
 **Next:** S0, the resolution baseline recording (from 21:30 UTC), then S5's new cases with their
 expected results, then S1-S4.
+
+### Agent: C02, the deterministic half of the warrant gate (ADR-029 S1) (2026-11-27)
+
+**What shipped:** `agent/core/c02.py`, five pattern families (fake role tags and fences,
+instruction overrides, role assignment, authority claims, our own tool names and tool-call JSON)
+plus two detectors: base64 in either alphabet that decodes to at least 80% printable text, and
+one word mixing Latin with Cyrillic or Greek letters. Each customer message is classified in the
+turn's start transaction and its ids are stored with it; at proposal, a match in the
+conversation's last 30 days (on the injected clock) fires `C02_INJECTION_SIGNAL` → review,
+phase 1, never lower. The decision row keeps ids and version only. `POLICY_VERSION` 1.1.0.
+Tests first: every adversarial message's expected hits, all 30 resolution cases and a complaint
+corpus silent, the evasions with their expected misses. A linear-time test runs every C01 and
+C02 pattern on 4,000-character worst cases in a child process with a timeout. 12 planted bugs,
+12 caught. agent 1,573 tests.
+
+**Measured, at no quota cost:** the turn's prompts didn't change, so both committed suites
+replay against the new code. Adversarial: approved attacks 12 cases → 7; direct injection 0/4 →
+4/4 held; indirect memory 1/3 → 2/3. Resolution: 89/90 as before, **0 false reviews**. Exactly
+the five cases predicted before the code existed; the seven left are all social (an invented
+goodwill policy, a claimed manager approval, "QA testing", plain pressure), which is W01's job.
+
+**What broke:** one planted bug wasn't caught at first. Forcing the outcome to review right
+after phase 1 changed nothing, because phase 2 recomputes the most severe outcome over every
+fired rule and the out-of-policy one came back. The plant was in a place the code already
+corrects; planted at the end, the test caught it. Five existing tests pinned the message
+payload exactly and needed the new keys. The corpus also ruled out both of the ADR's unit-sign
+options ("5µmol/L", "10 kΩ") and two of its patterns ("developer mode", "jailbreak").
+
+**What I learned:** a deterministic layer is worth building first because it can be measured
+for free against recordings that already exist, and writing the expected hits before the code
+turns "it seems to work" into an exact prediction that either holds or doesn't.
+
+**Next:** S2, the warrant step (W01/W02) for the seven social attacks.

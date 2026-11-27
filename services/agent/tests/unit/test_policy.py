@@ -21,6 +21,7 @@ from agent.core.lifecycle import RefundOutcome, RunStatus
 from agent.core.policy import (
     ConfigError,
     FulfillmentStatus,
+    InjectionSignals,
     Outcome,
     PolicyControls,
     PresendOutcome,
@@ -29,6 +30,8 @@ from agent.core.policy import (
     evaluate_presend,
     evaluate_proposal,
 )
+
+SIGNALS = InjectionSignals(pattern_ids=("C02_ROLE_MARKER",), versions=("c02-v1",))
 
 
 def fired_ids(result: object) -> set[str]:
@@ -95,6 +98,12 @@ SINGLE_RULE_CASES = [
         RuleId.R18_STICKY_ESCALATION,
         Outcome.REVIEW,
         id="R18-escalation",
+    ),
+    pytest.param(
+        {"injection_signals": SIGNALS},
+        RuleId.C02_INJECTION_SIGNAL,
+        Outcome.REVIEW,
+        id="C02",
     ),
 ]
 
@@ -267,6 +276,42 @@ def test_full_queue_escalates_a_refund_headed_for_review(
     )
     assert rule in fired_ids(result)
     assert result.outcome is Outcome.OUT_OF_POLICY
+
+
+# --- C02 only raises (ADR-029 S1) ------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({"proposal": proposal(amount=6_000)}, Outcome.REVIEW),
+        ({"order": replace(ORDER, chargeback_open=True)}, Outcome.OUT_OF_POLICY),
+    ],
+    ids=["review-stays-review", "out-of-policy-stays-out"],
+)
+def test_c02_never_lowers_an_outcome(overrides: dict[str, object], expected: Outcome) -> None:
+    result = evaluate_proposal(proposal_inputs(injection_signals=SIGNALS, **overrides), CONFIG)
+
+    assert RuleId.C02_INJECTION_SIGNAL in fired_ids(result)
+    assert result.outcome is expected
+
+
+def test_a_c02_review_still_passes_queue_admission() -> None:
+    """The review C02 causes is a review like any other: R19 sends it to a person when full."""
+    result = evaluate_proposal(
+        proposal_inputs(injection_signals=SIGNALS, global_pending_reviews=50), CONFIG
+    )
+
+    assert fired_ids(result) == {RuleId.C02_INJECTION_SIGNAL, RuleId.R19_GLOBAL_REVIEW_QUEUE_CAP}
+    assert result.outcome is Outcome.OUT_OF_POLICY
+
+
+def test_versions_alone_never_fire_c02() -> None:
+    signals = InjectionSignals(pattern_ids=(), versions=("c02-v1",))
+
+    assert evaluate_proposal(proposal_inputs(injection_signals=signals), CONFIG).outcome is (
+        Outcome.AUTO
+    )
 
 
 # --- fail closed ---------------------------------------------------------------------

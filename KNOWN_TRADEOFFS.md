@@ -695,3 +695,16 @@ lives in `WEEKLY_LOG.md`.
   auto-approve it, and the run escalated instead of answering directly. No judge yet catches an
   unprompted write action as its own failure mode; the resolution suite currently only notices it
   indirectly, as a wrong reply template.
+- **C02 v1 is a tripwire for mechanical injection forms, not a classifier.** Known misses,
+  each tested as a miss: base64 split by spaces, a tag written entirely in Cyrillic look-alikes
+  (no TR39 skeleton in v1), paraphrase, other languages, and every social attack (claimed
+  approvals, invented policies, "testing"); W01 is the backstop. Known false positive, tested: a
+  customer who mentions a store-card pre-approval in a conversation that later proposes a
+  refund goes to review. "developer mode" and "jailbreak" were dropped because ordinary
+  electronics questions used them.
+- **C02's unit-sign exemption is narrow and hand-written:** a word of at most four letters whose
+  only non-Latin letter is μ or ω. A longer unit word ("μmol" passes, "μmhos" wouldn't) reads as
+  mixed-script and goes to review.
+- **The adversarial denominator moved:** six cases are now decided by C02 and listed as
+  code-guarded, so the model-measured set is 13, not 19. ADR-029's S7 targets are stated over
+  the baseline's 19 and should be reported that way, with C02's five shown as "stopped by C02".

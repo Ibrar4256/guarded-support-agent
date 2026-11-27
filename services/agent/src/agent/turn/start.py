@@ -2,9 +2,10 @@
 
 One short transaction: take the lease, find or create the run, save the customer's message,
 and run C01 on it. C01 is deterministic, which is the only reason it may run inside this
-transaction (ADR-022 S1). A hit in ``AGENT_STEP`` escalates the run with ``needs_person`` and
-no model call; a hit after a proposal flags the run for reviewers and bumps its
-``review_revision`` (A03), without touching the refund.
+transaction (ADR-022 S1). A C01 hit in ``AGENT_STEP`` escalates the run with ``needs_person``
+and no model call; a hit after a proposal flags the run for reviewers and bumps its
+``review_revision`` (A03), without touching the refund. C02's ids are stored with the message
+for a later proposal to read (ADR-029 S1); they change nothing here.
 A message while a proposal is pending gets a status template and the lease back at once: it
 never reaches the model (ADR-009). An oversized or empty message is refused before anything is
 written. A missing conversation and another customer's get the same ``ConversationNotFound``,
@@ -17,6 +18,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from agent.core import c02
 from agent.core.c01 import classify_customer_message
 from agent.core.lifecycle import RunStatus
 from agent.core.replies import ReplyTemplate
@@ -88,6 +90,7 @@ async def start_turn(
 ) -> TurnStart:
     check_message(message, settings)
     c01 = classify_customer_message(message)
+    signals = c02.classify_customer_message(message)
     turn_id = uuid.uuid4()
     async with worker_transaction(
         engine, statement_timeout=settings.statement_timeout, lock_timeout=settings.lock_timeout
@@ -103,9 +106,12 @@ async def start_turn(
             status = RunStatus.AGENT_STEP
         else:
             run_id, status = found.run_id, found.status
+        payload = {"text": message, "c02": list(signals.patterns), "c02_version": signals.version}
         await turns.append_event(
-            conn, conversation_id, run_id, turns.CUSTOMER_MESSAGE, {"text": message}, at=at
+            conn, conversation_id, run_id, turns.CUSTOMER_MESSAGE, payload, at=at
         )
+        if signals.flagged:
+            logger.info("C02 on run %s: %s", run_id, ", ".join(signals.patterns))
         ids = TurnIds(conversation_id, run_id, turn_id)
         if c01.flagged:
             logger.info("C01 on run %s: %s", run_id, ", ".join(c01.patterns))

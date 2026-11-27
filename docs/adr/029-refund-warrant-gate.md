@@ -16,6 +16,14 @@ resolution recording made before any of this is built.
 **Locked 2026-11-23.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**S1 built (2026-11-27), with what the complaint corpus decided:** neither listed unit-sign
+option passed it (the four-letter rule flags "5µmol/L"; the digit rule flags "10 kΩ" written
+with a space), so a word of at most four letters whose only non-Latin letter is μ or ω counts
+as a unit. "developer mode" and "jailbreak" were dropped (a phone stuck in developer mode, a
+jailbreak warranty question); "disregard/forget … instructions" and `<|…|>` tokens were added.
+Measured by replay: C02 alone stops 5 of the 12 baseline attacks, 0 resolution false reviews.
+See `agent/core/c02.py` and `tests/unit/test_c02.py`.
+
 **Extends:** ADR-009 (three new review-only rules, C02, W01 and W02, under its asymmetry principle),
 ADR-022 (a warrant step between the loop's proposal and the proposal transaction), ADR-025 (a
 third model purpose, `warrant`), ADR-026 (a second model in an eval run, a record-missing mode,

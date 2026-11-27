@@ -20,9 +20,11 @@ from agent.core.lifecycle import RefundOutcome, RunStatus
 from agent.core.policy import ProposalInputs, RefundProposal
 from agent.db import proposal as proposal_db
 from agent.db.claims import worker_transaction
-from agent.db.schema import decisions
+from agent.db.schema import decisions, events
 
 BREAKER_WINDOW = timedelta(hours=1)
+SIGNAL_WINDOW = timedelta(days=30)
+ANCHOR = datetime(2026, 1, 15, 12, tzinfo=UTC)  # an eval anchor, months before today
 
 
 @pytest.fixture
@@ -69,8 +71,15 @@ def add_decision(world: World, run: uuid.UUID, stage: str, decided_at: datetime)
         )
 
 
-async def read(engine: AsyncEngine, world: World, order: str) -> ProposalInputs:
-    run = world.add_run(RunStatus.AGENT_STEP)
+async def read(
+    engine: AsyncEngine,
+    world: World,
+    order: str,
+    *,
+    run: uuid.UUID | None = None,
+    at: datetime | None = None,
+) -> ProposalInputs:
+    run = run if run is not None else world.add_run(RunStatus.AGENT_STEP)
     async with worker_transaction(
         engine, statement_timeout=timedelta(seconds=5), lock_timeout=timedelta(seconds=2)
     ) as conn:
@@ -80,7 +89,29 @@ async def read(engine: AsyncEngine, world: World, order: str) -> ProposalInputs:
             user=world.user,
             proposal=RefundProposal(action(), order, 1_000, "USD"),
             breaker_window=BREAKER_WINDOW,
-            at=None,
+            signal_window=SIGNAL_WINDOW,
+            at=at,
+        )
+
+
+def add_message(
+    world: World,
+    run: uuid.UUID,
+    at: datetime,
+    *,
+    c02: list[str] | None,
+    kind: str = "customer_message",
+) -> None:
+    """A message event in the run's conversation; ``c02=None`` is one stored before C02 existed."""
+    payload: dict[str, Any] = {"text": "hello"}
+    if c02 is not None:
+        payload |= {"c02": c02, "c02_version": "c02-v1"}
+    conversation = world.row(run).conversation_id
+    with world.transaction() as connection:
+        connection.execute(
+            insert(events).values(
+                conversation_id=conversation, run_id=run, kind=kind, payload=payload, created_at=at
+            )
         )
 
 
@@ -213,3 +244,54 @@ async def test_the_breaker_total_counts_live_policy_approved_amounts_in_its_wind
         - before.global_policy_approved_in_breaker_window_minor
     )
     assert delta == 3_000
+
+
+async def test_c02_signals_stored_with_earlier_messages_in_the_window_count(
+    world: World, async_runtime_engine: AsyncEngine
+) -> None:
+    order, run = world.add_order(), world.add_run(RunStatus.AGENT_STEP)
+    add_message(world, run, now() - timedelta(days=2), c02=["C02_AUTHORITY_CLAIM"])
+    add_message(world, run, now() - timedelta(minutes=5), c02=[])
+
+    inputs = await read(async_runtime_engine, world, order, run=run)
+
+    assert inputs.injection_signals.pattern_ids == ("C02_AUTHORITY_CLAIM",)
+    assert inputs.injection_signals.versions == ("c02-v1",)
+
+
+async def test_a_c02_signal_older_than_the_window_no_longer_counts(
+    world: World, async_runtime_engine: AsyncEngine
+) -> None:
+    order, run = world.add_order(), world.add_run(RunStatus.AGENT_STEP)
+    add_message(world, run, now() - timedelta(days=40), c02=["C02_ROLE_MARKER"])
+
+    inputs = await read(async_runtime_engine, world, order, run=run)
+
+    assert inputs.injection_signals.pattern_ids == ()
+
+
+async def test_messages_from_before_c02_and_other_conversations_count_as_unmatched(
+    world: World, async_runtime_engine: AsyncEngine
+) -> None:
+    order, run = world.add_order(), world.add_run(RunStatus.AGENT_STEP)
+    add_message(world, run, now() - timedelta(hours=1), c02=None)
+    add_message(world, run, now() - timedelta(hours=1), c02=["C02_ROLE_MARKER"], kind="reply")
+    elsewhere = world.add_run(RunStatus.COMPLETED)  # the same customer, another conversation
+    add_message(world, elsewhere, now() - timedelta(hours=1), c02=["C02_ROLE_MARKER"])
+
+    inputs = await read(async_runtime_engine, world, order, run=run)
+
+    assert inputs.injection_signals.pattern_ids == ()
+
+
+async def test_the_c02_window_is_measured_from_the_injected_clock(
+    world: World, async_runtime_engine: AsyncEngine
+) -> None:
+    """ADR-029 S1: an eval case at the anchor date has its messages months before today; a
+    window read from SQL ``now()`` would never see them in replay."""
+    order, run = world.add_order(), world.add_run(RunStatus.AGENT_STEP)
+    add_message(world, run, ANCHOR - timedelta(days=1), c02=["C02_ENCODED_PAYLOAD"])
+
+    inputs = await read(async_runtime_engine, world, order, run=run, at=ANCHOR)
+
+    assert inputs.injection_signals.pattern_ids == ("C02_ENCODED_PAYLOAD",)

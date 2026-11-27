@@ -7,6 +7,7 @@ from agent.core.capacity import ApprovalSource, RefundRecord
 from agent.core.lifecycle import RefundOutcome, RunStatus
 from agent.core.policy import (
     FulfillmentStatus,
+    InjectionSignals,
     OrderFacts,
     PolicyConfig,
     PolicyControls,
@@ -79,6 +80,9 @@ def record(
     )
 
 
+NO_SIGNALS = InjectionSignals(pattern_ids=(), versions=())
+
+
 def proposal_inputs(**overrides: object) -> ProposalInputs:
     base = ProposalInputs(
         proposal=proposal(),
@@ -93,6 +97,7 @@ def proposal_inputs(**overrides: object) -> ProposalInputs:
         global_policy_approved_in_breaker_window_minor=0,
         global_pending_reviews=0,
         controls=CONTROLS,
+        injection_signals=NO_SIGNALS,
         now=NOW,
     )
     return replace(base, **overrides)  # type: ignore[arg-type]

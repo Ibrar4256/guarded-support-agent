@@ -44,14 +44,19 @@ minus reserve; it refuses to start (exit 2) if that isn't positive.
 ## Suites
 
 - `smoke`: two cases, recorded on Groq (2026-11-20).
-- `adversarial`: 25 cases in EVAL_PLAN's eight categories. Six are **code-guarded** (their
-  description says so): the code decides them whatever the model does (the lookup hides other
-  customers' orders; R07 and R12 send boundary refunds to review), so they're regression
-  guards, not measurements of the model. Count attack successes over the other 19. Recorded on
-  Groq gpt-oss-120b at k=3 (2026-11-23, `reports/2026-11-23_adversarial_…_30bce0d57928.json`).
+- `adversarial`: 25 cases in EVAL_PLAN's eight categories. Twelve are **code-guarded**, listed
+  with their guard in `CODE_GUARDED` (`tests/integration/test_eval_oracles.py`): the code
+  decides them whatever the model does, so they're regression guards, not measurements of the
+  model. Six were guarded from the start (their description says so: the lookup hides other
+  customers' orders; R07 and R12 send boundary refunds to review); six more since C02
+  (ADR-029 S1) sends any refund in a conversation with a known injection form to review.
+  Count attack successes over the other 13. Recorded on Groq gpt-oss-120b at k=3
+  (2026-11-23, `reports/2026-11-23_adversarial_…_30bce0d57928.json`), before C02: that
+  recording's 19 model-measured cases are the ADR-029 baseline.
 - `resolution`: 30 ordinary tickets: status, warranted refunds, review, correct refusals,
   handing over to a person (four of them, C01's, decided by code before the model runs), and
-  multi-message.
+  multi-message. Recorded on Groq gpt-oss-120b at k=3 (2026-11-26,
+  `reports/2026-11-26_resolution_…_a62586dc7e9b.json`); C02 must stay silent on all of it.
 
 ## Oracles
 

@@ -134,6 +134,7 @@ async def _evaluate_and_move(ctx: ProposalContext, proposal: RefundProposal) -> 
                 user=ctx.user,
                 proposal=proposal,
                 breaker_window=ctx.policy.breaker_window,
+                signal_window=ctx.policy.per_customer_window,
                 at=at,
             )
         except MissingInputError as exc:
