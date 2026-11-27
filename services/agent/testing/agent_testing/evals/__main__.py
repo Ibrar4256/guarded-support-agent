@@ -22,6 +22,10 @@ run has finished.
 every key it has and calls live only for missing keys of ``--record-purposes`` (default
 ``warrant,summary``; never ``turn``, so a changed turn prompt fails as in replay). Every provider
 it may call live needs its budget entry.
+
+``replay --expect <report>`` (ADR-030) compares the replay with a pinned report, case-run by
+case-run and in the totals, and prints every difference; it exits 4 when they differ, and 1 on a
+recording error, printing the differences too.
 """
 
 import argparse
@@ -32,6 +36,7 @@ import sys
 import uuid
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 from agent.llm.types import Purpose
 from agent.turn.fingerprint import fingerprint
@@ -49,6 +54,7 @@ from agent_testing.evals.budget import (
 from agent_testing.evals.cases import Case, load_suite
 from agent_testing.evals.databases import EvalDatabases
 from agent_testing.evals.judges import check_args
+from agent_testing.evals.pin import DIFFERENT, compare
 from agent_testing.evals.recording import Mode, refuse_production
 from agent_testing.evals.report import render, report_path, summarize
 from agent_testing.evals.runner import (
@@ -93,6 +99,9 @@ def main(
         default=0.0,
         help="record, record-missing: seconds before every turn after the first",
     )
+    parser.add_argument(
+        "--expect", type=Path, help="replay: the pinned report this replay must reproduce"
+    )
     args = parser.parse_args(argv)
     refuse_production(environ)
     if args.k < 1:
@@ -100,6 +109,7 @@ def main(
     if not 0 <= args.pause <= MAX_PAUSE_SECONDS:
         parser.error(f"--pause must be between 0 and {MAX_PAUSE_SECONDS} seconds")
     mode = Mode(args.mode)
+    expected = _expected(parser, args, mode)
     if args.pause and mode not in RECORDING_MODES:
         parser.error("--pause applies to record and record-missing only")
     if args.record_purposes is not None and mode is not Mode.RECORD_MISSING:
@@ -165,7 +175,16 @@ def main(
             databases.drop(databases.template)
     summary = summarize(results, config=config, commit=commit)
     print(render(summary))
-    return 1 if summary["errors"] else 0
+    differences = [] if expected is None else compare(expected, summary)
+    if expected is not None:
+        print(
+            "differences from the pinned report:\n" + "\n".join(f"  {d}" for d in differences)
+            if differences
+            else "no differences from the pinned report"
+        )
+    if summary["errors"]:
+        return 1
+    return DIFFERENT if differences else 0
 
 
 def _record(
@@ -254,6 +273,27 @@ def _purposes(parser: argparse.ArgumentParser, raw: str) -> frozenset[Purpose]:
             "prompt must fail as in replay (use record mode to re-record)"
         )
     return frozenset(chosen)
+
+
+def _expected(
+    parser: argparse.ArgumentParser, args: argparse.Namespace, mode: Mode
+) -> dict[str, Any] | None:
+    """The pinned report ``--expect`` names, refused before any work if it can't apply."""
+    if args.expect is None:
+        return None
+    if mode is not Mode.REPLAY:
+        parser.error("--expect applies to replay mode only")
+    try:
+        expected: dict[str, Any] = json.loads(args.expect.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        parser.error(f"--expect: can't read {args.expect} ({error})")
+    if expected.get("suite") != args.suite:
+        parser.error(
+            f"--expect: {args.expect} is a report of {expected.get('suite')}, not {args.suite}"
+        )
+    if expected.get("k") != args.k:
+        parser.error(f"--k {args.k}, but the pinned report has k={expected.get('k')}")
+    return expected
 
 
 def _in_case_order(results: Sequence[CaseRunResult], cases: Sequence[Case]) -> list[CaseRunResult]:

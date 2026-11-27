@@ -117,7 +117,31 @@ docker compose up -d --wait postgres    # two databases, owner/runtime roles
 set -a; . ./.env; set +a
 scripts/ci/service_checks.sh agent      # lint, types, purity, contracts, migrations, tests
 scripts/ci/service_checks.sh refund_api
+scripts/ci/eval_replay.sh               # every pinned eval suite, replayed with no keys
 ```
+
+### The eval replay gate and re-pinning
+
+CI replays every eval suite from its committed recordings and compares each case-run (pass,
+split bucket, every judge's verdict and detail) and the totals with the report named in
+[`services/agent/evals/pinned.json`](services/agent/evals/pinned.json) (ADR-030). It exits 1 on
+a recording error and 4 on any difference, listing each one as `case run N: old → new`.
+
+When a change moves an outcome on purpose and every recording still hits, re-pin it in the same
+PR: rerun the suite in `record-missing` mode with a dummy key, so any live call fails, then point
+`pinned.json` at the report it writes. CI prints what the re-pin moved for the reviewer.
+
+```bash
+cd services/agent
+GROQ_API_KEY=dummy-a-live-call-would-fail \
+  EVAL_PROVIDER_DAILY_TOKENS=groq:200000 EVAL_DEMO_RESERVE_TOKENS=groq:50000 \
+  PYTHONPATH=testing uv run python -m agent_testing.evals --suite adversarial \
+  --mode record-missing --model groq:openai/gpt-oss-120b --k 3
+# then name the new evals/reports/<date>_adversarial_..._<run>.json in evals/pinned.json
+```
+
+A change that makes a recording miss (a prompt, a model, a tool schema) can't be re-pinned this
+way: it needs a recording run with real calls first (ADR-025's merge gate), then a re-pin.
 
 ### Every deployment: refund-api's key-retention floor
 

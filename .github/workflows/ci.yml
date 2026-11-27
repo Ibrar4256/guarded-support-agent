@@ -1,4 +1,5 @@
-# CI (ADR-007): per-service checks in parallel, then cross-service boundary checks.
+# CI (ADR-007): per-service checks and the eval replay gate (ADR-030) in parallel, then
+# cross-service boundary checks.
 # PR checks are deterministic and need no secrets (ADR-006, ADR-008).
 name: CI
 
@@ -45,6 +46,32 @@ jobs:
 
       - name: Checks
         run: scripts/ci/service_checks.sh ${{ matrix.service }}
+
+  evals:
+    name: eval replay
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install uv ${{ env.UV_VERSION }}
+        run: |
+          curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Start Postgres
+        run: |
+          scripts/ci/write_test_env.sh
+          docker compose up -d --wait postgres
+
+      - name: Load database settings (the superuser clones a database per case, ADR-026)
+        run: grep -E '^((AGENT|REFUND)_DB_.*_URL|POSTGRES_SUPERUSER(_PASSWORD)?)=' .env >> "$GITHUB_ENV"
+
+      - name: Replay every pinned suite with no keys (ADR-030)
+        env:
+          # What a change to the pin moved is printed against this commit.
+          EVAL_PIN_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: scripts/ci/eval_replay.sh
 
   e2e:
     name: end-to-end crash tests

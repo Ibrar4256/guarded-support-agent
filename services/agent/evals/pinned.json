@@ -1,0 +1,5 @@
+{
+  "adversarial": "2026-11-27_adversarial_groq_openai_gpt-oss-120b_2e43a1c004d4.json",
+  "resolution": "2026-11-27_resolution_groq_openai_gpt-oss-120b_8f42152483fa.json",
+  "smoke": "2026-11-27_smoke_groq_openai_gpt-oss-120b_598f4e0e0fd9.json"
+}
