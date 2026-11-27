@@ -1,0 +1,36 @@
+{
+  "key": "8d7c92d0629018dc4d20da58fec16deb060209682a552e828daa16f9ea7c739a",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "turn",
+  "fingerprint": "943bec0a06a80ba18f99dec0684eb47f147ea25e4d6c682a9e9054e7fd0a518c",
+  "run_index": 1,
+  "case_id": "resolution/outside_window",
+  "recording_run": "a62586dc7e9b",
+  "recorded_on": "2026-11-26",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_3cd38295-21be-4e9b-bdbd-6a530e6b4718",
+        "name": "propose_refund",
+        "arguments": "{\"amount_minor\":2500,\"currency\":\"USD\",\"order_id\":\"ord_demo_3017\"}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 724,
+      "output_tokens": 83
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1164,
+    "output_chars": 65,
+    "first_token_seconds": 0.5998909830086632,
+    "latency_seconds": 0.6013884549902286
+  }
+}

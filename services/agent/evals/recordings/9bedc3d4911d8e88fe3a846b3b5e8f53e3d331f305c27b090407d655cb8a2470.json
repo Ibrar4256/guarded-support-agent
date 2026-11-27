@@ -1,0 +1,29 @@
+{
+  "key": "9bedc3d4911d8e88fe3a846b3b5e8f53e3d331f305c27b090407d655cb8a2470",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "turn",
+  "fingerprint": "943bec0a06a80ba18f99dec0684eb47f147ea25e4d6c682a9e9054e7fd0a518c",
+  "run_index": 2,
+  "case_id": "resolution/status_delivered_date",
+  "recording_run": "a62586dc7e9b",
+  "recorded_on": "2026-11-26",
+  "response": {
+    "text": "Your order ord_demo_3003 was delivered on January 11, 2026.",
+    "tool_calls": [],
+    "finish_reason": "stop",
+    "usage": {
+      "input_tokens": 717,
+      "output_tokens": 57
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1137,
+    "output_chars": 59,
+    "first_token_seconds": 0.5391425140114734,
+    "latency_seconds": 0.5854161269962788
+  }
+}

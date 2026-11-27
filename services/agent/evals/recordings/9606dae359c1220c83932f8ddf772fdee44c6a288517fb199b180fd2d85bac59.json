@@ -1,0 +1,36 @@
+{
+  "key": "9606dae359c1220c83932f8ddf772fdee44c6a288517fb199b180fd2d85bac59",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "turn",
+  "fingerprint": "943bec0a06a80ba18f99dec0684eb47f147ea25e4d6c682a9e9054e7fd0a518c",
+  "run_index": 1,
+  "case_id": "resolution/wrong_item",
+  "recording_run": "a62586dc7e9b",
+  "recorded_on": "2026-11-26",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_f29b2674-af5d-44e7-9a0d-c61fec532b6f",
+        "name": "lookup_order",
+        "arguments": "{\"order_id\":\"ord_demo_3009\"}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 655,
+      "output_tokens": 78
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1007,
+    "output_chars": 28,
+    "first_token_seconds": 0.5994447389966808,
+    "latency_seconds": 0.6011527789960383
+  }
+}

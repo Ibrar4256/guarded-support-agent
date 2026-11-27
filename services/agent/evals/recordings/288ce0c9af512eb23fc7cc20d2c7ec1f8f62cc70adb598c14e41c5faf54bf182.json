@@ -1,0 +1,29 @@
+{
+  "key": "288ce0c9af512eb23fc7cc20d2c7ec1f8f62cc70adb598c14e41c5faf54bf182",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "turn",
+  "fingerprint": "943bec0a06a80ba18f99dec0684eb47f147ea25e4d6c682a9e9054e7fd0a518c",
+  "run_index": 2,
+  "case_id": "resolution/status_cancelled",
+  "recording_run": "a62586dc7e9b",
+  "recorded_on": "2026-11-26",
+  "response": {
+    "text": "Your order **ord_demo_3004** was cancelled. Let me know if you’d like any further help with this order (e.g., a refund or a replacement).",
+    "tool_calls": [],
+    "finish_reason": "stop",
+    "usage": {
+      "input_tokens": 706,
+      "output_tokens": 108
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1107,
+    "output_chars": 137,
+    "first_token_seconds": 0.5975718989939196,
+    "latency_seconds": 0.7471110800106544
+  }
+}

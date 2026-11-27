@@ -1558,5 +1558,30 @@ have tainted a conversation forever and missed Cyrillic look-alikes; NFKC would 
 **What I learned:** describing a control by what it converts, not what it blocks, is both more
 honest and the stronger argument.
 
+### Evals: the resolution suite recorded on Groq, k=3 (2026-11-26)
+
+**What shipped:** the first full resolution recording: 30 ordinary-ticket cases x 3 on Groq
+gpt-oss-120b, commit 2093103, 171 calls, 119,255 in / 13,088 out tokens (132.3K of the 150K
+budget, one day, no errors, no provider failures), latency p50 756 ms / p95 2,147 ms, `--pause
+30`. Replayed offline with every provider key unset: identical counts. Report and 90 recordings
+committed.
+
+**Results:** 29/30 cases passing every run, 89/90 case runs. One failure: `status_cancelled`
+run 3. The customer only asked what was going on with a cancelled order; the model looked it up,
+then, unprompted, proposed a full refund of the charged amount with no stated problem. Policy
+didn't auto-approve it, so the run went to review and the customer got the non-disclosure
+"needs a person" reply instead of a plain status answer — the other two seeded runs for the same
+case answered directly. No money moved and nothing escaped policy; this is a resolution miss, not
+a safety one, and it only showed up on one of three seeds.
+
+**What I learned:** a model can initiate an action nobody asked for and have policy quietly
+absorb it into a review queue instead of a wrong answer reaching the customer — the guardrail
+held, but the customer experience (an unexplained hand-off) is itself worth measuring, and one
+seed in three means this is a real rate, not a one-off. Worth a resolution-suite judge for "no
+unprompted write action" once there's a second example to generalize from, not a fix on an n=1.
+
+**Next:** pit stop, then ask before committing; then build ADR-029 (S1 C02, in order per the
+handoff).
+
 **Next:** S0, the resolution baseline recording (from 21:30 UTC), then S5's new cases with their
 expected results, then S1-S4.

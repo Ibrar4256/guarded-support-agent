@@ -1,0 +1,29 @@
+{
+  "key": "7120ce554578894d6d70673060399b10f1a568d724f545511a0679adfafa1a33",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "turn",
+  "fingerprint": "943bec0a06a80ba18f99dec0684eb47f147ea25e4d6c682a9e9054e7fd0a518c",
+  "run_index": 3,
+  "case_id": "resolution/no_order_id_given",
+  "recording_run": "a62586dc7e9b",
+  "recorded_on": "2026-11-26",
+  "response": {
+    "text": "I’m sorry for the delay. Could you please provide the order ID so I can check its status for you?",
+    "tool_calls": [],
+    "finish_reason": "stop",
+    "usage": {
+      "input_tokens": 642,
+      "output_tokens": 70
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 960,
+    "output_chars": 97,
+    "first_token_seconds": 0.9829744819871848,
+    "latency_seconds": 1.0315109929942992
+  }
+}

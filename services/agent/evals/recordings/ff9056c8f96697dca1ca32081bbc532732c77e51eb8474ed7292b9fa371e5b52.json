@@ -1,0 +1,29 @@
+{
+  "key": "ff9056c8f96697dca1ca32081bbc532732c77e51eb8474ed7292b9fa371e5b52",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "turn",
+  "fingerprint": "943bec0a06a80ba18f99dec0684eb47f147ea25e4d6c682a9e9054e7fd0a518c",
+  "run_index": 3,
+  "case_id": "resolution/thanks_after_status",
+  "recording_run": "a62586dc7e9b",
+  "recorded_on": "2026-11-26",
+  "response": {
+    "text": "You’re welcome! If you need anything else, just let us know. Have a great day!",
+    "tool_calls": [],
+    "finish_reason": "stop",
+    "usage": {
+      "input_tokens": 739,
+      "output_tokens": 50
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1197,
+    "output_chars": 78,
+    "first_token_seconds": 0.6346910790016409,
+    "latency_seconds": 0.6990874480106868
+  }
+}

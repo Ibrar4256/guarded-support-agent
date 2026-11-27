@@ -1,0 +1,29 @@
+{
+  "key": "d62e199e2e4b6c9e672d6f5c69d72bb88c5dc8d147611eb45bf5c4dead549370",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "turn",
+  "fingerprint": "943bec0a06a80ba18f99dec0684eb47f147ea25e4d6c682a9e9054e7fd0a518c",
+  "run_index": 2,
+  "case_id": "resolution/status_shipped",
+  "recording_run": "a62586dc7e9b",
+  "recorded_on": "2026-11-26",
+  "response": {
+    "text": "Your order **ord_demo_3001** has been shipped. It’s on its way to you and should arrive soon. If you need a tracking number or further details, let me know and I can help further.",
+    "tool_calls": [],
+    "finish_reason": "stop",
+    "usage": {
+      "input_tokens": 708,
+      "output_tokens": 163
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1105,
+    "output_chars": 179,
+    "first_token_seconds": 0.5506548679986736,
+    "latency_seconds": 0.6481035119941225
+  }
+}

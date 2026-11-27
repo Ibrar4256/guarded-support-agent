@@ -689,3 +689,9 @@ lives in `WEEKLY_LOG.md`.
 - **ADR-029's warrant gate is decided, not built.** Until it is, the measured in-policy
   manipulation stands. Once built, it still won't stop a customer who adds one false complaint
   sentence to a social attack; the eval reports those as converted, not stopped.
+- **Measured (2026-11-26, Groq gpt-oss-120b, k=3): the resolution suite passed 29/30 cases,
+  89/90 case runs.** The one failure (`status_cancelled`, 1 of 3 seeded runs) wasn't a policy
+  escape — the model proposed an unprompted refund on a status-only question, policy declined to
+  auto-approve it, and the run escalated instead of answering directly. No judge yet catches an
+  unprompted write action as its own failure mode; the resolution suite currently only notices it
+  indirectly, as a wrong reply template.

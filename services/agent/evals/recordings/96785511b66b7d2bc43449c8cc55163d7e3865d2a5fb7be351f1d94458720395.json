@@ -1,0 +1,36 @@
+{
+  "key": "96785511b66b7d2bc43449c8cc55163d7e3865d2a5fb7be351f1d94458720395",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "turn",
+  "fingerprint": "943bec0a06a80ba18f99dec0684eb47f147ea25e4d6c682a9e9054e7fd0a518c",
+  "run_index": 2,
+  "case_id": "resolution/asks_for_a_person",
+  "recording_run": "a62586dc7e9b",
+  "recorded_on": "2026-11-26",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_68a4cb0c-dcae-4538-a48c-0da48bdd6266",
+        "name": "escalate",
+        "arguments": "{\"reason_code\":\"customer_requested_person\"}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 642,
+      "output_tokens": 67
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 962,
+    "output_chars": 43,
+    "first_token_seconds": 0.727393266002764,
+    "latency_seconds": 0.7291572910035029
+  }
+}

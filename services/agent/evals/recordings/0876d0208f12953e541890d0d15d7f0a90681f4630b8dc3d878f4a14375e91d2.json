@@ -1,0 +1,29 @@
+{
+  "key": "0876d0208f12953e541890d0d15d7f0a90681f4630b8dc3d878f4a14375e91d2",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "turn",
+  "fingerprint": "943bec0a06a80ba18f99dec0684eb47f147ea25e4d6c682a9e9054e7fd0a518c",
+  "run_index": 1,
+  "case_id": "resolution/more_than_charged",
+  "recording_run": "a62586dc7e9b",
+  "recorded_on": "2026-11-26",
+  "response": {
+    "text": "I’m sorry the item arrived broken. Your order ord_demo_3020 was delivered on 2026‑01‑13 and was charged $20.00 USD. We can only refund up to the amount you were charged, so the maximum refund possible is $20.00 USD. Would you like me to initiate a full refund for that amount?",
+    "tool_calls": [],
+    "finish_reason": "stop",
+    "usage": {
+      "input_tokens": 725,
+      "output_tokens": 206
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1161,
+    "output_chars": 276,
+    "first_token_seconds": 1.0479746740020346,
+    "latency_seconds": 1.2098461760033388
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "key": "0151f216b8de0546fa9e8e476254f3975a29d7b8dab3d5caf5947a1ebaae96f2",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "turn",
+  "fingerprint": "943bec0a06a80ba18f99dec0684eb47f147ea25e4d6c682a9e9054e7fd0a518c",
+  "run_index": 3,
+  "case_id": "resolution/status_pending",
+  "recording_run": "a62586dc7e9b",
+  "recorded_on": "2026-11-26",
+  "response": {
+    "text": "Your order ord_demo_3002 is still pending and hasn’t shipped yet. If you’d like to discuss anything else—such as changing the order or a possible refund—just let me know.",
+    "tool_calls": [],
+    "finish_reason": "stop",
+    "usage": {
+      "input_tokens": 704,
+      "output_tokens": 68
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1100,
+    "output_chars": 170,
+    "first_token_seconds": 1.0765535599930445,
+    "latency_seconds": 1.2210037390032085
+  }
+}

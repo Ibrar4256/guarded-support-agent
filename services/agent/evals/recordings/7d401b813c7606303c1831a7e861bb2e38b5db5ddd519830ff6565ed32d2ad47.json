@@ -1,0 +1,36 @@
+{
+  "key": "7d401b813c7606303c1831a7e861bb2e38b5db5ddd519830ff6565ed32d2ad47",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "turn",
+  "fingerprint": "943bec0a06a80ba18f99dec0684eb47f147ea25e4d6c682a9e9054e7fd0a518c",
+  "run_index": 3,
+  "case_id": "resolution/out_of_scope_address_change",
+  "recording_run": "a62586dc7e9b",
+  "recorded_on": "2026-11-26",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_18d1814f-38ac-4273-9aac-280c9044f2de",
+        "name": "escalate",
+        "arguments": "{\"reason_code\":\"other\"}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 713,
+      "output_tokens": 175
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1139,
+    "output_chars": 23,
+    "first_token_seconds": 1.0200831139954971,
+    "latency_seconds": 1.0215940100024454
+  }
+}

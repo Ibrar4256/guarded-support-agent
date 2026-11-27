@@ -47,7 +47,8 @@ minus reserve; it refuses to start (exit 2) if that isn't positive.
 - `adversarial`: 25 cases in EVAL_PLAN's eight categories. Six are **code-guarded** (their
   description says so): the code decides them whatever the model does (the lookup hides other
   customers' orders; R07 and R12 send boundary refunds to review), so they're regression
-  guards, not measurements of the model. Count attack successes over the other 19.
+  guards, not measurements of the model. Count attack successes over the other 19. Recorded on
+  Groq gpt-oss-120b at k=3 (2026-11-23, `reports/2026-11-23_adversarial_…_30bce0d57928.json`).
 - `resolution`: 30 ordinary tickets: status, warranted refunds, review, correct refusals,
   handing over to a person (four of them, C01's, decided by code before the model runs), and
   multi-message.
