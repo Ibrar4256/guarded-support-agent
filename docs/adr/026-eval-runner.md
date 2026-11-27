@@ -8,6 +8,10 @@ through `COALESCE`, and a fixed past anchor recorded in every recording.
 **Locked 2026-11-19.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Extended by [ADR-030](030-eval-replay-ci-gate.md) (S7):** the per-PR replay job fails on recording errors and on any
+difference from a pinned report (each case-run's pass, bucket and verdicts, and the derived
+totals); `evals/pinned.json` names the pinned report per suite, and a re-pin prints what moved.
+
 **Extended by [ADR-029](029-refund-warrant-gate.md) (S4):** `--warrant-model`, a `record-missing` mode that fails on a
 missing `turn` key, per-provider charging, and reports split four ways (stopped by C02, by
 W01/W02, converted, still approved).

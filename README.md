@@ -6,7 +6,7 @@ It's a scoped-down, architecturally real take on per-resolution support agents l
 Intercom Fin and Ada.
 
 > **Status: the agent works end to end on a real model; the chat API and UI are next.**
-> Twenty-eight architecture decisions are recorded below. Built and tested in CI: the refund
+> Twenty-nine architecture decisions are recorded below. Built and tested in CI: the refund
 > service, the agent's policy core, database and refund client, the worker (sending and
 > reconciliation, with end-to-end crash tests), the demo seeds, the order-lookup tool, the
 > agent turn and model adapter on free-tier providers, memory, the eval runner with recorded
@@ -95,6 +95,7 @@ escalation judge. Details: [KNOWN_TRADEOFFS.md](KNOWN_TRADEOFFS.md), reports in
 | [026](docs/adr/026-eval-runner.md) | The eval runner: a fresh database per case, a logical clock at a fixed past anchor so recordings replay any day, one recording per key, YAML cases judged by rules on database state |
 | [028](docs/adr/028-turn-read-calls-and-summary-input-caps.md) | A context bound that holds: one token per UTF-8 byte as a ceiling checked per model, a per-turn read budget, one fixed-size note instead of echoing a malformed response, summary chunks |
 | [029](docs/adr/029-refund-warrant-gate.md) | A warrant gate: automatic refunds also need a complaint about this order in the customer's own words, checked outside the agent's context (deterministic injection signals, an independent warrant model, "not received" against delivery), review-only |
+| [030](docs/adr/030-eval-replay-ci-gate.md) | CI replays every eval suite with no keys and fails on any difference from a pinned committed report, case-run by case-run and in the totals, so a code change that lets an attack through again can't stay green |
 
 Every ADR records the rejected options and when each would have been the better choice.
 

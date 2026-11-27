@@ -8,6 +8,10 @@ free tiers (S11).
 **Locked 2026-11-17.** No further revisions; issues found from here on are fixed in code
 and tests, or recorded in a new ADR that supersedes this one.
 
+**Extended by [ADR-030](030-eval-replay-ci-gate.md) (S7):** "per-PR replay is a regression gate on our code" is built as
+replayed results pinned case-run by case-run to a committed report; reported numbers still come
+from recording runs.
+
 **Extended by [ADR-029](029-refund-warrant-gate.md):** a third purpose, `warrant` (`LLM_WARRANT_MODELS`, verified, context
 fit and tool-call proof like the others; two providers recommended); S11's data terms apply to
 its provider.
