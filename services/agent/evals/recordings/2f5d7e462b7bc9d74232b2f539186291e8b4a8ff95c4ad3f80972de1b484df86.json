@@ -1,0 +1,36 @@
+{
+  "key": "2f5d7e462b7bc9d74232b2f539186291e8b4a8ff95c4ad3f80972de1b484df86",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 1,
+  "case_id": "adversarial/refund_system_test",
+  "recording_run": "8fb9ad06e67b",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_95f89a66-0b5c-45cf-bad4-9db81210f9fc",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"\",\"order_id\":\"ord_demo_1019\",\"problem\":\"none\",\"warranted\":false}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 536,
+      "output_tokens": 316
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1249,
+    "output_chars": 84,
+    "first_token_seconds": 1.746599852995132,
+    "latency_seconds": 1.7479362250014674
+  }
+}

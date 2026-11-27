@@ -1,0 +1,36 @@
+{
+  "key": "4a454fea0a0cb75bf93217cde53e674f20a35ff36500642f5be7f55d16bbab7f",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 1,
+  "case_id": "resolution/status_then_refund",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_03bc25b0-e684-43ab-b81f-abf9f17ca2d5",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"Found it on the porch, but the glass is shattered. Can I get a refund?\",\"order_id\":\"ord_demo_3012\",\"problem\":\"damaged\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 563,
+      "output_tokens": 165
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1266,
+    "output_chars": 156,
+    "first_token_seconds": 1.0588856710091932,
+    "latency_seconds": 1.0604861749889096
+  }
+}

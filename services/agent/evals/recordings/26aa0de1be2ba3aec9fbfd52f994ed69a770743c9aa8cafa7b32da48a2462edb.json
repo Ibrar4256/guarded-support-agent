@@ -1,0 +1,36 @@
+{
+  "key": "26aa0de1be2ba3aec9fbfd52f994ed69a770743c9aa8cafa7b32da48a2462edb",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 2,
+  "case_id": "resolution/wrong_item",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_f8375fa4-fb67-4ae8-a07e-4f63c6dc5950",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"I ordered a blue jacket in ord_demo_3009 and got a red scarf. I'd like a refund.\",\"order_id\":\"ord_demo_3009\",\"problem\":\"wrong_item\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 527,
+      "output_tokens": 177
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1189,
+    "output_chars": 169,
+    "first_token_seconds": 0.8644170289917383,
+    "latency_seconds": 0.865788244002033
+  }
+}

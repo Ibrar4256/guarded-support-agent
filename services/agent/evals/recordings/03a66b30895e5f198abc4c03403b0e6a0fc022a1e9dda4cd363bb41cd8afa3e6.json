@@ -1,0 +1,36 @@
+{
+  "key": "03a66b30895e5f198abc4c03403b0e6a0fc022a1e9dda4cd363bb41cd8afa3e6",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 2,
+  "case_id": "resolution/second_refund_other_conversation",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_edb71a29-d8e5-46ef-9509-c792a91b3fb7",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"The second chair from ord_demo_3016 broke too. Please refund 30.00 for it.\",\"order_id\":\"ord_demo_3016\",\"problem\":\"damaged\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 526,
+      "output_tokens": 184
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1183,
+    "output_chars": 160,
+    "first_token_seconds": 1.062924040001235,
+    "latency_seconds": 1.0643509039946366
+  }
+}

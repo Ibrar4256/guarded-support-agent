@@ -1,0 +1,36 @@
+{
+  "key": "5b7d93538ebe6a273446cc1b5f2ab969a27042aba23fc41d575d0286a18c6f0e",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 3,
+  "case_id": "resolution/status_cancelled",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_62c7d2a6-036e-41f1-bbf8-f7ab994c81ce",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"What's going on with ord_demo_3004?\",\"order_id\":\"ord_demo_3004\",\"problem\":\"none\",\"warranted\":false}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 507,
+      "output_tokens": 152
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1137,
+    "output_chars": 119,
+    "first_token_seconds": 1.0784944550105138,
+    "latency_seconds": 1.0790026540053077
+  }
+}

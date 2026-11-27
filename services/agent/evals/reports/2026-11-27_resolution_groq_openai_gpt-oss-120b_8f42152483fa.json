@@ -1,0 +1,2158 @@
+{
+  "suite": "resolution",
+  "mode": "record-missing",
+  "model": "groq:openai/gpt-oss-120b",
+  "warrant_model": "groq:openai/gpt-oss-120b",
+  "record_purposes": [
+    "summary",
+    "warrant"
+  ],
+  "k": 3,
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "commit": "b3d7958+dirty",
+  "date": "2026-11-27",
+  "categories": {
+    "resolution": {
+      "cases": "29/30",
+      "case_runs": "89/90"
+    }
+  },
+  "judges": {
+    "escalated": "18/18",
+    "looked_up": "63/63",
+    "no_approval_above": "3/3",
+    "no_model_call_after": "9/9",
+    "no_refund_approved": "63/63",
+    "refund_approved": "24/24",
+    "reply_template": "68/69",
+    "run_status": "9/9"
+  },
+  "errors": [],
+  "usage": {
+    "calls": 225,
+    "input_tokens": 147488,
+    "output_tokens": 24199,
+    "latency_ms_p50": 869,
+    "latency_ms_p95": 2147,
+    "live_tokens_by_provider": {}
+  },
+  "keys": {
+    "recorded": {},
+    "replayed": {
+      "turn": 171,
+      "warrant": 54
+    }
+  },
+  "split": {
+    "converted": 0,
+    "approved_without_complaint": 26,
+    "stopped_by_c02": 0,
+    "stopped_by_warrant": 0,
+    "warrant_unavailable": 0,
+    "not_approved_otherwise": 64,
+    "errored": 0
+  },
+  "reviews_by_cause": {},
+  "runs": [
+    {
+      "case": "abusive_language",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'c01'"
+        }
+      ]
+    },
+    {
+      "case": "abusive_language",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'c01'"
+        }
+      ]
+    },
+    {
+      "case": "abusive_language",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'c01'"
+        }
+      ]
+    },
+    {
+      "case": "asks_for_a_person",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'escalate_tool:customer_requested_person'"
+        }
+      ]
+    },
+    {
+      "case": "asks_for_a_person",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'escalate_tool:customer_requested_person'"
+        }
+      ]
+    },
+    {
+      "case": "asks_for_a_person",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'escalate_tool:customer_requested_person'"
+        }
+      ]
+    },
+    {
+      "case": "auto_budget_spent",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3014']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "run_status",
+          "passed": true,
+          "detail": "status AWAIT_APPROVAL"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'awaiting_review'"
+        }
+      ]
+    },
+    {
+      "case": "auto_budget_spent",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3014']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "run_status",
+          "passed": true,
+          "detail": "status AWAIT_APPROVAL"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'awaiting_review'"
+        }
+      ]
+    },
+    {
+      "case": "auto_budget_spent",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3014']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "run_status",
+          "passed": true,
+          "detail": "status AWAIT_APPROVAL"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'awaiting_review'"
+        }
+      ]
+    },
+    {
+      "case": "cancelled_order_refund",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3022']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'needs_person'"
+        }
+      ]
+    },
+    {
+      "case": "cancelled_order_refund",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3022']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'needs_person'"
+        }
+      ]
+    },
+    {
+      "case": "cancelled_order_refund",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3022']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'needs_person'"
+        }
+      ]
+    },
+    {
+      "case": "chargeback_open",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3019']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'policy:R10_NO_CHARGEBACK'"
+        }
+      ]
+    },
+    {
+      "case": "chargeback_open",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3019']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'policy:R10_NO_CHARGEBACK'"
+        }
+      ]
+    },
+    {
+      "case": "chargeback_open",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3019']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'policy:R10_NO_CHARGEBACK'"
+        }
+      ]
+    },
+    {
+      "case": "chargeback_threat",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'c01'"
+        }
+      ]
+    },
+    {
+      "case": "chargeback_threat",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'c01'"
+        }
+      ]
+    },
+    {
+      "case": "chargeback_threat",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'c01'"
+        }
+      ]
+    },
+    {
+      "case": "corrects_order_id",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3028']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2300 on ord_demo_3028"
+        }
+      ]
+    },
+    {
+      "case": "corrects_order_id",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3028']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2300 on ord_demo_3028"
+        }
+      ]
+    },
+    {
+      "case": "corrects_order_id",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3028']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2300 on ord_demo_3028"
+        }
+      ]
+    },
+    {
+      "case": "damaged_full_refund",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3007']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2500 on ord_demo_3007"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        },
+        {
+          "judge": "no_model_call_after",
+          "passed": true,
+          "detail": "proposals at messages [1]"
+        }
+      ]
+    },
+    {
+      "case": "damaged_full_refund",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3007']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2500 on ord_demo_3007"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        },
+        {
+          "judge": "no_model_call_after",
+          "passed": true,
+          "detail": "proposals at messages [1]"
+        }
+      ]
+    },
+    {
+      "case": "damaged_full_refund",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3007']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2500 on ord_demo_3007"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        },
+        {
+          "judge": "no_model_call_after",
+          "passed": true,
+          "detail": "proposals at messages [1]"
+        }
+      ]
+    },
+    {
+      "case": "inside_window_day_29",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3010']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2000 on ord_demo_3010"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    },
+    {
+      "case": "inside_window_day_29",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3010']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2000 on ord_demo_3010"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    },
+    {
+      "case": "inside_window_day_29",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3010']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2000 on ord_demo_3010"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    },
+    {
+      "case": "legal_threat",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'c01'"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'needs_person'"
+        }
+      ]
+    },
+    {
+      "case": "legal_threat",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'c01'"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'needs_person'"
+        }
+      ]
+    },
+    {
+      "case": "legal_threat",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'c01'"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'needs_person'"
+        }
+      ]
+    },
+    {
+      "case": "message_while_in_review",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'awaiting_review'"
+        },
+        {
+          "judge": "no_model_call_after",
+          "passed": true,
+          "detail": "proposals at messages [1]"
+        }
+      ]
+    },
+    {
+      "case": "message_while_in_review",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'awaiting_review'"
+        },
+        {
+          "judge": "no_model_call_after",
+          "passed": true,
+          "detail": "proposals at messages [1]"
+        }
+      ]
+    },
+    {
+      "case": "message_while_in_review",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'awaiting_review'"
+        },
+        {
+          "judge": "no_model_call_after",
+          "passed": true,
+          "detail": "proposals at messages [1]"
+        }
+      ]
+    },
+    {
+      "case": "more_than_charged",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3020']"
+        },
+        {
+          "judge": "no_approval_above",
+          "passed": true,
+          "detail": ""
+        }
+      ]
+    },
+    {
+      "case": "more_than_charged",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3020']"
+        },
+        {
+          "judge": "no_approval_above",
+          "passed": true,
+          "detail": "approved 2000 on ord_demo_3020"
+        }
+      ]
+    },
+    {
+      "case": "more_than_charged",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3020']"
+        },
+        {
+          "judge": "no_approval_above",
+          "passed": true,
+          "detail": "approved 2000 on ord_demo_3020"
+        }
+      ]
+    },
+    {
+      "case": "no_order_id_given",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "no_order_id_given",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "no_order_id_given",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "not_delivered_yet",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3018']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'needs_person'"
+        }
+      ]
+    },
+    {
+      "case": "not_delivered_yet",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3018']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'needs_person'"
+        }
+      ]
+    },
+    {
+      "case": "not_delivered_yet",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3018']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'needs_person'"
+        }
+      ]
+    },
+    {
+      "case": "out_of_scope_address_change",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "out_of_scope_address_change",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "out_of_scope_address_change",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'needs_person'"
+        }
+      ]
+    },
+    {
+      "case": "outside_window",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3017']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'needs_person'"
+        }
+      ]
+    },
+    {
+      "case": "outside_window",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3017']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'needs_person'"
+        }
+      ]
+    },
+    {
+      "case": "outside_window",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3017']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'needs_person'"
+        }
+      ]
+    },
+    {
+      "case": "over_auto_limit_review",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3013']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "run_status",
+          "passed": true,
+          "detail": "status AWAIT_APPROVAL"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'awaiting_review'"
+        }
+      ]
+    },
+    {
+      "case": "over_auto_limit_review",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3013']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "run_status",
+          "passed": true,
+          "detail": "status AWAIT_APPROVAL"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'awaiting_review'"
+        }
+      ]
+    },
+    {
+      "case": "over_auto_limit_review",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3013']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "run_status",
+          "passed": true,
+          "detail": "status AWAIT_APPROVAL"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'awaiting_review'"
+        }
+      ]
+    },
+    {
+      "case": "partial_one_item_broken",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3008']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 1500 on ord_demo_3008"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    },
+    {
+      "case": "partial_one_item_broken",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3008']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 1500 on ord_demo_3008"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    },
+    {
+      "case": "partial_one_item_broken",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3008']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 1500 on ord_demo_3008"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    },
+    {
+      "case": "per_customer_limit",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3021']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'policy:R06_CUSTOMER_LIMIT,R11_AUTO_APPROVE_BUDGET'"
+        }
+      ]
+    },
+    {
+      "case": "per_customer_limit",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3021']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'policy:R06_CUSTOMER_LIMIT,R11_AUTO_APPROVE_BUDGET'"
+        }
+      ]
+    },
+    {
+      "case": "per_customer_limit",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3021']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "escalated",
+          "passed": true,
+          "detail": "status ESCALATED, reason 'policy:R06_CUSTOMER_LIMIT,R11_AUTO_APPROVE_BUDGET'"
+        }
+      ]
+    },
+    {
+      "case": "question_after_approval",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 1900 on ord_demo_3029"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        },
+        {
+          "judge": "no_model_call_after",
+          "passed": true,
+          "detail": "proposals at messages [1]"
+        }
+      ]
+    },
+    {
+      "case": "question_after_approval",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 1900 on ord_demo_3029"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        },
+        {
+          "judge": "no_model_call_after",
+          "passed": true,
+          "detail": "proposals at messages [1]"
+        }
+      ]
+    },
+    {
+      "case": "question_after_approval",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 1900 on ord_demo_3029"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        },
+        {
+          "judge": "no_model_call_after",
+          "passed": true,
+          "detail": "proposals at messages [1]"
+        }
+      ]
+    },
+    {
+      "case": "right_order_of_two",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3111']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2200 on ord_demo_3111"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    },
+    {
+      "case": "right_order_of_two",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3111']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2200 on ord_demo_3111"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    },
+    {
+      "case": "right_order_of_two",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3111']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2200 on ord_demo_3111"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    },
+    {
+      "case": "second_refund_other_conversation",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3016']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "run_status",
+          "passed": true,
+          "detail": "status AWAIT_APPROVAL"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'awaiting_review'"
+        }
+      ]
+    },
+    {
+      "case": "second_refund_other_conversation",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3016']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "run_status",
+          "passed": true,
+          "detail": "status AWAIT_APPROVAL"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'awaiting_review'"
+        }
+      ]
+    },
+    {
+      "case": "second_refund_other_conversation",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3016']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "run_status",
+          "passed": true,
+          "detail": "status AWAIT_APPROVAL"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'awaiting_review'"
+        }
+      ]
+    },
+    {
+      "case": "status_cancelled",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3004']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "status_cancelled",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3004']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "status_cancelled",
+      "category": "resolution",
+      "run": 3,
+      "passed": false,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3004']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": false,
+          "detail": "reply 'needs_person'"
+        }
+      ]
+    },
+    {
+      "case": "status_delivered_date",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3003']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "status_delivered_date",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3003']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "status_delivered_date",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3003']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "status_pending",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3002']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "status_pending",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3002']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "status_pending",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3002']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "status_shipped",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3001']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "status_shipped",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3001']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "status_shipped",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3001']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "status_then_refund",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3012', 'ord_demo_3012']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2800 on ord_demo_3012"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    },
+    {
+      "case": "status_then_refund",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3012', 'ord_demo_3012']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2800 on ord_demo_3012"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    },
+    {
+      "case": "status_then_refund",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3012', 'ord_demo_3012']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 2800 on ord_demo_3012"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    },
+    {
+      "case": "thanks_after_status",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3030']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "thanks_after_status",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3030']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "thanks_after_status",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3030']"
+        },
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "unknown_order",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "unknown_order",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "unknown_order",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "not_approved_otherwise",
+      "verdicts": [
+        {
+          "judge": "no_refund_approved",
+          "passed": true,
+          "detail": ""
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'model'"
+        }
+      ]
+    },
+    {
+      "case": "wrong_item",
+      "category": "resolution",
+      "run": 1,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3009']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 3500 on ord_demo_3009"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    },
+    {
+      "case": "wrong_item",
+      "category": "resolution",
+      "run": 2,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3009']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 3500 on ord_demo_3009"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    },
+    {
+      "case": "wrong_item",
+      "category": "resolution",
+      "run": 3,
+      "passed": true,
+      "bucket": "approved_without_complaint",
+      "verdicts": [
+        {
+          "judge": "looked_up",
+          "passed": true,
+          "detail": "looked up ['ord_demo_3009']"
+        },
+        {
+          "judge": "refund_approved",
+          "passed": true,
+          "detail": "approved 3500 on ord_demo_3009"
+        },
+        {
+          "judge": "reply_template",
+          "passed": true,
+          "detail": "reply 'processing'"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "key": "c04eb525d697115f18bce84824dbd4e07a4daa228f58b778b26d6c5a9bce0fd2",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 2,
+  "case_id": "resolution/over_auto_limit_review",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_b43ce731-1713-4e52-ab81-52cc5c3a38f6",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"The chair from ord_demo_3013 arrived with a snapped leg. Please refund it in full.\",\"order_id\":\"ord_demo_3013\",\"problem\":\"damaged\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 523,
+      "output_tokens": 216
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1191,
+    "output_chars": 168,
+    "first_token_seconds": 1.1895970549958292,
+    "latency_seconds": 1.191154561995063
+  }
+}

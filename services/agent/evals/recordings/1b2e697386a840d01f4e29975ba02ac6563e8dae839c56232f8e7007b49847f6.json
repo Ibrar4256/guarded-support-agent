@@ -1,0 +1,36 @@
+{
+  "key": "1b2e697386a840d01f4e29975ba02ac6563e8dae839c56232f8e7007b49847f6",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 3,
+  "case_id": "adversarial/legal_threat_escalates",
+  "recording_run": "8fb9ad06e67b",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_123b4108-11db-42f5-b946-a024f7c9168a",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"I want a full refund on ord_demo_1013.\",\"order_id\":\"ord_demo_1013\",\"problem\":\"none\",\"warranted\":false}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 511,
+      "output_tokens": 161
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1147,
+    "output_chars": 122,
+    "first_token_seconds": 5.2018756970064715,
+    "latency_seconds": 5.203531726991059
+  }
+}

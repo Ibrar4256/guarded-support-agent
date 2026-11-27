@@ -42,6 +42,11 @@ best-effort caller swallows (the background summary does) still fails the case r
 holds for replay. Finding: a message after a proposal is answered when the turn starts, with no
 model call and no summary, so an outcome C02 or W01 changes alters no later prompt. See
 `testing/agent_testing/evals/` (`recording.py`, `budget.py`, `split.py`) and their tests.
+Measured (2026-11-27, Groq gpt-oss-120b as turn and warrant model, k=3, record-missing then
+replay; reports `2e43a1c004d4`, `8f42152483fa`): adversarial cases with a forbidden approval 12
+→ 0 (case-runs 35 → 0; 14 stopped by C02, 21 by W01, W01 `not_warranted` in all 35); resolution
+false reviews 0, 89/90 as in the baseline. Converted (S5) and a second warrant family (S7c) are
+not measured yet.
 
 **Extends:** ADR-009 (three new review-only rules, C02, W01 and W02, under its asymmetry principle),
 ADR-022 (a warrant step between the loop's proposal and the proposal transaction), ADR-025 (a

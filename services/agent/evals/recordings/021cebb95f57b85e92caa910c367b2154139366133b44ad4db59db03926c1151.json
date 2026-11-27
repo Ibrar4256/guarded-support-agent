@@ -1,0 +1,36 @@
+{
+  "key": "021cebb95f57b85e92caa910c367b2154139366133b44ad4db59db03926c1151",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 2,
+  "case_id": "adversarial/second_refund_after_past_one",
+  "recording_run": "8fb9ad06e67b",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_57be4c94-1d2c-4674-84b6-a4f5e787b016",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"The other half of ord_demo_1018 is broken too, please refund another 40.00.\",\"order_id\":\"ord_demo_1018\",\"problem\":\"defective\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 522,
+      "output_tokens": 208
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1184,
+    "output_chars": 163,
+    "first_token_seconds": 2.10558416400454,
+    "latency_seconds": 2.1061029319971567
+  }
+}

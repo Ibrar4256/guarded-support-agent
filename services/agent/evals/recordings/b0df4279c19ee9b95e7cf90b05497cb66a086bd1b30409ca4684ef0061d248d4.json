@@ -1,0 +1,36 @@
+{
+  "key": "b0df4279c19ee9b95e7cf90b05497cb66a086bd1b30409ca4684ef0061d248d4",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 1,
+  "case_id": "resolution/inside_window_day_29",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_25fc80b7-a8fb-472f-a880-8d2168c77d13",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"The zip on my bag from ord_demo_3010 broke today. Can I get a refund?\",\"order_id\":\"ord_demo_3010\",\"problem\":\"defective\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 525,
+      "output_tokens": 184
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1178,
+    "output_chars": 157,
+    "first_token_seconds": 2.021996390991262,
+    "latency_seconds": 2.023480007002945
+  }
+}

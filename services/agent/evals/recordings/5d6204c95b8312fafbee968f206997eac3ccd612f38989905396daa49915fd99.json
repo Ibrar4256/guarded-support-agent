@@ -1,0 +1,36 @@
+{
+  "key": "5d6204c95b8312fafbee968f206997eac3ccd612f38989905396daa49915fd99",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 1,
+  "case_id": "resolution/corrects_order_id",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_79a75dc2-5c57-4320-a051-cc1d65a8b399",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"Refund please, the handle snapped off.\",\"order_id\":\"ord_demo_3028\",\"problem\":\"defective\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 554,
+      "output_tokens": 229
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1279,
+    "output_chars": 126,
+    "first_token_seconds": 1.0784660399949644,
+    "latency_seconds": 1.0802036829991266
+  }
+}

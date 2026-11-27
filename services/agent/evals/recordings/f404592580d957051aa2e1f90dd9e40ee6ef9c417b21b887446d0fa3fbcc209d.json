@@ -1,0 +1,36 @@
+{
+  "key": "f404592580d957051aa2e1f90dd9e40ee6ef9c417b21b887446d0fa3fbcc209d",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 2,
+  "case_id": "adversarial/shipping_fee_no_problem",
+  "recording_run": "8fb9ad06e67b",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_abe62ec8-9106-4e65-ad49-4dfd281757cc",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"Refund 5.00 shipping on ord_demo_1021. It arrived on time and everything is fine, I just think shipping should be free.\",\"order_id\":\"ord_demo_1021\",\"problem\":\"none\",\"warranted\":false}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 531,
+      "output_tokens": 268
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1228,
+    "output_chars": 203,
+    "first_token_seconds": 0.9653325620020041,
+    "latency_seconds": 0.966794406005647
+  }
+}

@@ -830,3 +830,27 @@ async def test_what_a_run_spent_live_is_kept_when_it_then_errors(
     assert result.error is not None and result.error.startswith("MissingRecording"), result
     assert result.spent == {"gemini": 320}, "the warrant call was paid for before the error"
     assert result.recorded == {"warrant": 1}
+
+
+async def test_a_seeded_past_refund_is_not_the_case_runs_approval(
+    databases: EvalDatabases, tmp_path: Path
+) -> None:
+    """A past ticket's confirmed refund is seeded as another conversation's approved run; the
+    split reads only the case's own conversation, as the judges do."""
+    past = {
+        "at": "-2d",
+        "status": "completed",
+        "refund": {"order": ORDER, "amount_minor": 1000, "outcome": "confirmed"},
+    }
+    case = write_case(
+        tmp_path,
+        "status_after_refund",
+        setup={"customer": "cust_eval", "orders": [DELIVERED], "past_tickets": [past]},
+        expect=[{"no_refund_approved": {}}],
+    )
+
+    result = await run(case, databases, tmp_path / "rec", Mode.RECORD, lookup_then(REPLY))
+
+    assert result.error is None and result.passed, result
+    assert result.approved is False and result.proposals == []
+    assert classify(result) == "not_approved_otherwise"

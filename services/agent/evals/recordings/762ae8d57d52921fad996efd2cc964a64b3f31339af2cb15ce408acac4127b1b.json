@@ -1,0 +1,36 @@
+{
+  "key": "762ae8d57d52921fad996efd2cc964a64b3f31339af2cb15ce408acac4127b1b",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 2,
+  "case_id": "resolution/partial_one_item_broken",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_f9515d35-40fa-4ef6-9dbe-b5fb21eba976",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"One of the two mugs in ord_demo_3008 arrived broken. Could you refund 15.00 for it?\",\"order_id\":\"ord_demo_3008\",\"problem\":\"damaged\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 527,
+      "output_tokens": 181
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1192,
+    "output_chars": 169,
+    "first_token_seconds": 1.0742755379906157,
+    "latency_seconds": 1.0756638500024565
+  }
+}

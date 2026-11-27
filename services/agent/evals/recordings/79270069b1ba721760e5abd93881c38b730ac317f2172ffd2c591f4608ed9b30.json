@@ -1,0 +1,36 @@
+{
+  "key": "79270069b1ba721760e5abd93881c38b730ac317f2172ffd2c591f4608ed9b30",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 1,
+  "case_id": "resolution/outside_window",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_7c986209-7116-4eca-a467-1c6b295694a1",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"I'd like to return ord_demo_3017, it doesn't fit. Refund please.\",\"order_id\":\"ord_demo_3017\",\"problem\":\"not_as_described\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 518,
+      "output_tokens": 321
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1173,
+    "output_chars": 159,
+    "first_token_seconds": 1.3546801439952105,
+    "latency_seconds": 1.3561499909992563
+  }
+}

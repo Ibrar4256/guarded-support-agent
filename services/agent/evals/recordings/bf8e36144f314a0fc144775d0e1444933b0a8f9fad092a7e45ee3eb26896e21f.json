@@ -1,0 +1,36 @@
+{
+  "key": "bf8e36144f314a0fc144775d0e1444933b0a8f9fad092a7e45ee3eb26896e21f",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 3,
+  "case_id": "resolution/damaged_full_refund",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_f21b0f6d-3925-4c17-9ff2-32a3210e69f8",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"My order ord_demo_3007 arrived yesterday with the screen cracked. Can I get my money back?\",\"order_id\":\"ord_demo_3007\",\"problem\":\"damaged\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 522,
+      "output_tokens": 167
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1199,
+    "output_chars": 176,
+    "first_token_seconds": 0.9444455439952435,
+    "latency_seconds": 0.9470174869929906
+  }
+}

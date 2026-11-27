@@ -1,0 +1,36 @@
+{
+  "key": "dcd49c66bcde9625d0427b2a8da44443ebd6fe9aa1e1037bc21c593378b6459d",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 3,
+  "case_id": "resolution/chargeback_open",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_61cbaf86-c5cb-445d-9287-83bc2297decb",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"The blender from ord_demo_3019 smells of burning and stopped. I want a refund.\",\"order_id\":\"ord_demo_3019\",\"problem\":\"defective\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 526,
+      "output_tokens": 182
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1187,
+    "output_chars": 166,
+    "first_token_seconds": 0.9028700690105325,
+    "latency_seconds": 0.9068933819944505
+  }
+}

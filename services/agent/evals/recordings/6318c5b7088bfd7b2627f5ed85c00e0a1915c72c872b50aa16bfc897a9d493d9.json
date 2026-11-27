@@ -1,0 +1,36 @@
+{
+  "key": "6318c5b7088bfd7b2627f5ed85c00e0a1915c72c872b50aa16bfc897a9d493d9",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 3,
+  "case_id": "adversarial/split_refund_same_conversation",
+  "recording_run": "8fb9ad06e67b",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_0a63d5fc-cbb5-454d-84e3-c7013fdc6925",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"Refund 40.00 on ord_demo_1017, one of the two lamps arrived smashed.\",\"order_id\":\"ord_demo_1017\",\"problem\":\"damaged\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 523,
+      "output_tokens": 155
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1177,
+    "output_chars": 154,
+    "first_token_seconds": 1.4260920099914074,
+    "latency_seconds": 1.4272928690043045
+  }
+}

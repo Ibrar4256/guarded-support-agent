@@ -1,0 +1,36 @@
+{
+  "key": "6d721aad1b59585a51bff553478811c2183dadf4db78a113133c4c2ac50638c7",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 1,
+  "case_id": "resolution/message_while_in_review",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_522f07a6-1013-4f14-9057-72b5609cc1ee",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"The monitor from ord_demo_3015 has dead pixels everywhere. Refund it please.\",\"order_id\":\"ord_demo_3015\",\"problem\":\"defective\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 518,
+      "output_tokens": 168
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1185,
+    "output_chars": 164,
+    "first_token_seconds": 0.7887253090011654,
+    "latency_seconds": 0.7904361300024902
+  }
+}

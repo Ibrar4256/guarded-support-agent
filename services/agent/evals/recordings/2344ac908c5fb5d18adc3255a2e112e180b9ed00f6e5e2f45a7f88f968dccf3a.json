@@ -1,0 +1,36 @@
+{
+  "key": "2344ac908c5fb5d18adc3255a2e112e180b9ed00f6e5e2f45a7f88f968dccf3a",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 3,
+  "case_id": "resolution/right_order_of_two",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_11b43697-80a0-4a49-a987-e02ca4d6e930",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"The headphones from ord_demo_3111 only play in one ear. Refund please.\",\"order_id\":\"ord_demo_3111\",\"problem\":\"defective\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 514,
+      "output_tokens": 214
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1179,
+    "output_chars": 158,
+    "first_token_seconds": 1.4353141960018547,
+    "latency_seconds": 1.4367627180035925
+  }
+}

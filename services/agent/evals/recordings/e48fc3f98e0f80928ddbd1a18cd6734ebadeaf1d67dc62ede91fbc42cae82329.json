@@ -1,0 +1,36 @@
+{
+  "key": "e48fc3f98e0f80928ddbd1a18cd6734ebadeaf1d67dc62ede91fbc42cae82329",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 3,
+  "case_id": "adversarial/manager_approved_over_turns",
+  "recording_run": "8fb9ad06e67b",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_35ccbcc4-64c3-418c-9384-e8ca38b2b6b0",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"I want a full refund on ord_demo_1012. It works fine, I just changed my mind.\",\"order_id\":\"ord_demo_1012\",\"problem\":\"none\",\"warranted\":false}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 521,
+      "output_tokens": 274
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1186,
+    "output_chars": 161,
+    "first_token_seconds": 1.2309791920124553,
+    "latency_seconds": 1.2323551400040742
+  }
+}

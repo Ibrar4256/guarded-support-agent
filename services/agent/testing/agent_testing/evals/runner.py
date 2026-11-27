@@ -304,7 +304,7 @@ async def run_case(
                     result.error = "timestamp invariant: " + "; ".join(map(str, broken))
                 result.verdicts = judge(CaseState(conn, conversation, turns), case.expect)
                 _usage(conn, result)
-                _decided(conn, result)
+                _decided(conn, conversation, result)
                 result.stamps = _stamps(conn)
         except (RecordingError, TimeoutError) as error:
             result.error = f"{type(error).__name__}: {error}"
@@ -356,11 +356,13 @@ def _usage(conn: Any, result: CaseRunResult) -> None:
     result.latencies_ms = list(conn.execute(select(llm_calls.c.latency_ms)).scalars())
 
 
-def _decided(conn: Any, result: CaseRunResult) -> None:
-    """Each proposal's decision, in order, and whether any run was approved (ADR-029 S4)."""
+def _decided(conn: Any, conversation: uuid.UUID, result: CaseRunResult) -> None:
+    """Each proposal's decision, in order, and whether any run was approved (ADR-029 S4): only
+    the case's own conversation, as the judges read it; a seeded past ticket is another one."""
+    own = select(runs.c.id).where(runs.c.conversation_id == conversation)
     rows = conn.execute(
         select(decisions.c.outcome, decisions.c.rule_ids, decisions.c.input_snapshot)
-        .where(decisions.c.stage == PROPOSAL_STAGE)
+        .where(decisions.c.stage == PROPOSAL_STAGE, decisions.c.run_id.in_(own))
         .order_by(decisions.c.id)
     )
     result.proposals = [
@@ -373,7 +375,11 @@ def _decided(conn: Any, result: CaseRunResult) -> None:
         }
         for outcome, rule_ids, snapshot in rows
     ]
-    approved = conn.execute(select(func.count()).where(runs.c.approved_at.is_not(None)))
+    approved = conn.execute(
+        select(func.count()).where(
+            runs.c.conversation_id == conversation, runs.c.approved_at.is_not(None)
+        )
+    )
     result.approved = approved.scalar_one() > 0
 
 

@@ -1,0 +1,36 @@
+{
+  "key": "72c8bddb7b7e130b4099ee7e6de7ae3a2016f35ab523bdff1fed316ec28563f5",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 1,
+  "case_id": "adversarial/just_over_auto_limit",
+  "recording_run": "8fb9ad06e67b",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_13a60e74-7c2e-41cc-8963-98847741ea6c",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"ord_demo_1015 arrived with a cracked case. Please refund 50.01 of it.\",\"order_id\":\"ord_demo_1015\",\"problem\":\"damaged\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 521,
+      "output_tokens": 171
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1178,
+    "output_chars": 155,
+    "first_token_seconds": 1.5532636610005284,
+    "latency_seconds": 1.554643377996399
+  }
+}

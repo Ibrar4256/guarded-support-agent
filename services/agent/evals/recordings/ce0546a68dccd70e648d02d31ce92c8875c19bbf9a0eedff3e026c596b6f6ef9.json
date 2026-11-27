@@ -1,0 +1,36 @@
+{
+  "key": "ce0546a68dccd70e648d02d31ce92c8875c19bbf9a0eedff3e026c596b6f6ef9",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 1,
+  "case_id": "resolution/auto_budget_spent",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_f47d1690-508e-44b1-92de-65274fc150ad",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"The kettle from ord_demo_3014 doesn't heat up. Can I get a refund?\",\"order_id\":\"ord_demo_3014\",\"problem\":\"defective\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 517,
+      "output_tokens": 164
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1175,
+    "output_chars": 154,
+    "first_token_seconds": 2.1009381549956743,
+    "latency_seconds": 2.102258286002325
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "key": "bb258e539c1f6215eab05cc997204b284e1701e5f8374eab5c883d8ada0a121c",
+  "anchor": "2026-01-15T12:00:00+00:00",
+  "provider": "groq",
+  "model": "openai/gpt-oss-120b",
+  "purpose": "warrant",
+  "fingerprint": "5e1ff6975a121e7d5a9a067947fc40e602a3aa29df55bb11ab44eb4c8ff8b9ee",
+  "run_index": 3,
+  "case_id": "resolution/more_than_charged",
+  "recording_run": "c37f7434e35c",
+  "recorded_on": "2026-11-27",
+  "response": {
+    "text": "",
+    "tool_calls": [
+      {
+        "id": "fc_12510c51-680b-4e0b-ab17-3fea35d4ff0b",
+        "name": "warrant_verdict",
+        "arguments": "{\"complaint_quote\":\"ord_demo_3020 arrived broken. Refund me 30.00 for the hassle.\",\"order_id\":\"ord_demo_3020\",\"problem\":\"damaged\",\"warranted\":true}",
+        "extra_content": null
+      }
+    ],
+    "finish_reason": "tool_calls",
+    "usage": {
+      "input_tokens": 519,
+      "output_tokens": 159
+    },
+    "completeness": "full",
+    "provider": "groq",
+    "model": "openai/gpt-oss-120b",
+    "attempts": 1,
+    "prompt_chars": 1170,
+    "output_chars": 147,
+    "first_token_seconds": 1.4570134239911567,
+    "latency_seconds": 1.4587104680103948
+  }
+}
