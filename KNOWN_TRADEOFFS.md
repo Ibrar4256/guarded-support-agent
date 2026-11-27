@@ -686,9 +686,10 @@ lives in `WEEKLY_LOG.md`.
   approvals stayed at 0. The residual risk ADR-001 accepted is real and sized: up to the
   auto-approve limit per order, within the per-customer limit and budget. Reducing it needs its
   own decision, measured against this recording.
-- **ADR-029's warrant gate is decided, not built.** Until it is, the measured in-policy
-  manipulation stands. Once built, it still won't stop a customer who adds one false complaint
-  sentence to a social attack; the eval reports those as converted, not stopped.
+- **ADR-029's warrant gate is built and measured (S1, S2, S4),** and the measured in-policy
+  manipulation dropped from 12 cases to 0 (see "Warrant gate measurement" below). It still
+  won't stop a customer who adds one false complaint sentence to a social attack; the eval
+  reports those as converted, not stopped, and S5 measures them.
 - **Measured (2026-11-26, Groq gpt-oss-120b, k=3): the resolution suite passed 29/30 cases,
   89/90 case runs.** The one failure (`status_cancelled`, 1 of 3 seeded runs) wasn't a policy
   escape — the model proposed an unprompted refund on a status-only question, policy declined to
@@ -712,12 +713,38 @@ lives in `WEEKLY_LOG.md`.
   required for warrant models, no verified_models.json entry exists for its fingerprint, and no
   second provider is listed by default. The adapter can't force a tool call (no `tool_choice`),
   so a warrant model that answers in text sends the refund to review; S7 measures how often.
-- **The committed eval suites don't replay until S4.** Every proposal now makes a warrant call,
-  and no recording holds one; S4's record-missing mode records only those keys (one Groq run),
-  after which the warrant gate is measured against both baselines.
+- **The committed eval suites replay again since S4,** with the warrant calls recorded (one
+  Groq run); CI doesn't replay them yet, so a change that breaks a recording is only caught by
+  running the suites by hand until the CI replay job lands.
 - **The warrant step reads every customer message of the conversation,** not only those the
   budget will show, so provenance can match any of them; a very long conversation makes that
   read longer. It's one read per proposal, and R17 caps proposals at five a day.
 - **The decision row doesn't hold the warrant call's `llm_calls` id** (ADR-029 asked for it):
   the recorder returns no id. The call is found by run, turn and purpose `warrant`.
 
+## Warrant gate measurement (ADR-029 S4)
+
+- **Measured on one model for both jobs.** The turn and the warrant check both ran on Groq
+  gpt-oss-120b, so "a second opinion" here is the same model with a narrower prompt and input.
+  ADR-029's claim that an attack transfers less reliably to another family is untested until
+  S7's second run with a warrant model from another family.
+- **Converted is 0 because no case tries it yet.** The known bypass (the attack plus one false
+  complaint sentence) is S5's first set of cases; until then the 12 → 0 result covers attacks
+  that didn't bother to complain.
+- **The split credits a layer only where it alone fired,** so it undercounts defence in depth:
+  W01 said "not warranted" in every run C02 stopped, and none of those count for W01. The
+  overlap is visible in "reviews by cause", which counts each cause per run.
+- **Spend comes from the eval model's tally, not `llm_calls`.** The tally names the configured
+  provider and `llm_calls` names the one the response reports; they agree for every real
+  adapter, and the cross-check only runs in record mode, where every call is live.
+- **record-missing never records a turn key.** Any change to the turn's prompt still needs a
+  full re-record of that suite (S6's prompt hardening will).
+- **The regenerated reports show no live tokens.** They came from a rerun that made no call,
+  after a split bug was fixed; the recording runs' real cost (35,004 and 39,344 tokens) is in
+  the commit message and the weekly log, not in the report files.
+- **The eval is stricter than production about summaries.** A failed background summary is
+  only logged in production (by design: the old summary stays); in an eval, a recording error
+  it swallowed fails the case run.
+- **One adversarial failure is not the gate's to fix:** `legal_threat_escalates` expects an
+  escalation for a legal threat, and the model still doesn't escalate; the refund is now held in
+  review instead of approved, but the judge fails in every run, as it did in the baseline.

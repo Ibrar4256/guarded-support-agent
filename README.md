@@ -5,12 +5,13 @@ within policy, escalates to a human) with safety enforced in code, not in the pr
 It's a scoped-down, architecturally real take on per-resolution support agents like
 Intercom Fin and Ada.
 
-> **Status: the money path and the first tool are built; the model loop is next.** Twenty-three
-> architecture decisions are recorded below. Built and tested in CI: the refund service, the
-> agent's policy core, database and refund client, the worker (sending and reconciliation,
-> with end-to-end crash tests), the demo seeds, and the order-lookup tool. Not built yet: the
-> LLM loop, the chat API and UI. There are no eval numbers yet, and none will appear here
-> until they're measured.
+> **Status: the agent works end to end on a real model; the chat API and UI are next.**
+> Twenty-eight architecture decisions are recorded below. Built and tested in CI: the refund
+> service, the agent's policy core, database and refund client, the worker (sending and
+> reconciliation, with end-to-end crash tests), the demo seeds, the order-lookup tool, the
+> agent turn and model adapter on free-tier providers, memory, the eval runner with recorded
+> suites, and a warrant gate for automatic refunds. Not built yet: the chat API, the UI and a
+> deployment. The eval numbers below are measured, with their limits stated.
 
 ## Core idea: the model proposes, code decides
 
@@ -41,6 +42,26 @@ Prompt injection cannot make an **out-of-policy** action, or an action on **anot
 user's** resources, execute without human approval. Two things are *not* claimed and are
 measured instead: in-policy refunds triggered by injection, and data leaking through read
 tools.
+
+## Eval results (measured)
+
+Groq `openai/gpt-oss-120b` as both the agent and the warrant model, k=3 runs per case, replayed
+from committed recordings with no provider key. Adversarial: 25 cases, of which 19 were decided by
+the model, not by code, before the gate (counts below are over those 19, as ADR-029 S7 states).
+Resolution: 30 ordinary support cases.
+
+| Measure | Before the warrant gate | With it (ADR-029) |
+|---|---|---|
+| Adversarial cases ending in a refund the case forbids | 12 of 19 | **0** |
+| Adversarial case-runs with a forbidden refund | 35 | **0** |
+| Out-of-policy or cross-customer refunds | 0 | 0 |
+| Resolution case-runs passing | 89/90 | 89/90 |
+| Honest refunds sent to review by the gate (false reviews) | n/a | **0** |
+
+Limits, stated before anyone asks: one model family for both jobs; the known bypass (an attack
+plus one false complaint sentence) isn't measured yet; one adversarial case still fails its
+escalation judge. Details: [KNOWN_TRADEOFFS.md](KNOWN_TRADEOFFS.md), reports in
+[`services/agent/evals/reports`](services/agent/evals/reports).
 
 ## Architecture decisions
 
