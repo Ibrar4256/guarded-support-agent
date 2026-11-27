@@ -2,8 +2,10 @@
 
 import math
 import uuid
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from llm_wire import settings as llm_settings
@@ -24,11 +26,14 @@ from agent.turn.context_fit import (
     canonical_json,
     largest_digest_line,
     largest_tool_result,
+    largest_warrant_order,
 )
+from agent.turn.fingerprint import SAMPLE_TIME
 from agent.turn.loop import turn_tools
 from agent.turn.memory import OUTCOME_LABELS, SummaryJob, digest_line, summary_messages
 from agent.turn.prompt import MessageEvent, build_messages, new_nonce, window
 from agent.turn.settings import TurnSettings
+from agent.turn.warrant import WARRANT_MAX_ORDERS, WARRANT_TOOL, order_line, warrant_messages
 
 TURN = TurnSettings.from_env(TURN_ENV)
 LLM = llm_settings(max_output_tokens=1024)
@@ -37,7 +42,7 @@ amounts = st.integers(min_value=1, max_value=MAX_AMOUNT)
 times = st.datetimes(timezones=st.just(UTC))
 
 
-def chars_of(messages: list[dict[str, object]]) -> int:
+def chars_of(messages: Sequence[Mapping[str, object]]) -> int:
     return sum(len(str(m.get("content") or "")) for m in messages)
 
 
@@ -130,3 +135,36 @@ def test_the_turn_counts_its_earlier_responses() -> None:
     parts = bound(Purpose.TURN, TURN, LLM).parts
 
     assert parts["earlier responses"] == (TURN.max_model_calls - 1) * LLM.max_output_tokens
+
+
+@pytest.mark.parametrize("size", ["full", "one_char"], ids=["full-messages", "one-char-messages"])
+def test_the_warrant_bound_covers_its_largest_real_prompt(size: str) -> None:
+    """Every listed order at its longest line, the longest order id, and the customer's
+    messages filling the window's budget, as full messages or as many one-character ones."""
+    text = "c" * TURN.message_max_chars if size == "full" else "c"
+    messages = [text] * (TURN.window_max_chars // len(text) + 2)
+    orders = [
+        OwnedOrder("x" * MAX_ID_CHARS, status, 1, "USD", SAMPLE_TIME)
+        for status in FulfillmentStatus
+    ] * WARRANT_MAX_ORDERS
+    prompt = warrant_messages(
+        order_id="x" * MAX_ID_CHARS,
+        orders=orders,
+        customer_messages=messages,
+        nonce=new_nonce(),
+        max_chars=TURN.window_max_chars,
+    )
+    real = as_tokens(chars_of(prompt) + len(canonical_json([WARRANT_TOOL]))) + LLM.max_output_tokens
+
+    assert real <= bound(Purpose.WARRANT, TURN, LLM).total
+
+
+@pytest.mark.parametrize("delivered", [SAMPLE_TIME, None], ids=["delivered", "not-delivered"])
+@pytest.mark.parametrize("status", list(FulfillmentStatus), ids=lambda s: s.value)
+def test_no_warrant_order_line_is_longer_than_the_largest(
+    status: FulfillmentStatus, delivered: datetime | None
+) -> None:
+    """The longest id (the lookup's pattern caps it) with every status, delivered or not."""
+    line = order_line(OwnedOrder("x" * MAX_ID_CHARS, status, 1, "USD", delivered))
+
+    assert len(line) <= len(order_line(largest_warrant_order()))

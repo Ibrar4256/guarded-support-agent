@@ -22,6 +22,7 @@ SCRIPTED = "scripted"
 MODEL_LISTS: dict[Purpose, str] = {
     Purpose.TURN: "LLM_TURN_MODELS",
     Purpose.SUMMARY: "LLM_SUMMARY_MODELS",
+    Purpose.WARRANT: "LLM_WARRANT_MODELS",
 }
 
 

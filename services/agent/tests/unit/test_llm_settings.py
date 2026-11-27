@@ -13,6 +13,7 @@ ACCOUNT_ID = "0123456789abcdef0123456789abcdef"
 BASE = {
     "LLM_TURN_MODELS": "groq:openai/gpt-oss-120b,cloudflare:@cf/openai/gpt-oss-20b",
     "LLM_SUMMARY_MODELS": "gemini:some-flash-lite",
+    "LLM_WARRANT_MODELS": "gemini:warrant-model,groq:openai/gpt-oss-120b",
     "GROQ_API_KEY": "groq-test-key",
     "GEMINI_API_KEY": "gemini-test-key",
     "CLOUDFLARE_API_TOKEN": "cloudflare-test-token",
@@ -48,6 +49,10 @@ def test_valid_settings_load_each_purposes_list_in_order() -> None:
         "cloudflare:@cf/openai/gpt-oss-20b",
     ]
     assert [c.label for c in settings.models[Purpose.SUMMARY]] == ["gemini:some-flash-lite"]
+    assert [c.label for c in settings.models[Purpose.WARRANT]] == [
+        "gemini:warrant-model",
+        "groq:openai/gpt-oss-120b",
+    ]
     assert turn[0].base_url == PROVIDERS["groq"].base_url
     assert turn[1].base_url == f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/v1"
     assert turn[1].api_key == "cloudflare-test-token"
@@ -80,6 +85,7 @@ def test_providers_not_listed_need_no_credentials() -> None:
     [
         ({"LLM_TURN_MODELS": None}, "LLM_TURN_MODELS is not set"),
         ({"LLM_SUMMARY_MODELS": ""}, "LLM_SUMMARY_MODELS is not set"),
+        ({"LLM_WARRANT_MODELS": None}, "LLM_WARRANT_MODELS is not set"),
         ({"LLM_TURN_MODELS": "groq:m,"}, "LLM_TURN_MODELS has an empty entry"),
         ({"LLM_TURN_MODELS": "groq"}, "'groq' is not provider:model"),
         ({"LLM_TURN_MODELS": "groq:"}, "'groq:' is not provider:model"),
@@ -177,7 +183,11 @@ def test_ollama_is_refused_in_production() -> None:
 
 
 def test_the_scripted_model_needs_the_test_flag_and_never_runs_in_production() -> None:
-    scripted = {"LLM_TURN_MODELS": "scripted:t", "LLM_SUMMARY_MODELS": "scripted:s"}
+    scripted = {
+        "LLM_TURN_MODELS": "scripted:t",
+        "LLM_SUMMARY_MODELS": "scripted:s",
+        "LLM_WARRANT_MODELS": "scripted:w",
+    }
     with pytest.raises(LLMSettingsError, match="TESTING=true"):
         LLMSettings.from_env(env(**scripted))
     with pytest.raises(LLMSettingsError, match="refused with APP_ENV=production"):

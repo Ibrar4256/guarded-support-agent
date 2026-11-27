@@ -1618,3 +1618,22 @@ for free against recordings that already exist, and writing the expected hits be
 turns "it seems to work" into an exact prediction that either holds or doesn't.
 
 **Next:** S2, the warrant step (W01/W02) for the seven social attacks.
+
+### Agent: the warrant purpose, plumbing only (ADR-029 S2a) (2026-11-27)
+
+**What shipped:** a third model purpose, `warrant`, with no behaviour change yet: nothing calls
+it. `LLM_WARRANT_MODELS` is required like the other two lists; migration 0008 lets `llm_calls`
+record warrant calls (its downgrade refuses while any are recorded rather than delete them); the
+eval runner and test pools serve it. The warrant prompt and `warrant_verdict` tool landed here
+because the purpose's fingerprint and context bound are computed from them: the customer's own
+messages, fenced, newest first within the window's budget; the looked-up orders' status and
+delivery date (no amounts); the refund's order. Adding a purpose leaves every committed
+recording valid: a recording key hashes only its own purpose's fingerprint. agent 1,599 tests;
+6 planted bugs, 6 caught.
+
+**What broke:** the context-fit test caught a real budget bug: the separators between fenced
+messages weren't counted, so 400 one-character messages ran 241 tokens past the bound. A plant
+then showed the order-line test was too weak to catch a 7-character shortfall, because Hypothesis
+almost never generates a maximum-length id; the worst case is now tested directly.
+
+**Next:** S2b, the warrant step itself.

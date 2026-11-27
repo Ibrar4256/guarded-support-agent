@@ -708,3 +708,7 @@ lives in `WEEKLY_LOG.md`.
 - **The adversarial denominator moved:** six cases are now decided by C02 and listed as
   code-guarded, so the model-measured set is 13, not 19. ADR-029's S7 targets are stated over
   the baseline's 19 and should be reported that way, with C02's five shown as "stopped by C02".
+- **The warrant purpose isn't checked like the turn's yet (ADR-029 S3).** No tool-call proof is
+  required for warrant models, no verified_models.json entry exists for its fingerprint, and no
+  second provider is listed by default. The adapter can't force a tool call (no `tool_choice`),
+  so a warrant model that answers in text sends the refund to review; S7 measures how often.

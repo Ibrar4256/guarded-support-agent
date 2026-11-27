@@ -37,6 +37,7 @@ from agent.turn.loop import turn_tools
 from agent.turn.memory import OUTCOME_LABELS, SummaryJob, digest_line, summary_messages
 from agent.turn.prompt import MessageEvent, build_messages
 from agent.turn.settings import TurnSettings
+from agent.turn.warrant import WARRANT_MAX_ORDERS, WARRANT_TOOL, order_line, warrant_messages
 
 CHARS_PER_TOKEN = 3
 MAX_ID_CHARS = 128
@@ -64,7 +65,36 @@ class PromptBound:
 
 
 def bound(purpose: Purpose, turn: TurnSettings, llm: LLMSettings) -> PromptBound:
-    return turn_bound(turn, llm) if purpose is Purpose.TURN else summary_bound(turn, llm)
+    bounds = {
+        Purpose.TURN: turn_bound,
+        Purpose.SUMMARY: summary_bound,
+        Purpose.WARRANT: warrant_bound,
+    }
+    return bounds[purpose](turn, llm)
+
+
+def warrant_bound(turn: TurnSettings, llm: LLMSettings) -> PromptBound:
+    """The warrant prompt's frame, the most order lines it lists, the customer's messages
+    fenced within the window's budget, the tool schema, and the output (ADR-029 W01)."""
+    largest_order = largest_warrant_order()
+    orders = [largest_order] * WARRANT_MAX_ORDERS
+    frame = warrant_messages(
+        order_id="x" * MAX_ID_CHARS,
+        orders=orders,
+        customer_messages=[""],
+        nonce=FIXED_NONCE,
+        max_chars=0,
+    )
+    frame_chars = sum(len(m["content"]) for m in frame)
+    return PromptBound(
+        Purpose.WARRANT,
+        {
+            "warrant prompt and orders": tokens(frame_chars),
+            "customer messages": tokens(turn.window_max_chars),
+            "tool schema": tokens(len(canonical_json([WARRANT_TOOL]))),
+            "output": llm.max_output_tokens,
+        },
+    )
 
 
 def turn_bound(turn: TurnSettings, llm: LLMSettings) -> PromptBound:
@@ -146,3 +176,15 @@ def largest_tool_result() -> int:
 
 def canonical_json(value: object) -> str:
     return json.dumps(value, separators=(",", ":"))
+
+
+def largest_warrant_order() -> OwnedOrder:
+    """The order whose warrant line is longest: the longest id, every status, delivered or not."""
+    return max(
+        (
+            OwnedOrder("x" * MAX_ID_CHARS, status, 1, "USD", delivered)
+            for status in FulfillmentStatus
+            for delivered in (SAMPLE_TIME, None)
+        ),
+        key=lambda o: len(order_line(o)),
+    )

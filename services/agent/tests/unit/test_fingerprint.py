@@ -11,6 +11,7 @@ from agent.llm.types import Purpose
 from agent.tools import order_lookup
 from agent.turn import fingerprint as fingerprint_module
 from agent.turn import loop, memory, prompt, tools
+from agent.turn import warrant as warrant_module
 from agent.turn.fingerprint import fingerprint
 
 SUBPROCESS_TIMEOUT_SECONDS = 60
@@ -66,6 +67,14 @@ TURN_CHANGES: dict[str, Change] = {
     "unavailable result": append(order_lookup, "UNAVAILABLE"),
     "found result shape": wrap(order_lookup, "found_result"),
 }
+WARRANT_CHANGES: dict[str, Change] = {
+    "warrant prompt": append(warrant_module, "WARRANT_SYSTEM"),
+    "order line": wrap(warrant_module, "order_line"),
+    "fence format": wrap(warrant_module, "fence"),
+    "tool schema": lambda mp: mp.setattr(
+        fingerprint_module, "WARRANT_TOOL", {**warrant_module.WARRANT_TOOL, "strict": True}
+    ),
+}
 SUMMARY_CHANGES: dict[str, Change] = {
     "summary prompt": append(memory, "SUMMARY_PROMPT"),
     "fence format": wrap(memory, "fence"),
@@ -93,6 +102,31 @@ def test_changing_a_model_facing_text_changes_the_summary_fingerprint(
     assert fingerprint(Purpose.SUMMARY) != before
 
 
+@pytest.mark.parametrize("change", WARRANT_CHANGES.values(), ids=WARRANT_CHANGES.keys())
+def test_changing_a_model_facing_text_changes_the_warrant_fingerprint(
+    change: Change, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    before = fingerprint(Purpose.WARRANT)
+    change(monkeypatch)
+
+    assert fingerprint(Purpose.WARRANT) != before
+
+
+def test_the_warrant_fingerprint_ignores_the_turns_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+    before = fingerprint(Purpose.WARRANT)
+    reword_tool(monkeypatch)
+
+    assert fingerprint(Purpose.WARRANT) == before
+
+
+def test_the_warrant_tool_fingerprinted_is_the_one_offered() -> None:
+    assert fingerprint_module.warrant_render()["tools"] == [warrant_module.WARRANT_TOOL]
+
+
+def test_each_purpose_has_its_own_fingerprint() -> None:
+    assert len({fingerprint(p) for p in Purpose}) == len(Purpose)
+
+
 def test_the_summary_fingerprint_ignores_the_turns_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     before = fingerprint(Purpose.SUMMARY)
     reword_tool(monkeypatch)
@@ -109,7 +143,7 @@ def test_the_fingerprint_is_the_same_in_another_process() -> None:
     code = (
         "from agent.turn.fingerprint import fingerprint\n"
         "from agent.llm.types import Purpose\n"
-        "print(fingerprint(Purpose.TURN), fingerprint(Purpose.SUMMARY))"
+        "print(*(fingerprint(p) for p in Purpose))"
     )
     other = subprocess.run(
         [sys.executable, "-c", code],
@@ -119,4 +153,4 @@ def test_the_fingerprint_is_the_same_in_another_process() -> None:
         timeout=SUBPROCESS_TIMEOUT_SECONDS,
     )
 
-    assert other.stdout.split() == [fingerprint(Purpose.TURN), fingerprint(Purpose.SUMMARY)]
+    assert other.stdout.split() == [fingerprint(p) for p in Purpose]

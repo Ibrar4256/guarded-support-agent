@@ -230,7 +230,7 @@ async def run_case(
                 engine=runtime,
                 settings=settings,
                 pool=ProviderPool(
-                    {Purpose.TURN: [member], Purpose.SUMMARY: [member]},
+                    {purpose: [member] for purpose in Purpose},
                     cooldown=llm.quota_cooldown,
                     alerter=alerter,
                 ),

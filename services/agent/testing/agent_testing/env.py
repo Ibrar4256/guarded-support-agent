@@ -92,11 +92,15 @@ CREDENTIAL_VARS = (
 )
 
 
-def example_llm_env(*, turn_models: str, summary_models: str) -> dict[str, str]:
-    """The model settings with the .env.example values (ADR-023 S3, ADR-025 S1); no keys."""
+def example_llm_env(
+    *, turn_models: str, summary_models: str, warrant_models: str | None = None
+) -> dict[str, str]:
+    """The model settings with the .env.example values (ADR-023 S3, ADR-025 S1); no keys. The
+    warrant check uses the turn's models unless told otherwise."""
     return {
         "LLM_TURN_MODELS": turn_models,
         "LLM_SUMMARY_MODELS": summary_models,
+        "LLM_WARRANT_MODELS": warrant_models if warrant_models is not None else turn_models,
         "LLM_MAX_OUTPUT_TOKENS": "1024",
         "LLM_MAX_OUTPUT_CHARS": "16000",
         "LLM_TEMPERATURE": "0.2",

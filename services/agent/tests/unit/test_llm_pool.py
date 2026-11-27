@@ -38,9 +38,14 @@ def pool(
     alerter: RecordingAlerter,
     summary: Sequence[PoolMember] = (),
 ) -> ProviderPool:
-    """``summary`` defaults to a model that fails the test if it's ever called."""
+    """``summary`` defaults to a model that fails the test if it's ever called; so does the
+    warrant check's."""
     return ProviderPool(
-        {Purpose.TURN: turn, Purpose.SUMMARY: summary or [member("cloudflare")]},
+        {
+            Purpose.TURN: turn,
+            Purpose.SUMMARY: summary or [member("cloudflare")],
+            Purpose.WARRANT: [member("cloudflare")],
+        },
         cooldown=COOLDOWN,
         alerter=alerter,
         monotonic=clock.monotonic,

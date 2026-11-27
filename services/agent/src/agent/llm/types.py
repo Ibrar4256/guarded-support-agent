@@ -26,6 +26,7 @@ class FinishReason(StrEnum):
 class Purpose(StrEnum):
     TURN = "turn"
     SUMMARY = "summary"
+    WARRANT = "warrant"  # ADR-029 W01
 
 
 class UsageCompleteness(StrEnum):

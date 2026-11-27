@@ -29,6 +29,7 @@ from agent.turn import loop
 from agent.turn.loop import Malformed, correction, parse_calls, turn_tools
 from agent.turn.memory import OUTCOME_LABELS, SummaryJob, digest, summary_messages
 from agent.turn.prompt import MessageEvent, build_messages, window
+from agent.turn.warrant import WARRANT_TOOL, warrant_messages
 
 FIXED_NONCE = "0" * 16
 SAMPLE_TIME = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
@@ -42,8 +43,12 @@ SAMPLE_EVENTS = (
 
 
 def fingerprint(purpose: Purpose) -> str:
-    rendered = turn_render() if purpose is Purpose.TURN else summary_render()
-    text = json.dumps(rendered, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    renders = {
+        Purpose.TURN: turn_render,
+        Purpose.SUMMARY: summary_render,
+        Purpose.WARRANT: warrant_render,
+    }
+    text = json.dumps(renders[purpose](), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
@@ -76,6 +81,23 @@ def summary_render() -> dict[str, Any]:
         through=SAMPLE_EVENTS[-1].event_id or 0,
     )
     return {"messages": summary_messages(job, FIXED_NONCE), "tools": []}
+
+
+def warrant_render() -> dict[str, Any]:
+    messages = warrant_messages(
+        order_id="ord_sample",
+        orders=[
+            *sample_orders(),
+            OwnedOrder("ord_none", FulfillmentStatus.SHIPPED, 1, "USD", None),
+        ],
+        customer_messages=["<customer message>", "<another customer message>"],
+        nonce=FIXED_NONCE,
+        max_chars=10**6,
+    )
+    no_orders = warrant_messages(
+        order_id="ord_sample", orders=[], customer_messages=["<m>"], nonce=FIXED_NONCE, max_chars=1
+    )
+    return {"messages": [*messages, no_orders[1]], "tools": [WARRANT_TOOL]}
 
 
 def malformed_problems() -> list[str]:
