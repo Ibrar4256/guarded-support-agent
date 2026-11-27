@@ -21,11 +21,12 @@ from enum import StrEnum
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from agent.alerts import Alerter
-from agent.core.policy import PolicyConfig
+from agent.core.policy import PolicyConfig, RefundProposal, WarrantVerdict
 from agent.db import memory as memory_db
 from agent.db import turns
 from agent.db.claims import worker_transaction
 from agent.db.clock import DATABASE_CLOCK, Clock, IdSource
+from agent.db.proposal import new_action_id
 from agent.llm.pool import ProviderPool
 from agent.llm.prices import PriceTable
 from agent.llm.recording import CallContext, Recorder, RecordingModel
@@ -33,7 +34,7 @@ from agent.llm.types import Purpose
 from agent.tools.contract import LostTurn
 from agent.turn.finish import TryAgainCause, escalate_and_reply, reply_and_complete, reply_and_wait
 from agent.turn.lease import TurnOverrun, hold_lease
-from agent.turn.loop import Escalate, LoopContext, LoopOutcome, Propose, Reply, Wait, run_loop
+from agent.turn.loop import Escalate, LoopContext, Propose, Reply, Wait, run_loop
 from agent.turn.memory import (
     BackgroundTasks,
     SummaryDeps,
@@ -46,6 +47,7 @@ from agent.turn.prompt import MessageEvent, build_messages, new_nonce, window
 from agent.turn.propose import ProposalContext, ProposalStep, run_proposal
 from agent.turn.settings import TurnSettings
 from agent.turn.start import TurnIds, start_turn
+from agent.turn.warrant_check import WarrantCheck, WarrantEnv, WarrantRequest, check_warrant
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +81,20 @@ class TurnDeps:
     clock: Clock = DATABASE_CLOCK
     new_id: IdSource = field(default=uuid.uuid4)
     nonce: Callable[[], str] = field(default=new_nonce)
+    # ADR-029 W01: production asks the warrant model; tests not about it may inject a stub.
+    warrant: WarrantCheck = field(default=check_warrant)
+
+
+@dataclass(frozen=True)
+class Checked:
+    """A proposal with its ``action_id``, built when the loop handed it over, and the warrant
+    verdict bound to it (ADR-029 S2)."""
+
+    proposal: RefundProposal
+    verdict: WarrantVerdict
+
+
+FinishOutcome = Reply | Wait | Escalate | Checked
 
 
 @dataclass(frozen=True)
@@ -136,7 +152,7 @@ def _summary_deps(deps: TurnDeps) -> SummaryDeps:
 
 async def _work(
     deps: TurnDeps, ids: TurnIds, user: str, deadline: float
-) -> tuple[LoopOutcome, SummaryJob | None]:
+) -> tuple[FinishOutcome, SummaryJob | None]:
     settings = deps.settings
     async with worker_transaction(
         deps.engine,
@@ -173,7 +189,22 @@ async def _work(
     context = LoopContext(
         deps.engine, settings, ids, user, model, deadline, deps.monotonic, deps.clock
     )
-    return await run_loop(context, messages), job
+    outcome = await run_loop(context, messages)
+    if isinstance(outcome, Propose):
+        return await _check(deps, ids, user, outcome, deadline), job
+    return outcome, job
+
+
+async def _check(
+    deps: TurnDeps, ids: TurnIds, user: str, outcome: Propose, deadline: float
+) -> Checked:
+    args = outcome.args
+    proposal = RefundProposal(new_action_id(), args.order_id, args.amount_minor, args.currency)
+    env = WarrantEnv(
+        deps.engine, deps.settings, deps.pool, deps.record, deps.prices, deps.monotonic, deps.nonce
+    )
+    request = WarrantRequest(ids.conversation_id, ids.run_id, ids.turn_id, user, proposal, deadline)
+    return Checked(proposal, await deps.warrant(env, request))
 
 
 PROPOSAL_OUTCOMES = {
@@ -184,12 +215,12 @@ PROPOSAL_OUTCOMES = {
 }
 
 
-async def _finish(deps: TurnDeps, ids: TurnIds, user: str, outcome: LoopOutcome) -> TurnOutcome:
-    if isinstance(outcome, Propose):
+async def _finish(deps: TurnDeps, ids: TurnIds, user: str, outcome: FinishOutcome) -> TurnOutcome:
+    if isinstance(outcome, Checked):
         context = ProposalContext(
             deps.engine, deps.settings, deps.policy, deps.alerter, ids, user, deps.clock
         )
-        return PROPOSAL_OUTCOMES[await run_proposal(context, outcome.args)]
+        return PROPOSAL_OUTCOMES[await run_proposal(context, outcome.proposal, outcome.verdict)]
     if isinstance(outcome, Reply):
         await reply_and_complete(deps.engine, deps.settings, ids, outcome.text, clock=deps.clock)
         return TurnOutcome.REPLIED

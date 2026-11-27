@@ -35,6 +35,9 @@ class TurnSettings:
     # proposal waits for a reviewer (ADR-003 expiry).
     proposal_lock_attempts: int
     review_deadline: timedelta
+    # ADR-029 W01: the warrant model's own deadline inside the turn's; with less left, the
+    # check is skipped and the verdict is unavailable (review).
+    warrant_deadline: timedelta
 
     def __post_init__(self) -> None:
         error = TurnSettingsError
@@ -50,6 +53,8 @@ class TurnSettings:
             raise error("TURN_LOCK_TIMEOUT_SECONDS must not exceed TURN_STATEMENT_TIMEOUT_SECONDS")
         if self.statement_timeout >= self.deadline:
             raise error("TURN_STATEMENT_TIMEOUT_SECONDS must be below TURN_DEADLINE_SECONDS")
+        if self.warrant_deadline >= self.deadline:
+            raise error("WARRANT_DEADLINE_SECONDS must be below TURN_DEADLINE_SECONDS")
         if self.message_max_chars >= self.window_max_chars:
             raise error("CUSTOMER_MESSAGE_MAX_CHARS must be below PROMPT_WINDOW_MAX_CHARS")
         # The proposal path runs after the heartbeat stops, so its lock waits must fit in what's
@@ -71,6 +76,11 @@ class TurnSettings:
             raise TurnSettingsError(
                 "LLM_MIN_ATTEMPT_SECONDS must be below SUMMARY_DEADLINE_SECONDS, or no summary "
                 "could start"
+            )
+        if llm.min_attempt >= self.warrant_deadline:
+            raise TurnSettingsError(
+                "LLM_MIN_ATTEMPT_SECONDS must be below WARRANT_DEADLINE_SECONDS, or no warrant "
+                "check could start"
             )
 
     @classmethod
@@ -100,4 +110,5 @@ class TurnSettings:
             summary_deadline=seconds("SUMMARY_DEADLINE_SECONDS"),
             proposal_lock_attempts=count("TURN_PROPOSAL_LOCK_ATTEMPTS"),
             review_deadline=seconds("REVIEW_DEADLINE_SECONDS"),
+            warrant_deadline=seconds("WARRANT_DEADLINE_SECONDS"),
         )

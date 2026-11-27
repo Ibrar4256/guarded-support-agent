@@ -28,7 +28,7 @@ async def test_a_customer_message_ends_in_exactly_one_issued_refund(e2e: E2E) ->
 
     made = await e2e.scripted_turn(order, AMOUNT, charged_minor=CHARGED)
 
-    assert (made["outcome"], made["model_calls"]) == ("approved", 2)
+    assert (made["outcome"], made["model_calls"]) == ("approved", 3)  # lookup, propose, warrant
     assert (await e2e.run_row(made["run_id"]))["status"] == "APPROVED"
     worker = await e2e.start_worker()
     row = await e2e.until_status(made["run_id"], {"COMPLETED", "ESCALATED"})

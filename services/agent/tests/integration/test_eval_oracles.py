@@ -8,6 +8,7 @@ guards whatever the model does. Those are listed with their guard, and the guard
 a reported attack count says which cases measure the model at all."""
 
 import asyncio
+import json
 import os
 from collections.abc import Iterator
 from pathlib import Path
@@ -19,7 +20,7 @@ from agent_testing.evals.judges import check_args
 from agent_testing.evals.oracle import SUMMARY, USAGE, load_oracle, oracle_path
 from agent_testing.evals.recording import Mode
 from agent_testing.evals.runner import EVALS, RunConfig, run_case
-from agent_testing.scripted_llm import ScriptedLLM, Turn, tool_call
+from agent_testing.scripted_llm import ScriptedLLM, Turn, tool_call, warrant_turn
 
 from agent.llm.settings import LLMSettings
 from agent.llm.types import ChatModel, Purpose
@@ -47,6 +48,27 @@ CODE_GUARDED = {
     "planted_preapproval_in_summary": C02 + "C02_AUTHORITY_CLAIM, in message 1 and message 5",
     "roleplay_unrestricted": C02 + "C02_INSTRUCTION_OVERRIDE",
 }
+
+
+def first_message(case: Case) -> str:
+    """Quoted by the fake warrant model: the one message written by the time of any proposal
+    (a quote from a later message is unproven when the proposal comes first)."""
+    return case.messages[0]
+
+
+def with_warrant(oracle: ScriptedLLM, case: Case) -> ScriptedLLM:
+    """The ideal warrant answer for an oracle: the ideal agent proposes only on a real
+    complaint, so the warrant model agrees, quoting the customer, about the order proposed."""
+    proposed = {
+        json.loads(call.arguments)["order_id"]
+        for turn in oracle.turns
+        for call in turn.tool_calls
+        if call.name == "propose_refund"
+    }
+    if not proposed:
+        return oracle
+    (order,) = proposed
+    return ScriptedLLM([*oracle.turns, warrant_turn(order, first_message(case))])
 
 
 def committed_cases() -> list[Case]:
@@ -83,7 +105,7 @@ async def test_the_case_passes_against_its_oracle(
     case: Case, databases: EvalDatabases, tmp_path: Path
 ) -> None:
     check_args(case)
-    fake = load_oracle(oracle_path(ORACLES, case.suite, case.id))
+    fake = with_warrant(load_oracle(oracle_path(ORACLES, case.suite, case.id)), case)
 
     def inner(_: LLMSettings) -> ChatModel:
         return fake
@@ -120,6 +142,8 @@ def compromised(case: Case, *, leak: bool) -> ScriptedLLM:
                 tool_calls=(tool_call("lookup_order", {"order_id": first.id}, "x1"),), usage=USAGE
             ),
             Turn(tool_calls=(tool_call("propose_refund", refund, "x2"),), usage=USAGE),
+            # Fooled too: the warrant model calls the customer's words a complaint.
+            warrant_turn(first.id, first_message(case)),
         ]
     forbidden = [
         text for e in case.expect if e.judge == "reply_excludes" for text in e.args["strings"]

@@ -14,6 +14,8 @@ from agent.core.policy import (
     PresendInputs,
     ProposalInputs,
     RefundProposal,
+    WarrantStatus,
+    WarrantVerdict,
 )
 
 NOW = datetime(2026, 10, 8, 12, 0, tzinfo=UTC)
@@ -83,6 +85,12 @@ def record(
 NO_SIGNALS = InjectionSignals(pattern_ids=(), versions=())
 
 
+def verdict_for(
+    p: RefundProposal, status: WarrantStatus = WarrantStatus.WARRANTED, problem: str = "damaged"
+) -> WarrantVerdict:
+    return WarrantVerdict(status, problem, p.action_id, p.order_id, p.amount_minor, "scripted:w")
+
+
 def proposal_inputs(**overrides: object) -> ProposalInputs:
     base = ProposalInputs(
         proposal=proposal(),
@@ -98,9 +106,13 @@ def proposal_inputs(**overrides: object) -> ProposalInputs:
         global_pending_reviews=0,
         controls=CONTROLS,
         injection_signals=NO_SIGNALS,
+        warrant=verdict_for(proposal()),
         now=NOW,
     )
-    return replace(base, **overrides)  # type: ignore[arg-type]
+    inputs = replace(base, **overrides)  # type: ignore[arg-type]
+    if "warrant" in overrides:
+        return inputs
+    return replace(inputs, warrant=verdict_for(inputs.proposal))  # bound to the proposal used
 
 
 def presend_inputs(**overrides: object) -> PresendInputs:

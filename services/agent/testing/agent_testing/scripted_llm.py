@@ -186,3 +186,27 @@ class ScriptedLLM:
         unused = self._unused_labels()
         if unused:
             raise AssertionError(f"script ended with unused turns: {unused}")
+
+
+def warrant_turn(
+    order_id: str,
+    quote: str,
+    *,
+    problem: str = "damaged",
+    warranted: bool = True,
+    label: str = "warrant",
+) -> Turn:
+    """The warrant model's answer (ADR-029 W01), matched by purpose and repeated: built from
+    what the test knows (the order, the customer's words), never from our prompt's wording."""
+    arguments = {
+        "warranted": warranted,
+        "order_id": order_id,
+        "problem": problem,
+        "complaint_quote": quote,
+    }
+    return Turn(
+        tool_calls=(tool_call("warrant_verdict", arguments, "c_warrant"),),
+        match=lambda view: view.purpose is Purpose.WARRANT,
+        repeat=True,
+        label=label,
+    )

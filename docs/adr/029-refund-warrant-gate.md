@@ -24,6 +24,14 @@ jailbreak warranty question); "disregard/forget … instructions" and `<|…|>` 
 Measured by replay: C02 alone stops 5 of the 12 baseline attacks, 0 resolution false reviews.
 See `agent/core/c02.py` and `tests/unit/test_c02.py`.
 
+**S2 built (2026-11-27), with three implementation choices:** the warrant check runs inside the
+turn's lease and deadline guard, right after the loop hands over the proposal (its network call
+is heartbeated like the loop's); the decision row names the warrant call by run, turn and
+purpose with the model, not by an `llm_calls` id (the call recorder returns none); and
+migration 0008's downgrade folds warrant calls into `turn`, like 0007, because call records
+outlive their runs. Orders shown to the warrant model are capped at ten. See
+`agent/turn/warrant_check.py`, `agent/core/warrant.py` and `tests/integration/test_turn_warrant.py`.
+
 **Extends:** ADR-009 (three new review-only rules, C02, W01 and W02, under its asymmetry principle),
 ADR-022 (a warrant step between the loop's proposal and the proposal transaction), ADR-025 (a
 third model purpose, `warrant`), ADR-026 (a second model in an eval run, a record-missing mode,

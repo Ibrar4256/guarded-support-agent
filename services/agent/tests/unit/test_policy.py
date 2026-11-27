@@ -14,6 +14,7 @@ from policy_fixtures import (
     proposal,
     proposal_inputs,
     record,
+    verdict_for,
 )
 
 from agent.core.capacity import ApprovalSource
@@ -27,6 +28,8 @@ from agent.core.policy import (
     PresendOutcome,
     ReviewDecline,
     RuleId,
+    WarrantStatus,
+    WarrantVerdict,
     evaluate_presend,
     evaluate_proposal,
 )
@@ -312,6 +315,92 @@ def test_versions_alone_never_fire_c02() -> None:
     assert evaluate_proposal(proposal_inputs(injection_signals=signals), CONFIG).outcome is (
         Outcome.AUTO
     )
+
+
+# --- W01 and W02, the warrant gate (ADR-029 S2) ----------------------------------------
+
+
+@pytest.mark.parametrize(
+    "status",
+    [s for s in WarrantStatus if s is not WarrantStatus.WARRANTED],
+    ids=lambda s: s.value,
+)
+def test_w01_sends_anything_but_warranted_to_review(status: WarrantStatus) -> None:
+    result = evaluate_proposal(proposal_inputs(warrant=verdict_for(proposal(), status)), CONFIG)
+
+    assert fired_ids(result) == {RuleId.W01_NOT_WARRANTED}
+    assert result.outcome is Outcome.REVIEW
+
+
+@pytest.mark.parametrize(
+    "other",
+    [
+        {"action_id": "act_other"},
+        {"order_id": "ord_other"},
+        {"amount_minor": 1},
+    ],
+    ids=["action", "order", "amount"],
+)
+def test_w01_fires_on_a_verdict_for_another_proposal(other: dict[str, object]) -> None:
+    bound = replace(verdict_for(proposal()), **other)  # type: ignore[arg-type]
+
+    result = evaluate_proposal(proposal_inputs(warrant=bound), CONFIG)
+
+    assert fired_ids(result) == {RuleId.W01_NOT_WARRANTED}
+
+
+def test_w02_sends_not_received_on_a_delivered_order_to_review() -> None:
+    warrant = verdict_for(proposal(), problem="not_received")
+
+    result = evaluate_proposal(proposal_inputs(warrant=warrant), CONFIG)
+
+    assert fired_ids(result) == {RuleId.W02_NOT_RECEIVED_BUT_DELIVERED}
+    assert result.outcome is Outcome.REVIEW
+
+
+def test_w02_ignores_not_received_on_an_order_not_delivered() -> None:
+    shipped = replace(ORDER, status=FulfillmentStatus.SHIPPED, delivered_at=None)
+    warrant = verdict_for(proposal(), problem="not_received")
+
+    result = evaluate_proposal(proposal_inputs(order=shipped, warrant=warrant), CONFIG)
+
+    assert RuleId.W02_NOT_RECEIVED_BUT_DELIVERED not in fired_ids(result)
+
+
+def test_w01_never_lowers_an_out_of_policy_proposal() -> None:
+    unavailable = verdict_for(proposal(), WarrantStatus.UNAVAILABLE)
+
+    result = evaluate_proposal(
+        proposal_inputs(order=replace(ORDER, chargeback_open=True), warrant=unavailable), CONFIG
+    )
+
+    assert result.outcome is Outcome.OUT_OF_POLICY
+
+
+def test_a_warrant_outage_with_a_full_queue_goes_to_a_person_not_approved() -> None:
+    """ADR-029 S3a: unavailable sends to review; R19 full sends it on to a person."""
+    unavailable = verdict_for(proposal(), WarrantStatus.UNAVAILABLE)
+
+    result = evaluate_proposal(
+        proposal_inputs(warrant=unavailable, global_pending_reviews=50), CONFIG
+    )
+
+    assert fired_ids(result) == {
+        RuleId.W01_NOT_WARRANTED,
+        RuleId.R19_GLOBAL_REVIEW_QUEUE_CAP,
+    }
+    assert result.outcome is Outcome.OUT_OF_POLICY
+
+
+def test_a_verdict_carries_no_customer_text() -> None:
+    assert {f for f in WarrantVerdict.__dataclass_fields__} == {
+        "status",
+        "problem",
+        "action_id",
+        "order_id",
+        "amount_minor",
+        "model",
+    }
 
 
 # --- fail closed ---------------------------------------------------------------------

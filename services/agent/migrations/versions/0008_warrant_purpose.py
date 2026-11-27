@@ -1,7 +1,8 @@
 """llm_calls purpose 'warrant': the warrant check's model calls (ADR-029 W01)
 
-Written by hand. The old CHECK can't hold warrant calls, so downgrading refuses while any are
-recorded rather than delete cost and latency records.
+Written by hand. Downgrading folds warrant calls into 'turn', like 0007's fold: they were made
+during a turn (they carry its turn id), and spend totals stay whole. Call records outlive their
+runs by design, so refusing while any exist would block every later downgrade.
 
 Revision ID: 0008
 Revises: 0007
@@ -32,15 +33,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute(
-        """
-        DO $$
-        BEGIN
-            IF EXISTS (SELECT 1 FROM llm_calls WHERE purpose = 'warrant') THEN
-                RAISE EXCEPTION 'llm_calls holds warrant calls; the downgrade would drop them';
-            END IF;
-        END $$
-        """
-    )
+    op.execute("UPDATE llm_calls SET purpose = 'turn' WHERE purpose = 'warrant'")
     op.drop_constraint(op.f(NAME), "llm_calls", type_="check")
     op.create_check_constraint(op.f(NAME), "llm_calls", _check(BEFORE))

@@ -33,6 +33,7 @@ from agent.core.policy import (
     RefundProposal,
     ReviewDecline,
     RuleId,
+    WarrantVerdict,
 )
 from agent.db.clock import stamped
 from agent.db.presend import (
@@ -91,6 +92,7 @@ async def load_proposal_inputs(
     proposal: RefundProposal,
     breaker_window: timedelta,
     signal_window: timedelta,
+    warrant: WarrantVerdict,
     at: datetime | None,
 ) -> ProposalInputs:
     """Database reads only, under the customer lock. Raises ``MissingInputError`` (fail closed).
@@ -112,6 +114,7 @@ async def load_proposal_inputs(
         global_pending_reviews=await _count_reviews(conn, None),
         controls=await load_controls(conn),
         injection_signals=await load_injection_signals(conn, run_id, now, signal_window),
+        warrant=warrant,
         now=now,
     )
 
@@ -236,6 +239,7 @@ def snapshots(
         "global_pending_reviews": inputs.global_pending_reviews,
         "controls": asdict(inputs.controls),
         "injection_signals": asdict(inputs.injection_signals),
+        "warrant": asdict(inputs.warrant),  # status, problem, the proposal it judged, model
         "now": now,
     }
     return jsonable(asdict(config)), jsonable(input_snapshot)

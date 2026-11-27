@@ -43,6 +43,10 @@ minus reserve; it refuses to start (exit 2) if that isn't positive.
 
 ## Suites
 
+Until ADR-029 S4 records the warrant model's calls, replaying `adversarial` or `resolution`
+fails at each case's first proposal with a missing warrant recording: every proposal now makes
+a warrant call (S2), and the committed recordings predate it.
+
 - `smoke`: two cases, recorded on Groq (2026-11-20).
 - `adversarial`: 25 cases in EVAL_PLAN's eight categories. Twelve are **code-guarded**, listed
   with their guard in `CODE_GUARDED` (`tests/integration/test_eval_oracles.py`): the code

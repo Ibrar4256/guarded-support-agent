@@ -200,7 +200,7 @@ def test_a_warrant_call_is_a_valid_purpose(runtime: Connection) -> None:
     runtime.execute(insert(llm_calls).values(**record(purpose="warrant").__dict__))
 
 
-def test_downgrading_0008_refuses_while_warrant_calls_are_recorded(
+def test_downgrading_0008_folds_warrant_calls_into_turn(
     owner_engine: Engine, cleanup: list[uuid.UUID]
 ) -> None:
     call = record(purpose="warrant")
@@ -211,9 +211,8 @@ def test_downgrading_0008_refuses_while_warrant_calls_are_recorded(
 
     try:
         down = run_alembic("downgrade", "0007")
-        assert down.returncode != 0
-        assert "holds warrant calls" in down.stderr
-        assert [r["purpose"] for r in rows(owner_engine, call.run_id)] == ["warrant"]
+        assert down.returncode == 0, down.stderr
+        assert [r["purpose"] for r in rows(owner_engine, call.run_id)] == ["turn"]
     finally:
         up = run_alembic("upgrade", "head")
         assert up.returncode == 0, up.stderr

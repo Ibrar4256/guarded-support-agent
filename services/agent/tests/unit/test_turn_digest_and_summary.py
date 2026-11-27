@@ -33,6 +33,7 @@ SETTINGS = TurnSettings(
     summary_deadline=timedelta(seconds=30),
     proposal_lock_attempts=3,
     review_deadline=timedelta(days=1),
+    warrant_deadline=timedelta(seconds=8),
 )
 RUN = uuid.UUID("12345678-0000-0000-0000-000000000000")
 WHEN = datetime(2026, 11, 2, 9, 30, tzinfo=UTC)

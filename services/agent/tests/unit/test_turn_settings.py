@@ -25,6 +25,7 @@ ENV = {
     "SUMMARY_DEADLINE_SECONDS": "30",
     "TURN_PROPOSAL_LOCK_ATTEMPTS": "3",
     "REVIEW_DEADLINE_SECONDS": "86400",
+    "WARRANT_DEADLINE_SECONDS": "8",
 }
 
 
@@ -46,6 +47,8 @@ def test_the_defaults_load() -> None:
         ({"TURN_DEADLINE_SECONDS": "soon"}, "number of seconds"),
         ({"TURN_PROPOSAL_LOCK_ATTEMPTS": "10"}, "must be below TURN_LEASE_SECONDS"),
         ({"REVIEW_DEADLINE_SECONDS": "0"}, "review_deadline must be positive"),
+        ({"WARRANT_DEADLINE_SECONDS": "0"}, "warrant_deadline must be positive"),
+        ({"WARRANT_DEADLINE_SECONDS": "60"}, "WARRANT_DEADLINE_SECONDS must be below"),
     ],
 )
 def test_bad_settings_are_refused(changes: dict[str, Any], message: str) -> None:
@@ -53,7 +56,7 @@ def test_bad_settings_are_refused(changes: dict[str, Any], message: str) -> None
         TurnSettings.from_env({**ENV, **changes})
 
 
-def test_a_model_attempt_must_fit_in_the_turn_and_the_summary() -> None:
+def test_a_model_attempt_must_fit_in_the_turn_the_summary_and_the_warrant() -> None:
     turn = TurnSettings.from_env(ENV)
 
     turn.check_against(llm_settings())  # 5 s minimum attempt fits 60 s and 30 s
@@ -61,3 +64,5 @@ def test_a_model_attempt_must_fit_in_the_turn_and_the_summary() -> None:
         turn.check_against(llm_settings(min_attempt=timedelta(seconds=60)))
     with pytest.raises(TurnSettingsError, match="SUMMARY_DEADLINE_SECONDS"):
         turn.check_against(llm_settings(min_attempt=timedelta(seconds=30)))
+    with pytest.raises(TurnSettingsError, match="WARRANT_DEADLINE_SECONDS"):
+        turn.check_against(llm_settings(min_attempt=timedelta(seconds=8)))

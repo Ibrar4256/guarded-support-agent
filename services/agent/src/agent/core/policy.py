@@ -63,6 +63,8 @@ class RuleId(StrEnum):
     R18_STICKY_ESCALATION = "R18_STICKY_ESCALATION"
     R19_GLOBAL_REVIEW_QUEUE_CAP = "R19_GLOBAL_REVIEW_QUEUE_CAP"
     C02_INJECTION_SIGNAL = "C02_INJECTION_SIGNAL"
+    W01_NOT_WARRANTED = "W01_NOT_WARRANTED"
+    W02_NOT_RECEIVED_BUT_DELIVERED = "W02_NOT_RECEIVED_BUT_DELIVERED"
 
 
 class FulfillmentStatus(StrEnum):
@@ -172,6 +174,39 @@ class InjectionSignals:
     versions: tuple[str, ...]
 
 
+class WarrantStatus(StrEnum):
+    """The warrant check's verdict on one proposal (ADR-029 W01)."""
+
+    WARRANTED = "warranted"
+    NOT_WARRANTED = "not_warranted"
+    OTHER_ORDER = "other_order"
+    UNPROVEN_QUOTE = "unproven_quote"
+    UNAVAILABLE = "unavailable"
+
+
+@dataclass(frozen=True, slots=True)
+class WarrantVerdict:
+    """Bound to the proposal it judged: W01 passes only for that ``action_id``, order and
+    amount, so a verdict can't be applied to another proposal. Carries no customer text."""
+
+    status: WarrantStatus
+    problem: str | None
+    action_id: str
+    order_id: str
+    amount_minor: int
+    model: str | None
+
+    def judges(self, proposal: "RefundProposal") -> bool:
+        return (self.action_id, self.order_id, self.amount_minor) == (
+            proposal.action_id,
+            proposal.order_id,
+            proposal.amount_minor,
+        )
+
+
+NOT_RECEIVED = "not_received"
+
+
 @dataclass(frozen=True, slots=True)
 class ProposalInputs:
     """Everything proposal-time rules read. Counts are computed by the database."""
@@ -189,6 +224,7 @@ class ProposalInputs:
     global_pending_reviews: int
     controls: PolicyControls
     injection_signals: InjectionSignals
+    warrant: WarrantVerdict
     now: datetime
 
 
@@ -431,6 +467,21 @@ def evaluate_proposal(inputs: ProposalInputs, config: PolicyConfig) -> ProposalR
         (
             RuleId.C02_INJECTION_SIGNAL,
             lambda: not inputs.injection_signals.pattern_ids,
+            Outcome.REVIEW,
+        ),
+        (
+            RuleId.W01_NOT_WARRANTED,
+            lambda: inputs.warrant.status is WarrantStatus.WARRANTED and inputs.warrant.judges(p),
+            Outcome.REVIEW,
+        ),
+        (
+            RuleId.W02_NOT_RECEIVED_BUT_DELIVERED,
+            lambda: (
+                not (
+                    inputs.warrant.problem == NOT_RECEIVED
+                    and order.status is FulfillmentStatus.DELIVERED
+                )
+            ),
             Outcome.REVIEW,
         ),
     ]

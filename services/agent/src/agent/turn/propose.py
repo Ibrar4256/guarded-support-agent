@@ -33,6 +33,7 @@ from agent.core.policy import (
     PolicyConfig,
     RefundProposal,
     RuleId,
+    WarrantVerdict,
     evaluate_proposal,
 )
 from agent.core.replies import ReplyTemplate
@@ -46,7 +47,6 @@ from agent.tools.contract import LostTurn
 from agent.turn.finish import TryAgainCause, reply_and_wait
 from agent.turn.settings import TurnSettings
 from agent.turn.start import TurnIds
-from agent.turn.tools import ProposeRefundArgs
 from agent.worker.presend import is_lock_timeout
 
 logger = logging.getLogger(__name__)
@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 BREAKER_TRIPPED_ALERT = "policy_breaker_tripped"
 FAIL_CLOSED_ALERT = "proposal_fail_closed_escalated"
 NOT_RECORDED_ALERT = "proposal_failure_not_recorded"
+WARRANT_MISMATCH_ALERT = "warrant_verdict_for_another_proposal"
 
 
 class ProposalStep(StrEnum):
@@ -88,16 +89,16 @@ class _FailClosed(Exception):
         self.rule_ids = rule_ids
 
 
-async def run_proposal(ctx: ProposalContext, args: ProposeRefundArgs) -> ProposalStep:
-    proposal = RefundProposal(
-        action_id=db.new_action_id(),
-        order_id=args.order_id,
-        amount_minor=args.amount_minor,
-        currency=args.currency,
-    )
+async def run_proposal(
+    ctx: ProposalContext, proposal: RefundProposal, verdict: WarrantVerdict
+) -> ProposalStep:
+    """``proposal`` already has its ``action_id`` (assigned at hand-over, ADR-029 S2) and
+    ``verdict`` is the warrant check bound to it."""
+    if not verdict.judges(proposal):  # a bug: W01 fires on it too, and someone should know
+        ctx.alerter.alert(WARRANT_MISMATCH_ALERT, run_id=ctx.ids.run_id)
     for attempt in range(1, ctx.settings.proposal_lock_attempts + 1):
         try:
-            return await _evaluate_and_move(ctx, proposal)
+            return await _evaluate_and_move(ctx, proposal, verdict)
         except _FailClosed as failed:
             return await _fail_closed(ctx, proposal, failed)
         except DBAPIError as exc:
@@ -116,7 +117,9 @@ async def run_proposal(ctx: ProposalContext, args: ProposeRefundArgs) -> Proposa
     return ProposalStep.TRY_AGAIN
 
 
-async def _evaluate_and_move(ctx: ProposalContext, proposal: RefundProposal) -> ProposalStep:
+async def _evaluate_and_move(
+    ctx: ProposalContext, proposal: RefundProposal, verdict: WarrantVerdict
+) -> ProposalStep:
     ids = ctx.ids
     async with worker_transaction(
         ctx.engine,
@@ -135,6 +138,7 @@ async def _evaluate_and_move(ctx: ProposalContext, proposal: RefundProposal) -> 
                 proposal=proposal,
                 breaker_window=ctx.policy.breaker_window,
                 signal_window=ctx.policy.per_customer_window,
+                warrant=verdict,
                 at=at,
             )
         except MissingInputError as exc:

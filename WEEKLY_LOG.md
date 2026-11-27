@@ -1637,3 +1637,32 @@ then showed the order-line test was too weak to catch a 7-character shortfall, b
 almost never generates a maximum-length id; the worst case is now tested directly.
 
 **Next:** S2b, the warrant step itself.
+
+### Agent: the warrant step, W01 and W02 (ADR-029 S2b) (2026-11-27)
+
+**What shipped:** the proposal and its `action_id` are now built when the loop hands it over,
+and the warrant check runs before the proposal transaction: a short read with no customer lock,
+one call to the `warrant` purpose with its own deadline (`WARRANT_DEADLINE_SECONDS`, skipped if
+the turn has less left), a strict parse of exactly one `warrant_verdict` call, and checks in
+code: this order, a problem other than none, and a quote the customer actually wrote. The
+verdict is bound to the proposal (action, order, amount); W01 sends anything but "warranted" to
+review, W02 sends "not received" on a delivered order to review, and a verdict for another
+proposal fires W01 and alerts. Every failure is "unavailable" → review, never an approval.
+The e2e refund path now runs the real check. agent 1,642 tests, e2e 19; 8 planted bugs caught.
+
+**What broke:** my fake warrant model for the compromised-model check quoted the case's longest
+message, which in one case hadn't been written yet when the proposal came; the provenance check
+rejected it correctly, and the fake now quotes the first message. Migration 0008's downgrade
+refusal (S2a) collided with how call records work: they outlive their runs, so leftover warrant
+rows blocked every older migration test; it now folds them into `turn`, as 0007 does. One test
+failed for the right reason but said so badly (a whole-verdict comparison hid "a call was
+tried"); it now asserts no call first.
+
+**What I learned:** an approval now needs two components to agree, and the one outside the
+attacked context sees only what the customer wrote. Its weak point is honest too: a customer
+who writes one false complaint sentence passes, by design.
+
+**Next:** S4's record-missing mode and one Groq run of the warrant calls only, then the replay
+measurement against both baselines. Until then the committed suites can't replay: every
+proposal now makes a warrant call with no recording.
+

@@ -10,9 +10,11 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, ValidationError
 
+from agent.core.refund_outcome import strict_json
 from agent.db.order_lookup import OwnedOrder
+from agent.llm.types import ModelResponse
 from agent.tools.contract import ToolArgs
 from agent.turn.prompt import fence
 from agent.turn.tools import tool_schema
@@ -107,3 +109,27 @@ def warrant_messages(
         f"The customer's messages, newest first:\n\n{blocks}"
     )
     return [{"role": "system", "content": WARRANT_SYSTEM}, {"role": "user", "content": body}]
+
+
+class WarrantMalformed(ValueError):
+    """The warrant model's answer isn't exactly one valid ``warrant_verdict`` call. The message
+    never repeats the answer: it may hold customer text."""
+
+
+def parse_verdict(response: ModelResponse) -> WarrantVerdictArgs:
+    """Strict, like ADR-012's refund responses: one call, the right name, no duplicate keys,
+    no extra keys, the exact types and one of the listed problem kinds."""
+    if len(response.tool_calls) != 1:
+        raise WarrantMalformed(f"{len(response.tool_calls)} tool calls, not one")
+    (call,) = response.tool_calls
+    if call.name != WARRANT_TOOL["function"]["name"]:
+        raise WarrantMalformed("a call to another tool")
+    try:
+        data = strict_json(call.arguments.encode("utf-8"))
+    except ValueError:
+        raise WarrantMalformed("arguments aren't strict JSON") from None
+    try:
+        return WarrantVerdictArgs.model_validate(data)
+    except ValidationError as invalid:
+        kinds = sorted({str(e["type"]) for e in invalid.errors()})
+        raise WarrantMalformed(f"invalid arguments: {', '.join(kinds)}") from None

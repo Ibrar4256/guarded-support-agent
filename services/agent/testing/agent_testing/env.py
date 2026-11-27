@@ -77,6 +77,7 @@ def example_turn_env(
         "SUMMARY_DEADLINE_SECONDS": "30",
         "TURN_PROPOSAL_LOCK_ATTEMPTS": "3",
         "REVIEW_DEADLINE_SECONDS": "86400",
+        "WARRANT_DEADLINE_SECONDS": "8",
     }
 
 

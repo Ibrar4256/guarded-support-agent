@@ -10,8 +10,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from agent.alerts import Severity
+from agent.core.policy import WarrantStatus, WarrantVerdict
 from agent.core.refund_outcome import HttpResult
 from agent.refund_client.models import RefundPayload
+from agent.turn.warrant_check import WarrantEnv, WarrantRequest, bound_verdict
 
 
 def config_result(
@@ -114,3 +116,11 @@ class RecordingAlerter:
 
     def kinds(self, severity: Severity) -> list[str]:
         return [r.kind for r in self.raised if r.severity is severity]
+
+
+async def approving_warrant(env: WarrantEnv, request: WarrantRequest) -> WarrantVerdict:
+    """The warrant check agreeing, bound to the proposal, for tests that aren't about it
+    (ADR-029 W01). Tests of the check itself use the real one with a scripted model."""
+    return bound_verdict(
+        request.proposal, WarrantStatus.WARRANTED, problem="damaged", model="scripted:warrant"
+    )

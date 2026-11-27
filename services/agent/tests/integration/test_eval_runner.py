@@ -22,7 +22,7 @@ from agent_testing.evals.invariant import timestamp_columns
 from agent_testing.evals.judges import check_args
 from agent_testing.evals.recording import Mode
 from agent_testing.evals.runner import CaseRunResult, RunConfig, run_case
-from agent_testing.scripted_llm import ScriptedLLM, Turn, tool_call
+from agent_testing.scripted_llm import ScriptedLLM, Turn, tool_call, warrant_turn
 from sqlalchemy import Connection, insert
 
 from agent.db.schema import customers, llm_calls
@@ -89,6 +89,9 @@ def lookup_then(final: Turn) -> ScriptedLLM:
             replace(
                 final, match=lambda v: v.purpose is Purpose.TURN and v.has_tool_results, repeat=True
             ),
+            # The warrant model agrees; every message here names the order, so the quote is the
+            # customer's own words (ADR-029 W01 checks only that, and the order).
+            warrant_turn(ORDER, ORDER),
         ]
     )
 

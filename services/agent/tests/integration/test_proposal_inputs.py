@@ -17,7 +17,7 @@ from worker_world import World
 
 from agent.core.capacity import ApprovalSource
 from agent.core.lifecycle import RefundOutcome, RunStatus
-from agent.core.policy import ProposalInputs, RefundProposal
+from agent.core.policy import ProposalInputs, RefundProposal, WarrantStatus, WarrantVerdict
 from agent.db import proposal as proposal_db
 from agent.db.claims import worker_transaction
 from agent.db.schema import decisions, events
@@ -83,13 +83,17 @@ async def read(
     async with worker_transaction(
         engine, statement_timeout=timedelta(seconds=5), lock_timeout=timedelta(seconds=2)
     ) as conn:
+        proposal = RefundProposal(action(), order, 1_000, "USD")
         return await proposal_db.load_proposal_inputs(
             conn,
             run_id=run,
             user=world.user,
-            proposal=RefundProposal(action(), order, 1_000, "USD"),
+            proposal=proposal,
             breaker_window=BREAKER_WINDOW,
             signal_window=SIGNAL_WINDOW,
+            warrant=WarrantVerdict(
+                WarrantStatus.WARRANTED, "damaged", proposal.action_id, order, 1_000, "scripted:w"
+            ),
             at=at,
         )
 

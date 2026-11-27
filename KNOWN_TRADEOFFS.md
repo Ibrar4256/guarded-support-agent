@@ -712,3 +712,12 @@ lives in `WEEKLY_LOG.md`.
   required for warrant models, no verified_models.json entry exists for its fingerprint, and no
   second provider is listed by default. The adapter can't force a tool call (no `tool_choice`),
   so a warrant model that answers in text sends the refund to review; S7 measures how often.
+- **The committed eval suites don't replay until S4.** Every proposal now makes a warrant call,
+  and no recording holds one; S4's record-missing mode records only those keys (one Groq run),
+  after which the warrant gate is measured against both baselines.
+- **The warrant step reads every customer message of the conversation,** not only those the
+  budget will show, so provenance can match any of them; a very long conversation makes that
+  read longer. It's one read per proposal, and R17 caps proposals at five a day.
+- **The decision row doesn't hold the warrant call's `llm_calls` id** (ADR-029 asked for it):
+  the recorder returns no id. The call is found by run, turn and purpose `warrant`.
+

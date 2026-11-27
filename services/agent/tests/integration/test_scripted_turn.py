@@ -34,16 +34,16 @@ async def test_a_scripted_turn_proposes_and_policy_approves_with_every_call_reco
         user_id=world.user,
     )
 
-    assert (made["outcome"], made["model_calls"], made["order_id"]) == ("approved", 2, order)
+    assert (made["outcome"], made["model_calls"], made["order_id"]) == ("approved", 3, order)
     run = uuid.UUID(str(made["run_id"]))
     row = world.row(run)
     assert row.status == RunStatus.APPROVED and row.approval_source == ApprovalSource.POLICY
     assert row.action_id == made["action_id"] and row.idempotency_key
     with world.owner.connect() as connection:
         purposes = connection.execute(
-            select(llm_calls.c.purpose).where(llm_calls.c.run_id == run)
+            select(llm_calls.c.purpose).where(llm_calls.c.run_id == run).order_by(llm_calls.c.id)
         ).scalars()
-        assert list(purposes) == ["turn", "turn"]
+        assert list(purposes) == ["turn", "turn", "warrant"]  # the warrant check (ADR-029)
 
 
 async def test_a_scripted_turn_on_a_shipped_order_is_escalated_by_policy(world: World) -> None:

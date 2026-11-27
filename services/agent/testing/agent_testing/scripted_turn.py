@@ -36,7 +36,7 @@ from agent.llm.types import Purpose
 from agent.policy_settings import policy_config_from_env
 from agent.turn.run import TurnDeps, run_turn
 from agent.turn.settings import TurnSettings
-from agent_testing.scripted_llm import ScriptedLLM, Turn, tool_call
+from agent_testing.scripted_llm import ScriptedLLM, Turn, tool_call, warrant_turn
 
 CURRENCY = "USD"
 DELIVERED_DAYS_AGO = 3
@@ -62,6 +62,7 @@ def script(order_id: str, amount_minor: int) -> ScriptedLLM:
                 ),
                 match=lambda view: view.has_tool_results,
             ),
+            warrant_turn(order_id, "arrived damaged"),
         ]
     )
 

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from agent.llm.recording import CallRecord
     from agent.llm.types import ChatModel
     from agent.turn.run import TurnDeps
+    from agent.turn.warrant_check import WarrantCheck
 
 SETTINGS = TurnSettings(
     max_model_calls=6,
@@ -32,6 +33,7 @@ SETTINGS = TurnSettings(
     summary_deadline=timedelta(seconds=30),
     proposal_lock_attempts=3,
     review_deadline=timedelta(days=1),
+    warrant_deadline=timedelta(seconds=8),
 )
 FAST = TurnSettings(
     **{
@@ -41,6 +43,7 @@ FAST = TurnSettings(
         "statement_timeout": timedelta(seconds=0.5),
         "lock_timeout": timedelta(seconds=0.3),
         "deadline": timedelta(seconds=1),
+        "warrant_deadline": timedelta(seconds=0.5),
         "proposal_lock_attempts": 1,
     }
 )
@@ -55,10 +58,13 @@ def turn_deps(
     settings: TurnSettings = SETTINGS,
     monotonic: "Callable[[], float] | None" = None,
     policy: "PolicyConfig | None" = None,
+    warrant: "WarrantCheck | None" = None,
 ) -> "TurnDeps":
-    """A turn wired to one scripted model, recording calls into ``records``."""
+    """A turn wired to one scripted model, recording calls into ``records``. The warrant check
+    approves unless a test passes its own (``check_warrant`` runs the real one)."""
     import time
 
+    from agent_testing.fakes import approving_warrant
     from worker_harness import POLICY
 
     from agent.llm.pool import PoolMember, ProviderPool
@@ -86,4 +92,5 @@ def turn_deps(
         alerter=alerter,
         policy=policy or POLICY,
         monotonic=clock,
+        warrant=warrant or approving_warrant,
     )
